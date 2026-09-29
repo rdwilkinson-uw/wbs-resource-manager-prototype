@@ -128,6 +128,28 @@ const TABS=[["modules","Modules Details"],["alloc","Module Allocation"],["sessio
 let tab="modules", selModule=MODULES[0].code, selDept=DEPTS[0].id, selStaff=STAFF[0].id, selNtCat=NT_CATS[0],
  selCourse=COURSES[0].code, selQuery=null, selGroup=STAFF_GROUPS[0].id;
 let staffMode="list"; let groupDeleteMsg="";
+let moduleMode="list"; let moduleDeleteMsg="";
+
+function blankSlots(){ const s={}; TAUGHT.forEach(t=>s[t.id]={total:0,alloc:{}}); return s; }
+function nextOccLetter(m){
+ const used=m.occs.map(o=>o.occ);
+ for(const c of "ABCDEFGHIJ"){ if(!used.includes(c)) return c; }
+ return "X"+(m.occs.length+1);
+}
+function setSlotTotal(code,occ,catId,val){
+ const o=mod(code).occs.find(x=>x.occ===occ);
+ o.slots[catId].total=Math.max(0,parseInt(val)||0);
+ renderAll();
+}
+function setStaffAlloc(code,occ,catId,staffId,val){
+ const o=mod(code).occs.find(x=>x.occ===occ);
+ o.slots[catId].alloc[staffId]=Math.max(0,parseInt(val)||0);
+ renderAll();
+}
+function removeStaffFromCategory(code,catId,staffId){
+ mod(code).occs.forEach(o=>{ delete o.slots[catId].alloc[staffId]; });
+ renderAll();
+}
 let role="owner"; // "owner" | "head:<deptId>" | "staff:<staffId>"
 const YEARS=["2024-25","2025-26","2026-27","2027-28"];
 let selYear="2026-27";
@@ -153,7 +175,7 @@ function renderRoleBar(){
 const staffName=id=> (STAFF.find(s=>s.id===id)||{}).name || id;
 const mod=code=> MODULES.find(m=>m.code===code);
 function switchRole(newRole){
- role=newRole; tab=visibleTabIds()[0]; selQuery=null; staffMode="list"; groupDeleteMsg="";
+ role=newRole; tab=visibleTabIds()[0]; selQuery=null; staffMode="list"; groupDeleteMsg=""; moduleMode="list"; moduleDeleteMsg="";
  if(role.startsWith("head:")) selGroup=roleDept();
  renderAll();
 }
@@ -164,66 +186,167 @@ function renderTabs(){
  const el=document.getElementById("tabs"); el.innerHTML="";
  const visible=visibleTabIds();
  TABS.filter(([k])=>visible.includes(k)).forEach(([k,l])=>{const b=document.createElement("button");b.textContent=l;if(tab===k)b.className="active";
-  b.onclick=()=>{tab=k;selQuery=null;staffMode="list";groupDeleteMsg="";renderAll();}; el.appendChild(b);});
+  b.onclick=()=>{tab=k;selQuery=null;staffMode="list";groupDeleteMsg="";moduleMode="list";moduleDeleteMsg="";renderAll();}; el.appendChild(b);});
 }
 function selectHTML(id,options,selected,disabled){
  return `<select id="${id}" ${disabled?"disabled":""}>${options.map(o=>`<option value="${o.v}" ${o.v===selected?"selected":""}>${o.l}</option>`).join("")}</select>`;
 }
 
-function renderModules(){
+function renderModulesNewForm(){
+ let h=`<h2>New Module</h2>
+ <div class="field-box">
+  <div><label>Code</label><input id="nmCode" type="text" style="width:100px" placeholder="e.g. MGX3100"></div>
+  <div style="flex:2"><label>Title</label><input id="nmTitle" type="text" style="width:100%"></div>
+  <div><label>Subject</label>${selectHTML("nmDept",DEPTS.map(d=>({v:d.id,l:d.name})),DEPTS[0].id)}</div>
+  <div><label>Credit</label><input id="nmCredit" type="text" value="15" style="width:50px"></div>
+  <div><label>Leader</label>${selectHTML("nmLeader",STAFF.map(s=>({v:s.id,l:s.name})),STAFF[0].id)}</div>
+  <div><label>Moderator</label>${selectHTML("nmModerator",STAFF.map(s=>({v:s.id,l:s.name})),STAFF[0].id)}</div>
+ </div>
+ <div class="row"><button class="btn" id="btnCreateModule">Create Module</button><button class="btn" id="btnCancelModule">Cancel</button></div>
+ <p class="note">A new module starts with no occurrences \u2014 add one with "New Occurrence" once it's created, then allocate staff and add sessions against that occurrence.</p>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("btnCancelModule").onclick=()=>{moduleMode="list";renderAll();};
+ document.getElementById("btnCreateModule").onclick=()=>{
+  const code=(document.getElementById("nmCode").value.trim()||("NEW"+(MODULES.length+1))).toUpperCase();
+  if(MODULES.some(m=>m.code===code)){ alert("That module code is already in use."); return; }
+  MODULES.push({code,title:document.getElementById("nmTitle").value.trim()||"Untitled module",
+   dept:document.getElementById("nmDept").value,
+   credit:parseInt(document.getElementById("nmCredit").value)||0,
+   leader:document.getElementById("nmLeader").value,
+   moderator:document.getElementById("nmModerator").value,
+   occs:[]});
+  selModule=code; moduleMode="list"; renderAll();
+ };
+}
+
+function renderModulesList(){
  const m=mod(selModule);
  let h=`<h2>Module Details</h2><div class="row">
   ${selectHTML("modSel",MODULES.map(x=>({v:x.code,l:x.code+": "+x.title})),selModule)}
-  <button class="btn">Select</button><button class="btn">Update</button>
+  <button class="btn">Select</button><button class="btn" id="btnUpdateModule">Update</button>
   <span style="flex:1"></span>
-  <button class="btn">New Module</button><button class="btn">New Occurrence</button><button class="btn" id="goAlloc">Allocate Staff</button>
-  <button class="btn">Delete Module</button><button class="btn">Delete All Occurrences</button><button class="btn" id="goSess">Add Sessions</button>
+  <button class="btn" id="btnNewModule">New Module</button><button class="btn" id="btnNewOcc">New Occurrence</button><button class="btn" id="goAlloc">Allocate Staff</button>
+  <button class="btn" id="btnDeleteModule">Delete Module</button><button class="btn" id="btnDeleteAllOcc">Delete All Occurrences</button><button class="btn" id="goSess">Add Sessions</button>
  </div>
+ ${moduleDeleteMsg?`<p class="note" style="color:#B00020">${moduleDeleteMsg}</p>`:""}
  <div class="field-box">
-  <div><label>Code</label><input type="text" value="${m.code}"></div>
-  <div><label>Subject</label>${selectHTML("",DEPTS.map(d=>({v:d.id,l:d.name})),m.dept)}</div>
-  <div><label>Credit</label><input type="text" value="${m.credit}" style="width:50px"></div>
-  <div><label>Leader</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),m.leader)}</div>
-  <div style="flex:2"><label>Title</label><input type="text" value="${m.title}" style="width:100%"></div>
-  <div><label>Moderator</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),m.moderator)}</div>
+  <div><label>Code</label><input id="mCode" type="text" value="${m.code}" readonly></div>
+  <div><label>Subject</label>${selectHTML("mDept",DEPTS.map(d=>({v:d.id,l:d.name})),m.dept)}</div>
+  <div><label>Credit</label><input id="mCredit" type="text" value="${m.credit}" style="width:50px"></div>
+  <div><label>Leader</label>${selectHTML("mLeader",STAFF.map(s=>({v:s.id,l:s.name})),m.leader)}</div>
+  <div style="flex:2"><label>Title</label><input id="mTitle" type="text" value="${m.title}" style="width:100%"></div>
+  <div><label>Moderator</label>${selectHTML("mModerator",STAFF.map(s=>({v:s.id,l:s.name})),m.moderator)}</div>
  </div>
+ <p class="note">Code can't be changed here once a module exists \u2014 too much else keys off it (sessions, allocations, course links). Everything else updates with the button above.</p>
  <table class="grid"><tr><th>Occ.</th><th>Groups</th><th>Leader & Moderator</th><th>Associated Course</th><th>Taught in / Allocation</th><th>Del</th></tr>
  ${m.occs.map(o=>`<tr><td>${o.occ}</td><td>${o.groups}</td>
   <td>${staffName(o.leader)}<br>${staffName(o.moderator)}</td><td>${o.course}</td>
-  <td style="text-align:left">${TAUGHT.map(t=>`${t.label}: ${o.slots[t.id].total}`).join(" &nbsp;·&nbsp; ")}</td>
-  <td><span class="del">✕</span></td></tr>`).join("")}
- </table>`;
+  <td style="text-align:left">${TAUGHT.map(t=>`${t.label}: ${o.slots[t.id].total}`).join(" &nbsp;\u00b7&nbsp; ")}</td>
+  <td><span class="del" data-delocc="${o.occ}">\u2715</span></td></tr>`).join("") || `<tr><td colspan="6" style="color:#3A5A78">No occurrences yet \u2014 add one with "New Occurrence".</td></tr>`}
+ </table>
+ <p class="note">Occurrence totals shown here are set from the Module Allocation screen, where they're broken down by staff.</p>`;
  document.getElementById("panel").innerHTML=h;
- document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+ document.getElementById("modSel").onchange=e=>{selModule=e.target.value;moduleDeleteMsg="";renderAll();};
  document.getElementById("goAlloc").onclick=()=>{tab="alloc";renderAll();};
  document.getElementById("goSess").onclick=()=>{tab="sessions";renderAll();};
+ document.getElementById("btnNewModule").onclick=()=>{moduleMode="new";renderAll();};
+ document.getElementById("btnUpdateModule").onclick=()=>{
+  m.title=document.getElementById("mTitle").value.trim()||m.title;
+  m.dept=document.getElementById("mDept").value;
+  m.credit=parseInt(document.getElementById("mCredit").value)||0;
+  m.leader=document.getElementById("mLeader").value;
+  m.moderator=document.getElementById("mModerator").value;
+  renderAll();
+ };
+ document.getElementById("btnNewOcc").onclick=()=>{
+  const letter=nextOccLetter(m);
+  m.occs.push({occ:letter,groups:1,leader:m.leader,moderator:m.moderator,course:"",slots:blankSlots()});
+  moduleDeleteMsg=""; renderAll();
+ };
+ document.getElementById("btnDeleteAllOcc").onclick=()=>{
+  if(m.occs.length && !confirm(`Delete all ${m.occs.length} occurrence(s) of ${m.code}? This also clears their allocations and sessions.`)) return;
+  m.occs=[]; moduleDeleteMsg=""; renderAll();
+ };
+ document.getElementById("btnDeleteModule").onclick=()=>{
+  if(m.occs.length){ moduleDeleteMsg=`Can't delete ${m.code} \u2014 delete all its occurrences first.`; renderAll(); return; }
+  MODULES.splice(MODULES.findIndex(x=>x.code===m.code),1);
+  selModule=(MODULES[0]||{code:""}).code; moduleDeleteMsg=""; renderAll();
+ };
+ document.querySelectorAll("[data-delocc]").forEach(el=> el.onclick=()=>{
+  const occ=el.dataset.delocc;
+  if(!confirm(`Delete occurrence ${occ}? This removes its allocations and sessions too.`)) return;
+  m.occs=m.occs.filter(o=>o.occ!==occ);
+  renderAll();
+ });
+}
+
+function renderModules(){
+ if(moduleMode==="new") return renderModulesNewForm();
+ renderModulesList();
 }
 
 function renderAlloc(){
  const headScope=roleDept();
  const options=MODULES;
  const m=mod(selModule);
+ const ro=isReadOnly();
  let h=`<h2>Module Allocation</h2><div class="row">
   ${selectHTML("modSel",options.map(x=>({v:x.code,l:x.code+": "+x.title+" ("+x.dept+")"})),selModule)}
-  <button class="btn">Select</button><button class="btn" ${isReadOnly()?"disabled":""}>Update</button><span style="flex:1"></span>
-  <button class="btn">Edit Module</button><button class="btn" id="goSess2">Add Sessions</button>
+  <button class="btn">Select</button><span style="flex:1"></span>
+  <button class="btn" id="btnEditModule">Edit Module</button><button class="btn" id="goSess2">Add Sessions</button>
  </div>
- ${isReadOnly()?`<p class="note" style="color:#B00020">PAS Admin has read-only access here \u2014 credits can be viewed but not changed. Module Sessions and Publish Details remain editable.</p>`:""}
+ ${ro?`<p class="note" style="color:#B00020">PAS Admin has read-only access here \u2014 credits can be viewed but not changed. Module Sessions and Publish Details remain editable.</p>`:""}
  <p class="note">Leader: ${staffName(m.leader)} &nbsp; Moderator: ${staffName(m.moderator)}${headScope?" — every module is listed here, whichever department owns it, since staff from any department can teach on it.":""}</p>`;
+ if(!m.occs.length){
+  h+=`<p class="note">This module has no occurrences yet \u2014 add one on Module Details before allocating credits.</p>`;
+  document.getElementById("panel").innerHTML=h;
+  document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+  document.getElementById("btnEditModule").onclick=()=>{tab="modules";renderAll();};
+  document.getElementById("goSess2").onclick=()=>{tab="sessions";renderAll();};
+  return;
+ }
  TAUGHT.forEach(t=>{
   const staffIds=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[t.id].alloc)))];
-  if(staffIds.length===0 && m.occs.every(o=>o.slots[t.id].total===0)) return;
-  h+=`<h3>${t.label}</h3><table class="grid"><tr><th>Occurrence</th>${m.occs.map(o=>`<th>${o.occ}</th>`).join("")}</tr>
-   <tr class="total-row"><td>Total Allocation</td>${m.occs.map(o=>`<td>${o.slots[t.id].total}</td>`).join("")}</tr>
-   ${staffIds.map(sid=>`<tr><td style="text-align:left">${staffName(sid)}</td>${m.occs.map(o=>`<td>${o.slots[t.id].alloc[sid]||""}</td>`).join("")}</tr>`).join("")}
+  h+=`<h3>${t.label}</h3><table class="grid"><tr><th>Occurrence</th>${m.occs.map(o=>`<th>${o.occ}</th>`).join("")}<th></th></tr>
+   <tr class="total-row"><td>Total Allocation</td>${m.occs.map(o=>
+     `<td><input type="number" min="0" value="${o.slots[t.id].total}" style="width:55px" ${ro?"disabled":""} data-tot="${m.code}|${o.occ}|${t.id}"></td>`).join("")}<td></td></tr>
+   ${staffIds.map(sid=>`<tr><td style="text-align:left">${staffName(sid)}</td>${m.occs.map(o=>
+     `<td><input type="number" min="0" value="${o.slots[t.id].alloc[sid]||0}" style="width:55px" ${ro?"disabled":""} data-cell="${m.code}|${o.occ}|${t.id}|${sid}"></td>`).join("")}
+     <td>${ro?"":`<span class="del" data-rmstaff="${t.id}|${sid}">\u2715</span>`}</td></tr>`).join("")}
    <tr class="shortfall"><td>Shortfall</td>${m.occs.map(o=>{
      const assigned=Object.values(o.slots[t.id].alloc).reduce((a,b)=>a+b,0);
-     return `<td>${assigned-o.slots[t.id].total}</td>`;}).join("")}</tr>
-  </table>`;
+     return `<td>${assigned-o.slots[t.id].total}</td>`;}).join("")}<td></td></tr>
+  </table>
+  ${ro?"":`<div class="row" style="margin:0 0 14px">
+    ${selectHTML("add-"+t.id+"-staff",[{v:"",l:"Add staff\u2026"}].concat(STAFF.map(s=>({v:s.id,l:s.name}))),"")}
+    ${selectHTML("add-"+t.id+"-occ",m.occs.map(o=>({v:o.occ,l:"Occ "+o.occ})),m.occs[0].occ)}
+    <input id="add-${t.id}-amt" type="number" min="0" value="0" style="width:55px" placeholder="credits">
+    <button class="btn" data-addcat="${t.id}">Add</button>
+   </div>`}`;
  });
  document.getElementById("panel").innerHTML=h;
  document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+ document.getElementById("btnEditModule").onclick=()=>{tab="modules";renderAll();};
  document.getElementById("goSess2").onclick=()=>{tab="sessions";renderAll();};
+ if(!ro){
+  document.querySelectorAll("[data-tot]").forEach(el=> el.onchange=()=>{
+   const [code,occ,cat]=el.dataset.tot.split("|"); setSlotTotal(code,occ,cat,el.value);
+  });
+  document.querySelectorAll("[data-cell]").forEach(el=> el.onchange=()=>{
+   const [code,occ,cat,sid]=el.dataset.cell.split("|"); setStaffAlloc(code,occ,cat,sid,el.value);
+  });
+  document.querySelectorAll("[data-rmstaff]").forEach(el=> el.onclick=()=>{
+   const [cat,sid]=el.dataset.rmstaff.split("|"); removeStaffFromCategory(m.code,cat,sid);
+  });
+  document.querySelectorAll("[data-addcat]").forEach(el=> el.onclick=()=>{
+   const cat=el.dataset.addcat;
+   const sid=document.getElementById("add-"+cat+"-staff").value;
+   const occ=document.getElementById("add-"+cat+"-occ").value;
+   const amt=document.getElementById("add-"+cat+"-amt").value;
+   if(!sid) return;
+   setStaffAlloc(m.code,occ,cat,sid,amt);
+  });
+ }
 }
 
 function renderSessions(){
