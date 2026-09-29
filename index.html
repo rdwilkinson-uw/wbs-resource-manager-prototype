@@ -56,37 +56,40 @@ select,input[type=text]{border:1px solid var(--navy);padding:4px 6px;font-size:1
 </div>
 <script>
 const DEPTS=[{id:"COMP",name:"Dept. of Computing"},{id:"MGT",name:"Dept of Management & Finance"},{id:"MKT",name:"Dept of Marketing & Enterprise"}];
-const STAFF_GROUPS=[
- {id:"COMP",name:"Dept. of Computing",leader:"odum1",dept:"Y",webcode:"601122"},
- {id:"MGT",name:"Dept of Management & Finance",leader:"farh1",dept:"Y",webcode:"734488"},
- {id:"MKT",name:"Dept of Marketing & Enterprise",leader:"shap1",dept:"Y",webcode:"289015"},
- {id:"HPL",name:"Sessional Staff / HPL",leader:"zzzz1",dept:"N",webcode:"552390"},
- {id:"SMT",name:"Senior Management Team",leader:"farh1",dept:"N",webcode:"198765"},
+let STAFF_GROUPS=[
+ {id:"COMP",name:"Dept. of Computing",leader:"odum1",dept:"Y"},
+ {id:"MGT",name:"Dept of Management & Finance",leader:"farh1",dept:"Y"},
+ {id:"MKT",name:"Dept of Marketing & Enterprise",leader:"shap1",dept:"Y"},
+ {id:"HPL",name:"Sessional Staff / HPL",leader:"zzzz1",dept:"N"},
+ {id:"SMT",name:"Senior Management Team",leader:"farh1",dept:"N"},
 ];
 const STAFF=[
- {id:"odum1",name:"Martin Oduya",surname:"Oduya",forename:"Martin",dept:"COMP",extra:"",room:"CH2001",phone:"",email:"m.oduya@example.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"601842"},
- {id:"andf1",name:"Felix Andrade",surname:"Andrade",forename:"Felix",dept:"COMP",extra:"",room:"",phone:"",email:"f.andrade@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"274905"},
- {id:"pemg1",name:"Grace Pemberton",surname:"Pemberton",forename:"Grace",dept:"COMP",extra:"HPL",room:"",phone:"",email:"g.pemberton@example.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Publish",webcode:"118273"},
- {id:"okon1",name:"Nadia Okonkwo",surname:"Okonkwo",forename:"Nadia",dept:"MGT",extra:"",room:"BB210",phone:"",email:"n.okonkwo@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"536719"},
- {id:"farh1",name:"Helen Faraday",surname:"Faraday",forename:"Helen",dept:"MGT",extra:"SMT",room:"BB105",phone:"",email:"h.faraday@example.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"802341"},
- {id:"doym1",name:"Marcus Doyle",surname:"Doyle",forename:"Marcus",dept:"MGT",extra:"",room:"BB105",phone:"",email:"m.doyle@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"447206"},
- {id:"shap1",name:"Priti Sharma",surname:"Sharma",forename:"Priti",dept:"MKT",extra:"",room:"MK020",phone:"",email:"p.sharma@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"918460"},
- {id:"caso1",name:"Owen Castellan",surname:"Castellan",forename:"Owen",dept:"MKT",extra:"HPL",room:"",phone:"",email:"o.castellan@example.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Hide",webcode:"356712"},
+ {id:"odum1",name:"Martin Oduya",surname:"Oduya",forename:"Martin",group:"COMP",room:"CH2001",phone:"",email:"m.oduya@example.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish"},
+ {id:"andf1",name:"Felix Andrade",surname:"Andrade",forename:"Felix",group:"COMP",room:"",phone:"",email:"f.andrade@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish"},
+ {id:"pemg1",name:"Grace Pemberton",surname:"Pemberton",forename:"Grace",group:"COMP",room:"",phone:"",email:"g.pemberton@example.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Publish"},
+ {id:"okon1",name:"Nadia Okonkwo",surname:"Okonkwo",forename:"Nadia",group:"MGT",room:"BB210",phone:"",email:"n.okonkwo@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish"},
+ {id:"farh1",name:"Helen Faraday",surname:"Faraday",forename:"Helen",group:"MGT",room:"BB105",phone:"",email:"h.faraday@example.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish"},
+ {id:"doym1",name:"Marcus Doyle",surname:"Doyle",forename:"Marcus",group:"MGT",room:"BB105",phone:"",email:"m.doyle@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish"},
+ {id:"shap1",name:"Priti Sharma",surname:"Sharma",forename:"Priti",group:"MKT",room:"MK020",phone:"",email:"p.sharma@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish"},
+ {id:"caso1",name:"Owen Castellan",surname:"Castellan",forename:"Owen",group:"MKT",room:"",phone:"",email:"o.castellan@example.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Hide"},
 ];
-const TAUGHT=[{id:"S1",label:"Semester 1"},{id:"S2",label:"Semester 2"},{id:"ML",label:"Module Leader"},{id:"MO",label:"Moderation"},{id:"MC",label:"Major Changes"}];
+const TAUGHT=[{id:"S1",label:"Semester 1"},{id:"S2",label:"Semester 2"},{id:"SV",label:"Supervision"},{id:"ML",label:"Module Leader"},{id:"MO",label:"Moderation"},{id:"MC",label:"Major Changes"}];
 const MODULES=[
  {code:"MGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,leader:"farh1",moderator:"okon1",
   occs:[
    {occ:"A",groups:3,leader:"farh1",moderator:"okon1",course:"BA Enterprise Management",
     slots:{S1:{total:140,alloc:{andf1:70,okon1:10,farh1:70}},S2:{total:0,alloc:{}},
+      SV:{total:20,alloc:{farh1:20}},
       ML:{total:16,alloc:{okon1:8,farh1:16}}, MO:{total:12,alloc:{okon1:12}}, MC:{total:18,alloc:{okon1:9,farh1:18}}}},
    {occ:"C",groups:2,leader:"doym1",moderator:"shap1",course:"BA Brand & Promotion",
     slots:{S1:{total:118,alloc:{shap1:59,doym1:59}},S2:{total:0,alloc:{}},
+      SV:{total:0,alloc:{}},
       ML:{total:12,alloc:{doym1:12}}, MO:{total:7,alloc:{shap1:7}}, MC:{total:18,alloc:{shap1:9,doym1:9}}}}
   ]},
  {code:"CPX2205",title:"Applied Software Design",dept:"COMP",credit:15,leader:"odum1",moderator:"andf1",
   occs:[{occ:"A",groups:2,leader:"odum1",moderator:"andf1",course:"BSc Software Development",
     slots:{S1:{total:70,alloc:{odum1:40,andf1:30}},S2:{total:0,alloc:{}},
+      SV:{total:15,alloc:{odum1:15}},
       ML:{total:10,alloc:{odum1:10}}, MO:{total:6,alloc:{andf1:6}}, MC:{total:0,alloc:{}}}}]}
 ];
 const SESSIONS={ // module|occ|taughtIn -> [{day,start,end,comment}]
@@ -114,7 +117,7 @@ const QUERIES=[
    return {cols:["Staff","Total credits","Target"],row:[s.name,sum,s.target]};
   })},
  {id:"03",name:"HPL staff list",desc:"List all sessional (HPL) staff by department",
-  run:()=>STAFF.filter(s=>s.status==="HPL").map(s=>({cols:["Staff","Dept"],row:[s.name,DEPTS.find(d=>d.id===s.dept).name]}))},
+  run:()=>STAFF.filter(s=>s.status==="HPL").map(s=>({cols:["Staff","Group"],row:[s.name,(STAFF_GROUPS.find(g=>g.id===s.group)||{}).name||s.group]}))},
  {id:"99",name:"DELETE Sessions (annual rollover)",desc:"Removes every timetabled session ahead of the new year — destructive",danger:true},
 ];
 const TABS=[["modules","Modules Details"],["alloc","Module Allocation"],["sessions","Module Sessions"],
@@ -124,37 +127,47 @@ const TABS=[["modules","Modules Details"],["alloc","Module Allocation"],["sessio
 
 let tab="modules", selModule=MODULES[0].code, selDept=DEPTS[0].id, selStaff=STAFF[0].id, selNtCat=NT_CATS[0],
  selCourse=COURSES[0].code, selQuery=null, selGroup=STAFF_GROUPS[0].id;
+let staffMode="list"; let groupDeleteMsg="";
 let role="owner"; // "owner" | "head:<deptId>" | "staff:<staffId>"
 const YEARS=["2024-25","2025-26","2026-27","2027-28"];
 let selYear="2026-27";
 let yearsWithData=new Set(["2026-27"]);
 const roleDept=()=> role.startsWith("head:") ? role.split(":")[1] : null;
 const isStaffRole=()=> role.startsWith("staff:");
+const isPAS=()=> role==="pas";
 const HEAD_TABS=["alloc","sessions","staff","tt","leaders","coursett","publish"];
-function visibleTabIds(){ return role==="owner" ? TABS.map(t=>t[0]) : HEAD_TABS; }
+const PAS_TABS=HEAD_TABS.filter(t=>t!=="staff");
+const EDITABLE_FOR_PAS=["sessions","publish"];
+function visibleTabIds(){ if(role==="owner") return TABS.map(t=>t[0]); if(role==="pas") return PAS_TABS; return HEAD_TABS; }
+function isReadOnly(){ return isPAS() && !EDITABLE_FOR_PAS.includes(tab); }
 
 function renderRoleBar(){
- const opts=[{v:"owner",l:"Owner (Resourcing Lead)"},
-  ...DEPTS.map(d=>({v:"head:"+d.id,l:"Head of "+d.id})),
-  {v:"staff:andf1",l:"Staff login \u2014 F. Andrade"}];
+ const opts=[{v:"owner",l:"Owner"},
+  {v:"head:COMP",l:"Head"},
+  {v:"pas",l:"PAS Admin"},
+  {v:"staff:andf1",l:"Academic Staff"}];
  return `<div class="row" style="margin:0;padding:6px 12px;background:#0f4c85">
   ${opts.map(o=>`<button class="btn" style="background:${role===o.v?'var(--gold)':'#0f4c85'};color:${role===o.v?'var(--navy)':'#fff'}" data-role="${o.v}">${o.l}</button>`).join("")}
  </div>`;
 }
 const staffName=id=> (STAFF.find(s=>s.id===id)||{}).name || id;
 const mod=code=> MODULES.find(m=>m.code===code);
+function switchRole(newRole){
+ role=newRole; tab=visibleTabIds()[0]; selQuery=null; staffMode="list"; groupDeleteMsg="";
+ if(role.startsWith("head:")) selGroup=roleDept();
+ renderAll();
+}
 
 function renderTabs(){
  document.getElementById("rolebar").innerHTML=renderRoleBar();
- document.querySelectorAll("[data-role]").forEach(b=> b.onclick=()=>{
-   role=b.dataset.role; tab=visibleTabIds()[0]; selQuery=null; renderAll();});
+ document.querySelectorAll("[data-role]").forEach(b=> b.onclick=()=> switchRole(b.dataset.role));
  const el=document.getElementById("tabs"); el.innerHTML="";
  const visible=visibleTabIds();
  TABS.filter(([k])=>visible.includes(k)).forEach(([k,l])=>{const b=document.createElement("button");b.textContent=l;if(tab===k)b.className="active";
-  b.onclick=()=>{tab=k;selQuery=null;renderAll();}; el.appendChild(b);});
+  b.onclick=()=>{tab=k;selQuery=null;staffMode="list";groupDeleteMsg="";renderAll();}; el.appendChild(b);});
 }
-function selectHTML(id,options,selected,onchange){
- return `<select id="${id}">${options.map(o=>`<option value="${o.v}" ${o.v===selected?"selected":""}>${o.l}</option>`).join("")}</select>`;
+function selectHTML(id,options,selected,disabled){
+ return `<select id="${id}" ${disabled?"disabled":""}>${options.map(o=>`<option value="${o.v}" ${o.v===selected?"selected":""}>${o.l}</option>`).join("")}</select>`;
 }
 
 function renderModules(){
@@ -192,9 +205,10 @@ function renderAlloc(){
  const m=mod(selModule);
  let h=`<h2>Module Allocation</h2><div class="row">
   ${selectHTML("modSel",options.map(x=>({v:x.code,l:x.code+": "+x.title+" ("+x.dept+")"})),selModule)}
-  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
+  <button class="btn">Select</button><button class="btn" ${isReadOnly()?"disabled":""}>Update</button><span style="flex:1"></span>
   <button class="btn">Edit Module</button><button class="btn" id="goSess2">Add Sessions</button>
  </div>
+ ${isReadOnly()?`<p class="note" style="color:#B00020">PAS Admin has read-only access here \u2014 credits can be viewed but not changed. Module Sessions and Publish Details remain editable.</p>`:""}
  <p class="note">Leader: ${staffName(m.leader)} &nbsp; Moderator: ${staffName(m.moderator)}${headScope?" — every module is listed here, whichever department owns it, since staff from any department can teach on it.":""}</p>`;
  TAUGHT.forEach(t=>{
   const staffIds=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[t.id].alloc)))];
@@ -233,44 +247,153 @@ function renderSessions(){
  document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
 }
 
-function renderStaff(){
- const headScope=roleDept();
- const groups=STAFF_GROUPS.filter(g=> !headScope || g.id===headScope);
- if(!groups.some(g=>g.id===selGroup)) selGroup=groups[0].id;
- const g=STAFF_GROUPS.find(x=>x.id===selGroup);
- const list=STAFF.filter(s=>s.dept===selGroup || s.extra===selGroup);
+function staffCreditBreakdown(staffId){
+ const b={}; TAUGHT.forEach(t=>b[t.id]=0); b.nt=0;
+ MODULES.forEach(m=>m.occs.forEach(o=> TAUGHT.forEach(t=>{ b[t.id]+= (o.slots[t.id]&&o.slots[t.id].alloc[staffId])||0; })));
+ NT_ROLES.forEach(r=>r.people.forEach(p=>{ if(p.s===staffId) b.nt+=p.cr; }));
+ const total=Object.keys(b).reduce((sum,k)=>sum+b[k],0);
+ return {...b,total};
+}
+function genStaffId(surname,forename){
+ const base=((surname||"xxx").slice(0,3)+(forename||"x").charAt(0)).toLowerCase().replace(/[^a-z]/g,"x");
+ let n=1; while(STAFF.some(s=>s.id===base+n)) n++;
+ return base+n;
+}
+
+function renderStaffList(){
+ const ro=isReadOnly();
+ const g=STAFF_GROUPS.find(x=>x.id===selGroup)||STAFF_GROUPS[0];
+ const list=STAFF.filter(s=>s.group===selGroup);
  let h=`<h2>Staff Details</h2><div class="row">
-  ${selectHTML("groupSel",groups.map(x=>({v:x.id,l:x.name})),selGroup)}
-  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
-  <button class="btn">New Staff</button><button class="btn">New Group</button><button class="btn">Delete Group</button><button class="btn">Show Totals</button></div>
+  ${selectHTML("groupSel",STAFF_GROUPS.map(x=>({v:x.id,l:x.name})),selGroup)}
+  <button class="btn">Select</button><button class="btn" ${ro?"disabled":""}>Update</button><span style="flex:1"></span>
+  <button class="btn" id="btnNewStaff" ${ro?"disabled":""}>New Staff</button><button class="btn" id="btnNewGroup" ${ro?"disabled":""}>New Group</button><button class="btn" id="btnDeleteGroup" ${ro?"disabled":""}>Delete Group</button><button class="btn" id="btnShowTotals">Show Totals</button></div>
+ ${ro?`<p class="note" style="color:#B00020">PAS Admin has read-only access here \u2014 staff records can be viewed but not changed.</p>`:""}
+ ${groupDeleteMsg?`<p class="note" style="color:#B00020">${groupDeleteMsg}</p>`:""}
  <div class="field-box">
-  <div><label>GroupID</label><input type="text" value="${g.id}" style="width:60px"></div>
-  <div style="flex:1"><label>Staff Group Name</label><input type="text" value="${g.name}" style="width:100%"></div>
-  <div><label>Staff Group Leader</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),g.leader)}</div>
-  <div><label>Dept?</label>${selectHTML("",[{v:"Y",l:"Yes"},{v:"N",l:"No"}],g.dept)}</div>
-  <div><label>Web Code</label><input type="text" value="${g.webcode}" style="width:60px" readonly></div>
-  <div style="align-self:flex-end"><button class="btn">Reset Code</button></div>
+  <div><label>GroupID</label><input type="text" value="${g.id}" style="width:60px" ${ro?"disabled":""}></div>
+  <div style="flex:1"><label>Staff Group Name</label><input type="text" value="${g.name}" style="width:100%" ${ro?"disabled":""}></div>
+  <div><label>Staff Group Leader</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),g.leader,ro)}</div>
+  <div><label>Dept?</label>${selectHTML("",[{v:"Y",l:"Yes"},{v:"N",l:"No"}],g.dept,ro)}</div>
  </div>
- <table class="grid"><tr><th>Staff ID</th><th>Surname / Forename</th><th>Subject Group</th><th>Room / Phone</th><th>Email</th><th>Status</th><th>FTE / Credits</th><th>Publish</th><th>Web Code</th><th></th></tr>
+ <table class="grid"><tr><th>Staff ID</th><th>Surname / Forename</th><th>Room / Phone</th><th>Email</th><th>Status</th><th>FTE / Credits</th><th>Publish</th><th></th></tr>
  ${list.map(s=>`<tr>
    <td>${s.id}</td>
    <td style="text-align:left">${s.surname}, ${s.forename}</td>
-   <td>${selectHTML("",[{v:"",l:"\u2014"},{v:"HPL",l:"HPL"},{v:"SMT",l:"SMT"}],s.extra)}</td>
    <td>${s.room||"\u2014"}${s.phone?" / "+s.phone:""}</td>
    <td style="font-size:10.5px">${s.email||"\u2014"}</td>
-   <td>${selectHTML("",[{v:"FT",l:"FT"},{v:"PT",l:"PT"},{v:"HPL",l:"HPL"},{v:"NEW",l:"NEW"},{v:"TBA",l:"TBA"}],s.status)}</td>
+   <td>${selectHTML("",[{v:"FT",l:"FT"},{v:"PT",l:"PT"},{v:"HPL",l:"HPL"},{v:"NEW",l:"NEW"},{v:"TBA",l:"TBA"}],s.status,ro)}</td>
    <td>${s.fte.toFixed(2)} FTE<br>${s.target} credits</td>
-   <td>${selectHTML("",[{v:"Publish",l:"Publish"},{v:"Hide",l:"Hide"}],s.publish)}</td>
-   <td>${s.webcode}<br><button class="btn" style="padding:3px 6px;font-size:10px">Reset Code</button></td>
-   <td><span class="del">✕</span><br><a href="#" onclick="event.preventDefault();selStaff='${s.id}';tab='tt';renderAll();">Timetable</a></td>
-  </tr>`).join("")}
+   <td>${selectHTML("",[{v:"Publish",l:"Publish"},{v:"Hide",l:"Hide"}],s.publish,ro)}</td>
+   <td>${ro?"":'<span class="del">✕</span><br>'}<a href="#" onclick="event.preventDefault();selStaff='${s.id}';tab='tt';renderAll();">Timetable</a></td>
+  </tr>`).join("") || `<tr><td colspan="8" style="color:#3A5A78">No staff in this group yet.</td></tr>`}
  </table>
  <div class="row" style="background:var(--row);border:1px solid var(--navy);padding:8px 10px"><b>Add Staff to Staff Group</b>
-  ${selectHTML("",[{v:"",l:"Select Staff\u2026"}].concat(STAFF.filter(s=>s.dept!==selGroup&&s.extra!==selGroup).map(s=>({v:s.id,l:s.name}))),"")}
-  <button class="btn">Add Staff</button></div>
- <p class="note">Web codes are shown here only because they exist in the current system for staff self-access \u2014 in the rebuild this whole column goes away, replaced by the staff member's own login (see the "Staff login" role above).</p>`;
+  ${selectHTML("addStaffSel",[{v:"",l:"Select Staff\u2026"}].concat(STAFF.filter(s=>s.group!==selGroup).map(s=>({v:s.id,l:s.name+" ("+s.group+")"}))),"",ro)}
+  <button class="btn" id="btnAddStaff" ${ro?"disabled":""}>Add Staff</button></div>
+ <p class="note">Publish controls what other staff see when they expand a module to see who else teaches on it: "Publish" shows this person's real name, "Hide" shows "TBC" (or "HPL" for sessional staff) instead. It has no effect on what Owner, Head or PAS Admin see \u2014 they always see real names.</p>
+ <p class="note">There's no web code column here anymore. It existed in the current system purely so a staff member's private link couldn't be guessed from a colleague's \u2014 security by obscurity rather than real authentication. Now that staff sign in properly (see the "Academic Staff" role above) and only ever see their own timetable regardless of what URL they're on, that field serves no purpose and has been removed from the schema entirely, not just hidden.</p>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("groupSel").onchange=e=>{selGroup=e.target.value;groupDeleteMsg="";renderAll();};
+ if(!ro){
+  document.getElementById("btnNewStaff").onclick=()=>{staffMode="newstaff";renderAll();};
+  document.getElementById("btnNewGroup").onclick=()=>{staffMode="newgroup";renderAll();};
+  document.getElementById("btnDeleteGroup").onclick=()=>{
+   const stillHasStaff=STAFF.some(s=>s.group===selGroup);
+   if(stillHasStaff){ groupDeleteMsg=`Can't delete "${g.name}" \u2014 staff must be removed or reassigned first.`; renderAll(); return; }
+   STAFF_GROUPS=STAFF_GROUPS.filter(x=>x.id!==selGroup);
+   selGroup=STAFF_GROUPS[0].id; groupDeleteMsg=""; renderAll();
+  };
+  document.getElementById("btnAddStaff").onclick=()=>{
+   const pick=document.getElementById("addStaffSel").value;
+   if(!pick) return;
+   const person=STAFF.find(x=>x.id===pick);
+   if(person) person.group=selGroup;
+   renderAll();
+  };
+ }
+ document.getElementById("btnShowTotals").onclick=()=>{staffMode="totals";renderAll();};
+}
+
+function renderStaffTotals(){
+ const g=STAFF_GROUPS.find(x=>x.id===selGroup)||STAFF_GROUPS[0];
+ const list=STAFF.filter(s=>s.group===selGroup);
+ let h=`<h2>Staff Totals</h2><div class="row">
+  ${selectHTML("groupSel",STAFF_GROUPS.map(x=>({v:x.id,l:x.name})),selGroup)}
+  <button class="btn" id="btnBackToStaff">Staff Details</button><button class="btn">Show Totals</button></div>
+ <table class="grid"><tr><th>Name</th><th>Allocation</th><th>Semester 1</th><th>Semester 2</th><th>Supervision</th><th>Leader</th><th>Moderation</th><th>Major Changes</th><th>NonTeaching</th><th>Total Credits</th><th>Remaining</th><th>Timetable</th></tr>
+ ${list.map(s=>{
+   const b=staffCreditBreakdown(s.id), remain=s.target-b.total;
+   return `<tr><td style="text-align:left">${s.name}</td><td>${s.target}</td><td>${b.S1}</td><td>${b.S2}</td><td>${b.SV}</td><td>${b.ML}</td><td>${b.MO}</td><td>${b.MC}</td><td>${b.nt}</td><td><b>${b.total}</b></td>
+    <td style="color:${remain<0?'#B00020':'inherit'}">${remain}</td>
+    <td><a href="#" onclick="event.preventDefault();selStaff='${s.id}';tab='tt';renderAll();">view</a></td></tr>`;
+ }).join("") || `<tr><td colspan="12" style="color:#3A5A78">No staff in this group.</td></tr>`}
+ </table>`;
  document.getElementById("panel").innerHTML=h;
  document.getElementById("groupSel").onchange=e=>{selGroup=e.target.value;renderAll();};
+ document.getElementById("btnBackToStaff").onclick=()=>{staffMode="list";renderAll();};
+}
+
+function renderStaffNewForm(){
+ let h=`<h2>New Staff</h2>
+ <div class="field-box">
+  <div><label>Surname</label><input id="nsSurname" type="text" style="width:120px"></div>
+  <div><label>Forename</label><input id="nsForename" type="text" style="width:120px"></div>
+  <div><label>Subject Group</label>${selectHTML("nsGroup",STAFF_GROUPS.map(g=>({v:g.id,l:g.name})),selGroup)}</div>
+  <div><label>Room</label><input id="nsRoom" type="text" style="width:90px"></div>
+  <div><label>Email</label><input id="nsEmail" type="text" style="width:180px"></div>
+  <div><label>Status</label>${selectHTML("nsStatus",[{v:"FT",l:"FT"},{v:"PT",l:"PT"},{v:"HPL",l:"HPL"},{v:"NEW",l:"NEW"},{v:"TBA",l:"TBA"}],"NEW")}</div>
+  <div><label>FTE</label><input id="nsFte" type="text" value="1.00" style="width:60px"></div>
+  <div><label>Target credits</label><input id="nsTarget" type="text" value="550" style="width:70px"></div>
+  <div><label>Publish</label>${selectHTML("nsPublish",[{v:"Publish",l:"Publish"},{v:"Hide",l:"Hide"}],"Publish")}</div>
+ </div>
+ <div class="row"><button class="btn" id="btnCreateStaff">Create Staff</button><button class="btn" id="btnCancelStaff">Cancel</button></div>
+ <p class="note">Staff IDs are generated the same way as the current system \u2014 first three letters of surname, first letter of forename, then a number. Subject Group is the same single dropdown used everywhere on this page \u2014 whichever group is selected is the only group this person belongs to.</p>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("btnCancelStaff").onclick=()=>{staffMode="list";renderAll();};
+ document.getElementById("btnCreateStaff").onclick=()=>{
+  const surname=document.getElementById("nsSurname").value.trim()||"New";
+  const forename=document.getElementById("nsForename").value.trim()||"Staff";
+  const id=genStaffId(surname,forename);
+  const group=document.getElementById("nsGroup").value;
+  STAFF.push({id,name:forename+" "+surname,surname,forename,group,
+   room:document.getElementById("nsRoom").value.trim(),phone:"",
+   email:document.getElementById("nsEmail").value.trim(),
+   status:document.getElementById("nsStatus").value,
+   fte:parseFloat(document.getElementById("nsFte").value)||0,
+   target:parseInt(document.getElementById("nsTarget").value)||0,
+   publish:document.getElementById("nsPublish").value});
+  selGroup=group; staffMode="list"; renderAll();
+ };
+}
+
+function renderStaffNewGroupForm(){
+ let h=`<h2>New Group</h2>
+ <div class="field-box">
+  <div><label>GroupID</label><input id="ngId" type="text" style="width:80px" maxlength="6"></div>
+  <div style="flex:1"><label>Group Name</label><input id="ngName" type="text" style="width:100%"></div>
+  <div><label>Leader</label>${selectHTML("ngLeader",STAFF.map(s=>({v:s.id,l:s.name})),STAFF[0].id)}</div>
+  <div><label>Dept?</label>${selectHTML("ngDept",[{v:"Y",l:"Yes \u2014 a department"},{v:"N",l:"No \u2014 another kind of group"}],"N")}</div>
+ </div>
+ <p class="note">Dept? just marks whether this group is one of the school's departments (appears as a department everywhere) or a non-department group like HPL or a committee (staff can belong to one of these alongside their home department).</p>
+ <div class="row"><button class="btn" id="btnCreateGroup">Create Group</button><button class="btn" id="btnCancelGroup">Cancel</button></div>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("btnCancelGroup").onclick=()=>{staffMode="list";renderAll();};
+ document.getElementById("btnCreateGroup").onclick=()=>{
+  const id=(document.getElementById("ngId").value.trim()||"GRP"+(STAFF_GROUPS.length+1)).toUpperCase();
+  if(STAFF_GROUPS.some(g=>g.id===id)){ alert("That GroupID is already in use."); return; }
+  STAFF_GROUPS.push({id,name:document.getElementById("ngName").value.trim()||id,
+   leader:document.getElementById("ngLeader").value,
+   dept:document.getElementById("ngDept").value});
+  selGroup=id; staffMode="list"; renderAll();
+ };
+}
+
+function renderStaff(){
+ if(staffMode==="totals") return renderStaffTotals();
+ if(staffMode==="newstaff") return renderStaffNewForm();
+ if(staffMode==="newgroup") return renderStaffNewGroupForm();
+ renderStaffList();
 }
 
 function renderNT(){
@@ -301,13 +424,19 @@ function staffSessions(staffId){
  });
  return items;
 }
+function displayName(staffId){
+ const s=STAFF.find(x=>x.id===staffId);
+ if(!s) return staffId;
+ if(isStaffRole() && s.publish==="Hide") return s.status==="HPL" ? "HPL" : "TBC";
+ return s.name;
+}
 function moduleFullBreakdownHTML(moduleCode,occLetter){
  const m=mod(moduleCode); const o=m.occs.find(x=>x.occ===occLetter);
  const sections=TAUGHT.map(cat=>{
   const alloc=o.slots[cat.id].alloc, ids=Object.keys(alloc);
   if(!ids.length) return "";
   return `<h3 style="margin-top:10px">${cat.label}</h3><table class="grid"><tr><th>Staff</th><th>Credits</th></tr>
-   ${ids.map(sid=>`<tr><td style="text-align:left">${staffName(sid)}</td><td>${alloc[sid]}</td></tr>`).join("")}
+   ${ids.map(sid=>`<tr><td style="text-align:left">${displayName(sid)}</td><td>${alloc[sid]}</td></tr>`).join("")}
   </table>`;
  }).join("");
  return sections || `<p class="note">No staff recorded against this module yet.</p>`;
@@ -399,7 +528,7 @@ function ttOverlay(staffId){
 }
 function renderTT(){
  const headScope=roleDept();
- const options=STAFF.filter(x=> !headScope || x.dept===headScope);
+ const options=STAFF.filter(x=> !headScope || x.group===headScope);
  if(headScope && !options.some(x=>x.id===selStaff)) selStaff=options[0].id;
  let h=`<h2>Staff Timetable</h2><div class="row">
   ${selectHTML("staffSel",options.map(x=>({v:x.id,l:x.name})),selStaff)}
@@ -414,7 +543,7 @@ function renderStaffSelf(){
  const me=STAFF.find(x=>x.id===role.split(":")[1]);
  document.getElementById("rolebar").innerHTML=renderRoleBar()+
   `<div class="row" style="margin:0;padding:8px 12px;background:var(--navy);color:#fff">Logged in as <b>&nbsp;${me.name}&nbsp;</b> \u2014 read-only access to your own timetable only</div>`;
- document.querySelectorAll("[data-role]").forEach(b=> b.onclick=()=>{role=b.dataset.role; tab=visibleTabIds()[0]; renderAll();});
+ document.querySelectorAll("[data-role]").forEach(b=> b.onclick=()=> switchRole(b.dataset.role));
  document.getElementById("tabs").innerHTML="";
  document.getElementById("panel").innerHTML=`<h2>My Timetable</h2>
   <p class="note">This is what changes: instead of a URL with a web code baked in, ${me.name.split(" ")[0]} signs in and only ever sees this page \u2014 no other staff data, no admin tabs, nothing editable.</p>
@@ -450,11 +579,12 @@ function renderLeaders(){
  const m=mod(selModule);
  let h=`<h2>Module Leaders / Moderators</h2><p class="note">Same data as Module Details — a quicker screen just for setting who leads and moderates.</p>
  <div class="row">${selectHTML("modSel",options.map(x=>({v:x.code,l:x.code+": "+x.title+" ("+x.dept+")"})),selModule)}
-  <button class="btn">Select</button><button class="btn">Update</button></div>
+  <button class="btn">Select</button><button class="btn" ${isReadOnly()?"disabled":""}>Update</button></div>
+ ${isReadOnly()?`<p class="note" style="color:#B00020">PAS Admin has read-only access here.</p>`:""}
  <table class="grid"><tr><th>Occ.</th><th>Course</th><th>Leader</th><th>Moderator</th></tr>
  ${m.occs.map(o=>`<tr><td>${o.occ}</td><td>${o.course}</td>
-  <td>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),o.leader)}</td>
-  <td>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),o.moderator)}</td></tr>`).join("")}
+  <td>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),o.leader,isReadOnly())}</td>
+  <td>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),o.moderator,isReadOnly())}</td></tr>`).join("")}
  </table>`;
  document.getElementById("panel").innerHTML=h;
  document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
@@ -570,6 +700,10 @@ function renderAll(){
  if(selYear!=="2026-27"){
   document.getElementById("panel").insertAdjacentHTML("afterbegin",
    `<div class="note" style="background:var(--row);border:1px solid var(--navy);padding:6px 10px;margin-bottom:10px">${selYear} was created as a full copy of 2026-27 on demand \u2014 every record here can now be edited independently without touching 2026-27's data.</div>`);
+ }
+ if(isReadOnly() && ["tt","coursett"].includes(tab)){
+  document.getElementById("panel").insertAdjacentHTML("afterbegin",
+   `<div class="note" style="background:var(--row);border:1px solid var(--navy);padding:6px 10px;margin-bottom:10px">PAS Admin: read-only view.</div>`);
  }
 }
 renderAll();
