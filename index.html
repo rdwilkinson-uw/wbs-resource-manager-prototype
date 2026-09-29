@@ -57,54 +57,54 @@ select,input[type=text]{border:1px solid var(--navy);padding:4px 6px;font-size:1
 <script>
 const DEPTS=[{id:"COMP",name:"Dept. of Computing"},{id:"MGT",name:"Dept of Management & Finance"},{id:"MKT",name:"Dept of Marketing & Enterprise"}];
 const STAFF_GROUPS=[
- {id:"COMP",name:"Dept. of Computing",leader:"blyc1",dept:"Y",webcode:"985650"},
- {id:"MGT",name:"Dept of Management & Finance",leader:"simr1",dept:"Y",webcode:"783634"},
- {id:"MKT",name:"Dept of Marketing & Enterprise",leader:"medd1",dept:"Y",webcode:"422928"},
- {id:"HPL",name:"Sessional Staff / HPL",leader:"zzzz1",dept:"N",webcode:"969086"},
- {id:"SMT",name:"Senior Management Team",leader:"simr1",dept:"N",webcode:"344906"},
+ {id:"COMP",name:"Dept. of Computing",leader:"odum1",dept:"Y",webcode:"601122"},
+ {id:"MGT",name:"Dept of Management & Finance",leader:"farh1",dept:"Y",webcode:"734488"},
+ {id:"MKT",name:"Dept of Marketing & Enterprise",leader:"shap1",dept:"Y",webcode:"289015"},
+ {id:"HPL",name:"Sessional Staff / HPL",leader:"zzzz1",dept:"N",webcode:"552390"},
+ {id:"SMT",name:"Senior Management Team",leader:"farh1",dept:"N",webcode:"198765"},
 ];
 const STAFF=[
- {id:"blyc1",name:"Chris Blythe",surname:"Blythe",forename:"Chris",dept:"COMP",extra:"",room:"CH1010",phone:"302127",email:"c.blythe@worc.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"302127"},
- {id:"kypa1",name:"Ioannis Kyprios",surname:"Kyprios",forename:"Ioannis",dept:"COMP",extra:"",room:"",phone:"",email:"i.kyprios@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"390112"},
- {id:"robb1",name:"Bradley Robbins",surname:"Robbins",forename:"Bradley",dept:"COMP",extra:"HPL",room:"",phone:"",email:"b.robbins@worc.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Publish",webcode:"105929"},
- {id:"reij1",name:"Jo Reidson",surname:"Reidson",forename:"Jo",dept:"MGT",extra:"",room:"BB204",phone:"",email:"j.reidson@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"867876"},
- {id:"simr1",name:"Rowena Simcox",surname:"Simcox",forename:"Rowena",dept:"MGT",extra:"SMT",room:"BB101",phone:"",email:"r.simcox@worc.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"413030"},
- {id:"robd1",name:"Andrew Robley",surname:"Robley",forename:"Andrew",dept:"MGT",extra:"",room:"BB101",phone:"",email:"a.robley@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"423774"},
- {id:"medd1",name:"Dana Meddows",surname:"Meddows",forename:"Dana",dept:"MKT",extra:"",room:"MK012",phone:"",email:"d.meddows@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"663736"},
- {id:"tapc1",name:"Claudia Tapper",surname:"Tapper",forename:"Claudia",dept:"MKT",extra:"HPL",room:"",phone:"",email:"",status:"HPL",fte:0.00,target:0,publish:"Hide",webcode:"714743"},
+ {id:"odum1",name:"Martin Oduya",surname:"Oduya",forename:"Martin",dept:"COMP",extra:"",room:"CH2001",phone:"",email:"m.oduya@example.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"601842"},
+ {id:"andf1",name:"Felix Andrade",surname:"Andrade",forename:"Felix",dept:"COMP",extra:"",room:"",phone:"",email:"f.andrade@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"274905"},
+ {id:"pemg1",name:"Grace Pemberton",surname:"Pemberton",forename:"Grace",dept:"COMP",extra:"HPL",room:"",phone:"",email:"g.pemberton@example.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Publish",webcode:"118273"},
+ {id:"okon1",name:"Nadia Okonkwo",surname:"Okonkwo",forename:"Nadia",dept:"MGT",extra:"",room:"BB210",phone:"",email:"n.okonkwo@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"536719"},
+ {id:"farh1",name:"Helen Faraday",surname:"Faraday",forename:"Helen",dept:"MGT",extra:"SMT",room:"BB105",phone:"",email:"h.faraday@example.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"802341"},
+ {id:"doym1",name:"Marcus Doyle",surname:"Doyle",forename:"Marcus",dept:"MGT",extra:"",room:"BB105",phone:"",email:"m.doyle@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"447206"},
+ {id:"shap1",name:"Priti Sharma",surname:"Sharma",forename:"Priti",dept:"MKT",extra:"",room:"MK020",phone:"",email:"p.sharma@example.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"918460"},
+ {id:"caso1",name:"Owen Castellan",surname:"Castellan",forename:"Owen",dept:"MKT",extra:"HPL",room:"",phone:"",email:"o.castellan@example.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Hide",webcode:"356712"},
 ];
 const TAUGHT=[{id:"S1",label:"Semester 1"},{id:"S2",label:"Semester 2"},{id:"ML",label:"Module Leader"},{id:"MO",label:"Moderation"},{id:"MC",label:"Major Changes"}];
 const MODULES=[
- {code:"BMGT1400",title:"Responsible AI",dept:"MGT",credit:30,leader:"simr1",moderator:"reij1",
+ {code:"MGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,leader:"farh1",moderator:"okon1",
   occs:[
-   {occ:"A",groups:3,leader:"simr1",moderator:"reij1",course:"BA Business Management",
-    slots:{S1:{total:140,alloc:{kypa1:70,reij1:10,simr1:70}},S2:{total:0,alloc:{}},
-      ML:{total:16,alloc:{reij1:8,simr1:16}}, MO:{total:12,alloc:{reij1:12}}, MC:{total:18,alloc:{reij1:9,simr1:18}}}},
-   {occ:"C",groups:2,leader:"robd1",moderator:"medd1",course:"BA Marketing",
-    slots:{S1:{total:118,alloc:{medd1:59,robd1:59}},S2:{total:0,alloc:{}},
-      ML:{total:12,alloc:{robd1:12}}, MO:{total:7,alloc:{medd1:7}}, MC:{total:18,alloc:{medd1:9,robd1:9}}}}
+   {occ:"A",groups:3,leader:"farh1",moderator:"okon1",course:"BA Enterprise Management",
+    slots:{S1:{total:140,alloc:{andf1:70,okon1:10,farh1:70}},S2:{total:0,alloc:{}},
+      ML:{total:16,alloc:{okon1:8,farh1:16}}, MO:{total:12,alloc:{okon1:12}}, MC:{total:18,alloc:{okon1:9,farh1:18}}}},
+   {occ:"C",groups:2,leader:"doym1",moderator:"shap1",course:"BA Brand & Promotion",
+    slots:{S1:{total:118,alloc:{shap1:59,doym1:59}},S2:{total:0,alloc:{}},
+      ML:{total:12,alloc:{doym1:12}}, MO:{total:7,alloc:{shap1:7}}, MC:{total:18,alloc:{shap1:9,doym1:9}}}}
   ]},
- {code:"COMP2411",title:"Web Application Security",dept:"COMP",credit:15,leader:"blyc1",moderator:"kypa1",
-  occs:[{occ:"A",groups:2,leader:"blyc1",moderator:"kypa1",course:"BSc Computing",
-    slots:{S1:{total:70,alloc:{blyc1:40,kypa1:30}},S2:{total:0,alloc:{}},
-      ML:{total:10,alloc:{blyc1:10}}, MO:{total:6,alloc:{kypa1:6}}, MC:{total:0,alloc:{}}}}]}
+ {code:"CPX2205",title:"Applied Software Design",dept:"COMP",credit:15,leader:"odum1",moderator:"andf1",
+  occs:[{occ:"A",groups:2,leader:"odum1",moderator:"andf1",course:"BSc Software Development",
+    slots:{S1:{total:70,alloc:{odum1:40,andf1:30}},S2:{total:0,alloc:{}},
+      ML:{total:10,alloc:{odum1:10}}, MO:{total:6,alloc:{andf1:6}}, MC:{total:0,alloc:{}}}}]}
 ];
 const SESSIONS={ // module|occ|taughtIn -> [{day,start,end,comment}]
- "BMGT1400|A|S1":[{day:"Mon",start:9.25,end:11.25,c:"A-S1/SEM/01/02"},{day:"Mon",start:12.25,end:13.25,c:"A-S1/LECT/01/01"},{day:"Tue",start:13.75,end:15.75,c:"A-S1/SEM/01/01"}],
- "BMGT1400|C|S1":[{day:"Mon",start:9.25,end:12.25,c:"C-S1/LECT/01/02"}],
- "COMP2411|A|S1":[{day:"Wed",start:9.25,end:12.25,c:"A-S1/LECT/01/01"},{day:"Thu",start:9.25,end:12.25,c:"A-S1/LECT/01/02"}],
+ "MGX2140|A|S1":[{day:"Mon",start:9.25,end:11.25,c:"A-S1/SEM/01/02"},{day:"Mon",start:12.25,end:13.25,c:"A-S1/LECT/01/01"},{day:"Tue",start:13.75,end:15.75,c:"A-S1/SEM/01/01"}],
+ "MGX2140|C|S1":[{day:"Mon",start:9.25,end:12.25,c:"C-S1/LECT/01/02"}],
+ "CPX2205|A|S1":[{day:"Wed",start:9.25,end:12.25,c:"A-S1/LECT/01/01"},{day:"Thu",start:9.25,end:12.25,c:"A-S1/LECT/01/02"}],
 };
 const NT_CATS=["Management - General","Management - Programmes","Learning & Teaching"];
 const NT_ROLES=[
- {title:"Course Leader - BSc Computing portfolio",cat:"Management - Programmes",people:[{s:"blyc1",cr:289,note:"0.34 FTE"}]},
- {title:"Course Leader - BA Business Management portfolio",cat:"Management - Programmes",people:[{s:"reij1",cr:183,note:"0.215 FTE - Shared"},{s:"simr1",cr:69,note:"Pro-rata"}]},
- {title:"Apprenticeships Link Tutor",cat:"Management - General",people:[{s:"robd1",cr:85,note:"0.1 FTE"}]},
- {title:"Personal Academic Tutors",cat:"Learning & Teaching",people:[{s:"medd1",cr:25,note:""},{s:"tapc1",cr:15,note:""}]},
+ {title:"Course Leader - BSc Software Development portfolio",cat:"Management - Programmes",people:[{s:"odum1",cr:289,note:"0.34 FTE"}]},
+ {title:"Course Leader - BA Enterprise Management portfolio",cat:"Management - Programmes",people:[{s:"okon1",cr:183,note:"0.215 FTE - Shared"},{s:"farh1",cr:69,note:"Pro-rata"}]},
+ {title:"Apprenticeships Link Tutor",cat:"Management - General",people:[{s:"doym1",cr:85,note:"0.1 FTE"}]},
+ {title:"Personal Academic Tutors",cat:"Learning & Teaching",people:[{s:"shap1",cr:25,note:""},{s:"caso1",cr:15,note:""}]},
 ];
 const COURSES=[
- {code:"MGT-BABM",title:"BA Business Management",dept:"MGT",level:"UG",years:3,leader:"simr1",cis:"Y"},
- {code:"MKT-BAMK",title:"BA Marketing",dept:"MKT",level:"UG",years:3,leader:"robd1",cis:"Y"},
- {code:"COMP-BSC",title:"BSc Computing",dept:"COMP",level:"UG",years:3,leader:"blyc1",cis:"Y"},
+ {code:"MGT-ENTM",title:"BA Enterprise Management",dept:"MGT",level:"UG",years:3,leader:"farh1",cis:"Y"},
+ {code:"MKT-BRND",title:"BA Brand & Promotion",dept:"MKT",level:"UG",years:3,leader:"doym1",cis:"Y"},
+ {code:"COMP-SWD",title:"BSc Software Development",dept:"COMP",level:"UG",years:3,leader:"odum1",cis:"Y"},
 ];
 const QUERIES=[
  {id:"01",name:"Credit totals",desc:"Staff totals in credits against their target allocation",
@@ -136,7 +136,7 @@ function visibleTabIds(){ return role==="owner" ? TABS.map(t=>t[0]) : HEAD_TABS;
 function renderRoleBar(){
  const opts=[{v:"owner",l:"Owner (Resourcing Lead)"},
   ...DEPTS.map(d=>({v:"head:"+d.id,l:"Head of "+d.id})),
-  {v:"staff:kypa1",l:"Staff login \u2014 I. Kyprios"}];
+  {v:"staff:andf1",l:"Staff login \u2014 F. Andrade"}];
  return `<div class="row" style="margin:0;padding:6px 12px;background:#0f4c85">
   ${opts.map(o=>`<button class="btn" style="background:${role===o.v?'var(--gold)':'#0f4c85'};color:${role===o.v?'var(--navy)':'#fff'}" data-role="${o.v}">${o.l}</button>`).join("")}
  </div>`;
