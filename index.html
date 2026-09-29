@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WBS Resource Allocation System — Prototype v3</title>
+<style>
+:root{ --navy:#0B3D6B; --navytab:#123C66; --bg:#DCEEFB; --row:#C9E4F7; --gold:#F2C230; --ink:#0B2338;
+ box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Segoe UI,Arial,sans-serif;font-size:13px}
+.app{max-width:1080px;margin:0 auto;border:1px solid var(--navy)}
+.hd{background:var(--navy);color:#fff;padding:8px 12px;font-weight:bold;font-size:15px}
+.hd .yr{color:var(--gold)}
+.tabs{display:flex;flex-wrap:wrap;background:var(--navytab)}
+.tabs button{flex:1;min-width:80px;background:var(--navytab);color:#fff;border:1px solid var(--navy);padding:8px 4px;font-size:11.5px;cursor:pointer;font-weight:600}
+.tabs button.active{background:var(--gold);color:var(--navy)}
+.panel{padding:14px}
+h2{font-size:16px;margin:0 0 10px}
+h3{font-size:13px;margin:14px 0 6px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+select,input[type=text]{border:1px solid var(--navy);padding:4px 6px;font-size:12.5px;background:#fff;color:var(--ink);border-radius:2px}
+.btn{background:var(--navy);color:#fff;border:none;padding:7px 12px;font-size:11.5px;font-weight:600;cursor:pointer;border-radius:3px}
+.btn:hover{background:#0f4c85}
+.grid{width:100%;border-collapse:collapse;margin-bottom:10px}
+.grid th{background:#B7D9F0;border:1px solid var(--navy);padding:5px 6px;font-size:11.5px;text-align:center}
+.grid td{border:1px solid var(--navy);padding:4px 6px;background:var(--row);font-size:12px;text-align:center}
+.grid tr:nth-child(even) td{background:var(--bg)}
+.del{color:#B00020;font-weight:bold;cursor:pointer;font-size:14px}
+.add{color:#1B7A34;font-weight:bold;cursor:pointer;font-size:14px}
+.total-row td{font-weight:bold;background:#B7D9F0}
+.shortfall td{font-weight:bold;background:#FBE3B0}
+.field-box{background:var(--row);border:1px solid var(--navy);padding:10px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap}
+.field-box label{display:block;font-size:11px;font-weight:600;margin-bottom:2px}
+.tt-grid{border:1px solid var(--navy);margin-bottom:14px}
+.tt-head{display:grid;grid-template-columns:70px repeat(12,1fr)}
+.tt-head .hcell{background:#B7D9F0;font-size:10px;text-align:center;padding:3px 0;border:1px solid var(--navy)}
+.tt-day-row{display:grid;grid-template-columns:70px 1fr;position:relative}
+.tt-day-row .day{background:#B7D9F0;font-weight:600;font-size:11.5px;display:flex;align-items:center;justify-content:center;border:1px solid var(--navy)}
+.tt-day-row .cellstrip{display:grid;grid-template-columns:repeat(12,1fr);min-height:34px;position:relative}
+.tt-day-row .cell{border:1px solid var(--navy);background:var(--row)}
+.tt-block{position:absolute;top:2px;bottom:2px;background:#0B3D6B;color:#fff;font-size:10px;display:flex;align-items:center;justify-content:center;border-radius:2px;padding:0 2px;overflow:hidden}
+.note{color:#3A5A78;font-size:11.5px;margin:6px 0 12px}
+.foot{background:var(--navy);color:#fff;padding:6px 12px;font-size:11px;text-align:right}
+</style>
+</head>
+<body>
+<div class="app">
+ <div class="hd">WBS Resource Allocation System <span class="yr" id="yrLabel">(2026/27)</span> — Resource Manager Prototype
+  <select id="yearSel" style="float:right;font-size:12px"></select>
+ </div>
+ <div id="rolebar"></div>
+ <div class="tabs" id="tabs"></div>
+ <div class="panel" id="panel"></div>
+ <div class="foot">University of Worcester Business School — prototype, not connected to live data</div>
+</div>
+<script>
+const DEPTS=[{id:"COMP",name:"Dept. of Computing"},{id:"MGT",name:"Dept of Management & Finance"},{id:"MKT",name:"Dept of Marketing & Enterprise"}];
+const STAFF_GROUPS=[
+ {id:"COMP",name:"Dept. of Computing",leader:"blyc1",dept:"Y",webcode:"985650"},
+ {id:"MGT",name:"Dept of Management & Finance",leader:"simr1",dept:"Y",webcode:"783634"},
+ {id:"MKT",name:"Dept of Marketing & Enterprise",leader:"medd1",dept:"Y",webcode:"422928"},
+ {id:"HPL",name:"Sessional Staff / HPL",leader:"zzzz1",dept:"N",webcode:"969086"},
+ {id:"SMT",name:"Senior Management Team",leader:"simr1",dept:"N",webcode:"344906"},
+];
+const STAFF=[
+ {id:"blyc1",name:"Chris Blythe",surname:"Blythe",forename:"Chris",dept:"COMP",extra:"",room:"CH1010",phone:"302127",email:"c.blythe@worc.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"302127"},
+ {id:"kypa1",name:"Ioannis Kyprios",surname:"Kyprios",forename:"Ioannis",dept:"COMP",extra:"",room:"",phone:"",email:"i.kyprios@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"390112"},
+ {id:"robb1",name:"Bradley Robbins",surname:"Robbins",forename:"Bradley",dept:"COMP",extra:"HPL",room:"",phone:"",email:"b.robbins@worc.ac.uk",status:"HPL",fte:0.00,target:0,publish:"Publish",webcode:"105929"},
+ {id:"reij1",name:"Jo Reidson",surname:"Reidson",forename:"Jo",dept:"MGT",extra:"",room:"BB204",phone:"",email:"j.reidson@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"867876"},
+ {id:"simr1",name:"Rowena Simcox",surname:"Simcox",forename:"Rowena",dept:"MGT",extra:"SMT",room:"BB101",phone:"",email:"r.simcox@worc.ac.uk",status:"FT",fte:1.00,target:850,publish:"Publish",webcode:"413030"},
+ {id:"robd1",name:"Andrew Robley",surname:"Robley",forename:"Andrew",dept:"MGT",extra:"",room:"BB101",phone:"",email:"a.robley@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"423774"},
+ {id:"medd1",name:"Dana Meddows",surname:"Meddows",forename:"Dana",dept:"MKT",extra:"",room:"MK012",phone:"",email:"d.meddows@worc.ac.uk",status:"FT",fte:1.00,target:550,publish:"Publish",webcode:"663736"},
+ {id:"tapc1",name:"Claudia Tapper",surname:"Tapper",forename:"Claudia",dept:"MKT",extra:"HPL",room:"",phone:"",email:"",status:"HPL",fte:0.00,target:0,publish:"Hide",webcode:"714743"},
+];
+const TAUGHT=[{id:"S1",label:"Semester 1"},{id:"S2",label:"Semester 2"},{id:"ML",label:"Module Leader"},{id:"MO",label:"Moderation"},{id:"MC",label:"Major Changes"}];
+const MODULES=[
+ {code:"BMGT1400",title:"Responsible AI",dept:"MGT",credit:30,leader:"simr1",moderator:"reij1",
+  occs:[
+   {occ:"A",groups:3,leader:"simr1",moderator:"reij1",course:"BA Business Management",
+    slots:{S1:{total:140,alloc:{kypa1:70,reij1:10,simr1:70}},S2:{total:0,alloc:{}},
+      ML:{total:16,alloc:{reij1:8,simr1:16}}, MO:{total:12,alloc:{reij1:12}}, MC:{total:18,alloc:{reij1:9,simr1:18}}}},
+   {occ:"C",groups:2,leader:"robd1",moderator:"medd1",course:"BA Marketing",
+    slots:{S1:{total:118,alloc:{medd1:59,robd1:59}},S2:{total:0,alloc:{}},
+      ML:{total:12,alloc:{robd1:12}}, MO:{total:7,alloc:{medd1:7}}, MC:{total:18,alloc:{medd1:9,robd1:9}}}}
+  ]},
+ {code:"COMP2411",title:"Web Application Security",dept:"COMP",credit:15,leader:"blyc1",moderator:"kypa1",
+  occs:[{occ:"A",groups:2,leader:"blyc1",moderator:"kypa1",course:"BSc Computing",
+    slots:{S1:{total:70,alloc:{blyc1:40,kypa1:30}},S2:{total:0,alloc:{}},
+      ML:{total:10,alloc:{blyc1:10}}, MO:{total:6,alloc:{kypa1:6}}, MC:{total:0,alloc:{}}}}]}
+];
+const SESSIONS={ // module|occ|taughtIn -> [{day,start,end,comment}]
+ "BMGT1400|A|S1":[{day:"Mon",start:9.25,end:11.25,c:"A-S1/SEM/01/02"},{day:"Mon",start:12.25,end:13.25,c:"A-S1/LECT/01/01"},{day:"Tue",start:13.75,end:15.75,c:"A-S1/SEM/01/01"}],
+ "BMGT1400|C|S1":[{day:"Mon",start:9.25,end:12.25,c:"C-S1/LECT/01/02"}],
+ "COMP2411|A|S1":[{day:"Wed",start:9.25,end:12.25,c:"A-S1/LECT/01/01"},{day:"Thu",start:9.25,end:12.25,c:"A-S1/LECT/01/02"}],
+};
+const NT_CATS=["Management - General","Management - Programmes","Learning & Teaching"];
+const NT_ROLES=[
+ {title:"Course Leader - BSc Computing portfolio",cat:"Management - Programmes",people:[{s:"blyc1",cr:289,note:"0.34 FTE"}]},
+ {title:"Course Leader - BA Business Management portfolio",cat:"Management - Programmes",people:[{s:"reij1",cr:183,note:"0.215 FTE - Shared"},{s:"simr1",cr:69,note:"Pro-rata"}]},
+ {title:"Apprenticeships Link Tutor",cat:"Management - General",people:[{s:"robd1",cr:85,note:"0.1 FTE"}]},
+ {title:"Personal Academic Tutors",cat:"Learning & Teaching",people:[{s:"medd1",cr:25,note:""},{s:"tapc1",cr:15,note:""}]},
+];
+const COURSES=[
+ {code:"MGT-BABM",title:"BA Business Management",dept:"MGT",level:"UG",years:3,leader:"simr1",cis:"Y"},
+ {code:"MKT-BAMK",title:"BA Marketing",dept:"MKT",level:"UG",years:3,leader:"robd1",cis:"Y"},
+ {code:"COMP-BSC",title:"BSc Computing",dept:"COMP",level:"UG",years:3,leader:"blyc1",cis:"Y"},
+];
+const QUERIES=[
+ {id:"01",name:"Credit totals",desc:"Staff totals in credits against their target allocation",
+  run:()=>STAFF.filter(s=>s.status!=="HPL").map(s=>{
+   let sum=0; MODULES.forEach(m=>m.occs.forEach(o=>Object.values(o.slots).forEach(sl=>{sum+=sl.alloc[s.id]||0;})));
+   NT_ROLES.forEach(r=>r.people.forEach(p=>{if(p.s===s.id) sum+=p.cr;}));
+   return {cols:["Staff","Total credits","Target"],row:[s.name,sum,s.target]};
+  })},
+ {id:"03",name:"HPL staff list",desc:"List all sessional (HPL) staff by department",
+  run:()=>STAFF.filter(s=>s.status==="HPL").map(s=>({cols:["Staff","Dept"],row:[s.name,DEPTS.find(d=>d.id===s.dept).name]}))},
+ {id:"99",name:"DELETE Sessions (annual rollover)",desc:"Removes every timetabled session ahead of the new year — destructive",danger:true},
+];
+const TABS=[["modules","Modules Details"],["alloc","Module Allocation"],["sessions","Module Sessions"],
+ ["leaders","Module Leaders"],["nt","NonTeaching Roles"],["staff","Staff Details"],["tt","Staff Timetable"],
+ ["courses","Course Details"],["coursett","Course Timetables"],["reports","View Reports"],
+ ["adhoc","Ad Hoc Queries"],["publish","Publish Details"]];
+
+let tab="modules", selModule=MODULES[0].code, selDept=DEPTS[0].id, selStaff=STAFF[0].id, selNtCat=NT_CATS[0],
+ selCourse=COURSES[0].code, selQuery=null, selGroup=STAFF_GROUPS[0].id;
+let role="owner"; // "owner" | "head:<deptId>" | "staff:<staffId>"
+const YEARS=["2024-25","2025-26","2026-27","2027-28"];
+let selYear="2026-27";
+let yearsWithData=new Set(["2026-27"]);
+const roleDept=()=> role.startsWith("head:") ? role.split(":")[1] : null;
+const isStaffRole=()=> role.startsWith("staff:");
+const HEAD_TABS=["alloc","sessions","staff","tt","leaders","coursett","publish"];
+function visibleTabIds(){ return role==="owner" ? TABS.map(t=>t[0]) : HEAD_TABS; }
+
+function renderRoleBar(){
+ const opts=[{v:"owner",l:"Owner (Resourcing Lead)"},
+  ...DEPTS.map(d=>({v:"head:"+d.id,l:"Head of "+d.id})),
+  {v:"staff:kypa1",l:"Staff login \u2014 I. Kyprios"}];
+ return `<div class="row" style="margin:0;padding:6px 12px;background:#0f4c85">
+  ${opts.map(o=>`<button class="btn" style="background:${role===o.v?'var(--gold)':'#0f4c85'};color:${role===o.v?'var(--navy)':'#fff'}" data-role="${o.v}">${o.l}</button>`).join("")}
+ </div>`;
+}
+const staffName=id=> (STAFF.find(s=>s.id===id)||{}).name || id;
+const mod=code=> MODULES.find(m=>m.code===code);
+
+function renderTabs(){
+ document.getElementById("rolebar").innerHTML=renderRoleBar();
+ document.querySelectorAll("[data-role]").forEach(b=> b.onclick=()=>{
+   role=b.dataset.role; tab=visibleTabIds()[0]; selQuery=null; renderAll();});
+ const el=document.getElementById("tabs"); el.innerHTML="";
+ const visible=visibleTabIds();
+ TABS.filter(([k])=>visible.includes(k)).forEach(([k,l])=>{const b=document.createElement("button");b.textContent=l;if(tab===k)b.className="active";
+  b.onclick=()=>{tab=k;selQuery=null;renderAll();}; el.appendChild(b);});
+}
+function selectHTML(id,options,selected,onchange){
+ return `<select id="${id}">${options.map(o=>`<option value="${o.v}" ${o.v===selected?"selected":""}>${o.l}</option>`).join("")}</select>`;
+}
+
+function renderModules(){
+ const m=mod(selModule);
+ let h=`<h2>Module Details</h2><div class="row">
+  ${selectHTML("modSel",MODULES.map(x=>({v:x.code,l:x.code+": "+x.title})),selModule)}
+  <button class="btn">Select</button><button class="btn">Update</button>
+  <span style="flex:1"></span>
+  <button class="btn">New Module</button><button class="btn">New Occurrence</button><button class="btn" id="goAlloc">Allocate Staff</button>
+  <button class="btn">Delete Module</button><button class="btn">Delete All Occurrences</button><button class="btn" id="goSess">Add Sessions</button>
+ </div>
+ <div class="field-box">
+  <div><label>Code</label><input type="text" value="${m.code}"></div>
+  <div><label>Subject</label>${selectHTML("",DEPTS.map(d=>({v:d.id,l:d.name})),m.dept)}</div>
+  <div><label>Credit</label><input type="text" value="${m.credit}" style="width:50px"></div>
+  <div><label>Leader</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),m.leader)}</div>
+  <div style="flex:2"><label>Title</label><input type="text" value="${m.title}" style="width:100%"></div>
+  <div><label>Moderator</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),m.moderator)}</div>
+ </div>
+ <table class="grid"><tr><th>Occ.</th><th>Groups</th><th>Leader & Moderator</th><th>Associated Course</th><th>Taught in / Allocation</th><th>Del</th></tr>
+ ${m.occs.map(o=>`<tr><td>${o.occ}</td><td>${o.groups}</td>
+  <td>${staffName(o.leader)}<br>${staffName(o.moderator)}</td><td>${o.course}</td>
+  <td style="text-align:left">${TAUGHT.map(t=>`${t.label}: ${o.slots[t.id].total}`).join(" &nbsp;·&nbsp; ")}</td>
+  <td><span class="del">✕</span></td></tr>`).join("")}
+ </table>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+ document.getElementById("goAlloc").onclick=()=>{tab="alloc";renderAll();};
+ document.getElementById("goSess").onclick=()=>{tab="sessions";renderAll();};
+}
+
+function renderAlloc(){
+ const headScope=roleDept();
+ const options=MODULES;
+ const m=mod(selModule);
+ let h=`<h2>Module Allocation</h2><div class="row">
+  ${selectHTML("modSel",options.map(x=>({v:x.code,l:x.code+": "+x.title+" ("+x.dept+")"})),selModule)}
+  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
+  <button class="btn">Edit Module</button><button class="btn" id="goSess2">Add Sessions</button>
+ </div>
+ <p class="note">Leader: ${staffName(m.leader)} &nbsp; Moderator: ${staffName(m.moderator)}${headScope?" — every module is listed here, whichever department owns it, since staff from any department can teach on it.":""}</p>`;
+ TAUGHT.forEach(t=>{
+  const staffIds=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[t.id].alloc)))];
+  if(staffIds.length===0 && m.occs.every(o=>o.slots[t.id].total===0)) return;
+  h+=`<h3>${t.label}</h3><table class="grid"><tr><th>Occurrence</th>${m.occs.map(o=>`<th>${o.occ}</th>`).join("")}</tr>
+   <tr class="total-row"><td>Total Allocation</td>${m.occs.map(o=>`<td>${o.slots[t.id].total}</td>`).join("")}</tr>
+   ${staffIds.map(sid=>`<tr><td style="text-align:left">${staffName(sid)}</td>${m.occs.map(o=>`<td>${o.slots[t.id].alloc[sid]||""}</td>`).join("")}</tr>`).join("")}
+   <tr class="shortfall"><td>Shortfall</td>${m.occs.map(o=>{
+     const assigned=Object.values(o.slots[t.id].alloc).reduce((a,b)=>a+b,0);
+     return `<td>${assigned-o.slots[t.id].total}</td>`;}).join("")}</tr>
+  </table>`;
+ });
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+ document.getElementById("goSess2").onclick=()=>{tab="sessions";renderAll();};
+}
+
+function renderSessions(){
+ const options=MODULES;
+ const m=mod(selModule);
+ let h=`<h2>Module Sessions</h2><div class="row">
+  ${selectHTML("modSel",options.map(x=>({v:x.code,l:x.code+": "+x.title+" ("+x.dept+")"})),selModule)}
+  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
+  <button class="btn">Edit Module</button><button class="btn">Allocate Staff</button></div>`;
+ m.occs.forEach(o=>{
+  TAUGHT.forEach(t=>{
+   const key=`${m.code}|${o.occ}|${t.id}`, sess=SESSIONS[key]||[];
+   if(t.id!=="S1" && t.id!=="S2" && sess.length===0) return;
+   h+=`<h3>Occurrence ${o.occ} (${t.label})</h3><table class="grid"><tr><th>#</th><th>Day</th><th>Start</th><th>End</th><th>Comments</th><th>Del</th><th>Add</th></tr>
+    ${sess.map((s,i)=>`<tr><td>${i+1}</td><td>${s.day}</td><td>${(""+s.start).replace(".25",":15").replace(".75",":45")}</td><td>${(""+s.end).replace(".25",":15").replace(".75",":45")}</td><td>${s.c}</td><td><span class="del">✕</span></td><td><span class="add">＋</span></td></tr>`).join("")}
+    ${sess.length===0?`<tr><td colspan="6" style="color:#3A5A78">No sessions</td><td><span class="add">＋</span></td></tr>`:""}
+   </table>`;
+  });
+ });
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+}
+
+function renderStaff(){
+ const headScope=roleDept();
+ const groups=STAFF_GROUPS.filter(g=> !headScope || g.id===headScope);
+ if(!groups.some(g=>g.id===selGroup)) selGroup=groups[0].id;
+ const g=STAFF_GROUPS.find(x=>x.id===selGroup);
+ const list=STAFF.filter(s=>s.dept===selGroup || s.extra===selGroup);
+ let h=`<h2>Staff Details</h2><div class="row">
+  ${selectHTML("groupSel",groups.map(x=>({v:x.id,l:x.name})),selGroup)}
+  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
+  <button class="btn">New Staff</button><button class="btn">New Group</button><button class="btn">Delete Group</button><button class="btn">Show Totals</button></div>
+ <div class="field-box">
+  <div><label>GroupID</label><input type="text" value="${g.id}" style="width:60px"></div>
+  <div style="flex:1"><label>Staff Group Name</label><input type="text" value="${g.name}" style="width:100%"></div>
+  <div><label>Staff Group Leader</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),g.leader)}</div>
+  <div><label>Dept?</label>${selectHTML("",[{v:"Y",l:"Yes"},{v:"N",l:"No"}],g.dept)}</div>
+  <div><label>Web Code</label><input type="text" value="${g.webcode}" style="width:60px" readonly></div>
+  <div style="align-self:flex-end"><button class="btn">Reset Code</button></div>
+ </div>
+ <table class="grid"><tr><th>Staff ID</th><th>Surname / Forename</th><th>Subject Group</th><th>Room / Phone</th><th>Email</th><th>Status</th><th>FTE / Credits</th><th>Publish</th><th>Web Code</th><th></th></tr>
+ ${list.map(s=>`<tr>
+   <td>${s.id}</td>
+   <td style="text-align:left">${s.surname}, ${s.forename}</td>
+   <td>${selectHTML("",[{v:"",l:"\u2014"},{v:"HPL",l:"HPL"},{v:"SMT",l:"SMT"}],s.extra)}</td>
+   <td>${s.room||"\u2014"}${s.phone?" / "+s.phone:""}</td>
+   <td style="font-size:10.5px">${s.email||"\u2014"}</td>
+   <td>${selectHTML("",[{v:"FT",l:"FT"},{v:"PT",l:"PT"},{v:"HPL",l:"HPL"},{v:"NEW",l:"NEW"},{v:"TBA",l:"TBA"}],s.status)}</td>
+   <td>${s.fte.toFixed(2)} FTE<br>${s.target} credits</td>
+   <td>${selectHTML("",[{v:"Publish",l:"Publish"},{v:"Hide",l:"Hide"}],s.publish)}</td>
+   <td>${s.webcode}<br><button class="btn" style="padding:3px 6px;font-size:10px">Reset Code</button></td>
+   <td><span class="del">✕</span><br><a href="#" onclick="event.preventDefault();selStaff='${s.id}';tab='tt';renderAll();">Timetable</a></td>
+  </tr>`).join("")}
+ </table>
+ <div class="row" style="background:var(--row);border:1px solid var(--navy);padding:8px 10px"><b>Add Staff to Staff Group</b>
+  ${selectHTML("",[{v:"",l:"Select Staff\u2026"}].concat(STAFF.filter(s=>s.dept!==selGroup&&s.extra!==selGroup).map(s=>({v:s.id,l:s.name}))),"")}
+  <button class="btn">Add Staff</button></div>
+ <p class="note">Web codes are shown here only because they exist in the current system for staff self-access \u2014 in the rebuild this whole column goes away, replaced by the staff member's own login (see the "Staff login" role above).</p>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("groupSel").onchange=e=>{selGroup=e.target.value;renderAll();};
+}
+
+function renderNT(){
+ const roles=NT_ROLES.filter(r=>r.cat===selNtCat);
+ let h=`<h2>Non Teaching Roles</h2><div class="row">
+  ${selectHTML("ntSel",NT_CATS.map(c=>({v:c,l:c})),selNtCat)}
+  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
+  <button class="btn">New Role</button></div>
+ <table class="grid"><tr><th>Role Title</th><th>Del</th><th>Add</th><th>Name</th><th>Credits</th><th>Comments</th><th>Del</th></tr>
+ ${roles.map(r=>r.people.map((p,i)=>`<tr>${i===0?`<td rowspan="${r.people.length}" style="text-align:left">${r.title}</td><td rowspan="${r.people.length}"><span class="del">✕</span></td><td rowspan="${r.people.length}"><span class="add">＋</span></td>`:""}
+   <td style="text-align:left">${staffName(p.s)}</td><td>${p.cr}</td><td>${p.note}</td><td><span class="del">✕</span></td></tr>`).join("")).join("")}
+ </table>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("ntSel").onchange=e=>{selNtCat=e.target.value;renderAll();};
+}
+
+function timeToCol(t){ return Math.round((t-9)*1)+2; } // hour 9 -> col2
+let ttView="chart"; // "chart" | "module" | "time"
+function fmtTime(t){ const h=Math.floor(t), frac=t-h, m=frac>0.6?45:frac>0.35?30:frac>0.1?15:0; return h+":"+String(m).padStart(2,"0"); }
+function staffSessions(staffId){
+ const items=[];
+ ["S1","S2"].forEach(sem=>{
+  MODULES.forEach(m=> m.occs.forEach(o=>{
+    if(!(o.slots[sem]?.alloc||{})[staffId]) return;
+    const key=`${m.code}|${o.occ}|${sem}`;
+    (SESSIONS[key]||[]).forEach(sess=> items.push({...sess,module:m.code,occ:o.occ,sem:sem==="S1"?"Semester 1":"Semester 2"}));
+  }));
+ });
+ return items;
+}
+function moduleFullBreakdownHTML(moduleCode,occLetter){
+ const m=mod(moduleCode); const o=m.occs.find(x=>x.occ===occLetter);
+ const sections=TAUGHT.map(cat=>{
+  const alloc=o.slots[cat.id].alloc, ids=Object.keys(alloc);
+  if(!ids.length) return "";
+  return `<h3 style="margin-top:10px">${cat.label}</h3><table class="grid"><tr><th>Staff</th><th>Credits</th></tr>
+   ${ids.map(sid=>`<tr><td style="text-align:left">${staffName(sid)}</td><td>${alloc[sid]}</td></tr>`).join("")}
+  </table>`;
+ }).join("");
+ return sections || `<p class="note">No staff recorded against this module yet.</p>`;
+}
+function byModuleHTML(staffId){
+ const groups={};
+ MODULES.forEach(m=> m.occs.forEach(o=>{
+   TAUGHT.forEach(cat=>{
+     const credits=o.slots[cat.id].alloc[staffId];
+     if(credits===undefined) return;
+     const key=m.code+"|"+o.occ;
+     groups[key]=groups[key]||{module:m.code,title:m.title,occ:o.occ,cats:[]};
+     const sessKey=`${m.code}|${o.occ}|${cat.id}`;
+     groups[key].cats.push({label:cat.label,credits,sess:SESSIONS[sessKey]||[]});
+   });
+ }));
+ const keys=Object.keys(groups);
+ if(!keys.length) return `<p class="note">No module involvement recorded.</p>`;
+ return keys.map(key=>{
+  const g=groups[key], rowid=key.replace("|","-");
+  return `<h3>${g.module} ${g.title} <span class="chip">Occ ${g.occ}</span></h3>
+   <table class="grid"><tr><th>Category</th><th>Sessions</th><th>Your credits</th></tr>
+   ${g.cats.map(c=>`<tr><td>${c.label}</td><td style="text-align:left">${c.sess.length? c.sess.map(s=>`${s.day} ${fmtTime(s.start)}\u2013${fmtTime(s.end)}`).join(", "):"\u2014"}</td><td>${c.credits}</td></tr>`).join("")}
+   </table>
+   <button class="btn" data-row="${rowid}" style="margin:2px 0 14px">＋ Show everyone teaching this module</button>
+   <div id="detail-${rowid}" style="display:none;margin:-8px 0 14px">${moduleFullBreakdownHTML(g.module,g.occ)}</div>`;
+ }).join("");
+}
+function byTimeHTML(staffId){
+ const order=["Mon","Tue","Wed","Thu","Fri"];
+ const items=staffSessions(staffId).sort((a,b)=> order.indexOf(a.day)-order.indexOf(b.day) || a.start-b.start);
+ if(!items.length) return `<p class="note">No timetabled sessions.</p>`;
+ return `<table class="grid"><tr><th>Day</th><th>Start</th><th>End</th><th>Module</th><th>Semester</th><th>Comments</th></tr>
+  ${items.map(s=>`<tr><td>${s.day}</td><td>${fmtTime(s.start)}</td><td>${fmtTime(s.end)}</td><td>${s.module}-${s.occ}</td><td>${s.sem}</td><td>${s.c}</td></tr>`).join("")}</table>`;
+}
+function viewButtonsHTML(){
+ const v=[["module","View by Module"],["time","View By Time"],["chart","View Chart"]];
+ return v.map(([k,l])=>`<button class="btn" style="background:${ttView===k?'var(--gold)':'var(--navy)'};color:${ttView===k?'var(--navy)':'#fff'}" data-view="${k}">${l}</button>`).join("");
+}
+function timetableBody(staffId){
+ if(ttView==="module") return byModuleHTML(staffId);
+ if(ttView==="time") return byTimeHTML(staffId);
+ return ttGridHTML(staffId);
+}
+function wireModuleExpanders(){
+ document.querySelectorAll("[data-row]").forEach(b=> b.onclick=()=>{
+   const el=document.getElementById("detail-"+b.dataset.row);
+   if(!el) return;
+   const hidden = el.style.display==="none";
+   el.style.display = hidden? "block":"none";
+   b.textContent = hidden? "\u2212 Hide staffing":"\uFF0B Show everyone teaching this module";
+ });
+}
+function wireViewButtons(staffId,after){
+ document.querySelectorAll("[data-view]").forEach(b=> b.onclick=()=>{ ttView=b.dataset.view; after(); });
+ if(ttView==="chart") ttOverlay(staffId);
+ if(ttView==="module") wireModuleExpanders();
+}
+function ttGridHTML(staffId){
+ let h="";
+ ["S1","S2"].forEach(sem=>{
+  const days=["Mon","Tue","Wed","Thu","Fri"];
+  h+=`<div class="tt-grid" data-sem="${sem}">
+   <div class="tt-head"><div class="hcell"></div>${["9","10","11","12","13","14","15","16","17","18","19","20"].map(x=>`<div class="hcell">${x}:15</div>`).join("")}</div>
+   ${days.map(day=>`<div class="tt-day-row" data-day="${day}"><div class="day">${day}</div><div class="cellstrip">${Array.from({length:12}).map(()=>`<div class="cell"></div>`).join("")}</div></div>`).join("")}
+  </div>`;
+ });
+ return h;
+}
+function ttOverlay(staffId){
+ ["S1","S2"].forEach(sem=>{
+  const items=[];
+  MODULES.forEach(m=> m.occs.forEach(o=>{
+    if(!(o.slots[sem]?.alloc||{})[staffId]) return;
+    const key=`${m.code}|${o.occ}|${sem}`;
+    (SESSIONS[key]||[]).forEach(sess=> items.push({...sess,label:m.code+"-"+o.occ}));
+  }));
+  const grid=document.querySelector(`.tt-grid[data-sem="${sem}"]`);
+  if(!grid) return;
+  items.forEach(it=>{
+    const rowWrap=grid.querySelector(`.tt-day-row[data-day="${it.day}"] .cellstrip`);
+    if(!rowWrap) return;
+    const startCol=Math.floor(it.start-9), span=Math.max(1,it.end-it.start);
+    const b=document.createElement("div"); b.className="tt-block"; b.textContent=it.label;
+    b.style.left=`calc(${startCol}/12*100%)`; b.style.width=`calc(${span}/12*100% - 2px)`;
+    rowWrap.appendChild(b);
+  });
+ });
+}
+function renderTT(){
+ const headScope=roleDept();
+ const options=STAFF.filter(x=> !headScope || x.dept===headScope);
+ if(headScope && !options.some(x=>x.id===selStaff)) selStaff=options[0].id;
+ let h=`<h2>Staff Timetable</h2><div class="row">
+  ${selectHTML("staffSel",options.map(x=>({v:x.id,l:x.name})),selStaff)}
+  ${viewButtonsHTML()}</div>`;
+ h+=timetableBody(selStaff);
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("staffSel").onchange=e=>{selStaff=e.target.value;renderAll();};
+ wireViewButtons(selStaff, renderTT);
+}
+
+function renderStaffSelf(){
+ const me=STAFF.find(x=>x.id===role.split(":")[1]);
+ document.getElementById("rolebar").innerHTML=renderRoleBar()+
+  `<div class="row" style="margin:0;padding:8px 12px;background:var(--navy);color:#fff">Logged in as <b>&nbsp;${me.name}&nbsp;</b> \u2014 read-only access to your own timetable only</div>`;
+ document.querySelectorAll("[data-role]").forEach(b=> b.onclick=()=>{role=b.dataset.role; tab=visibleTabIds()[0]; renderAll();});
+ document.getElementById("tabs").innerHTML="";
+ document.getElementById("panel").innerHTML=`<h2>My Timetable</h2>
+  <p class="note">This is what changes: instead of a URL with a web code baked in, ${me.name.split(" ")[0]} signs in and only ever sees this page \u2014 no other staff data, no admin tabs, nothing editable.</p>
+  <div class="row">${viewButtonsHTML()}</div>${timetableBody(me.id)}`;
+ wireViewButtons(me.id, renderStaffSelf);
+}
+
+function renderReports(){
+ let h=`<h2>View Reports</h2><div class="row">
+  ${selectHTML("repSel",[{v:"ab",l:"Activity Breakdown"}],"ab")}
+  <button class="btn">Select</button></div>
+ <h3>Activity Breakdown</h3>
+ <table class="grid"><tr><th>Category</th>${DEPTS.map(d=>`<th>${d.name}</th>`).join("")}<th>Total</th></tr>`;
+ const cats=[...new Set(NT_ROLES.map(r=>r.cat))].concat(["Teaching (all modules)"]);
+ cats.forEach(cat=>{
+  const row=DEPTS.map(d=>{
+   if(cat==="Teaching (all modules)"){
+    return MODULES.filter(m=>m.dept===d.id).reduce((sum,m)=>sum+m.occs.reduce((s2,o)=>s2+o.slots.S1.total+o.slots.S2.total,0),0);
+   }
+   return NT_ROLES.filter(r=>r.cat===cat).reduce((sum,r)=>sum+r.people.reduce((s2,p)=>{
+     const st=STAFF.find(x=>x.id===p.s); return s2+(st&&st.dept===d.id?p.cr:0);
+   },0),0);
+  });
+  const tot=row.reduce((a,b)=>a+b,0);
+  h+=`<tr><td style="text-align:left">${cat}</td>${row.map(v=>`<td>${v}</td>`).join("")}<td><b>${tot}</b></td></tr>`;
+ });
+ h+=`</table><p class="note">Replaces the free-text "Ad Hoc Queries" screen: fixed, parameterized reports only — no raw SQL runs against the live database.</p>`;
+ document.getElementById("panel").innerHTML=h;
+}
+
+function renderLeaders(){
+ const options=MODULES;
+ const m=mod(selModule);
+ let h=`<h2>Module Leaders / Moderators</h2><p class="note">Same data as Module Details — a quicker screen just for setting who leads and moderates.</p>
+ <div class="row">${selectHTML("modSel",options.map(x=>({v:x.code,l:x.code+": "+x.title+" ("+x.dept+")"})),selModule)}
+  <button class="btn">Select</button><button class="btn">Update</button></div>
+ <table class="grid"><tr><th>Occ.</th><th>Course</th><th>Leader</th><th>Moderator</th></tr>
+ ${m.occs.map(o=>`<tr><td>${o.occ}</td><td>${o.course}</td>
+  <td>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),o.leader)}</td>
+  <td>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),o.moderator)}</td></tr>`).join("")}
+ </table>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("modSel").onchange=e=>{selModule=e.target.value;renderAll();};
+}
+
+function renderCourses(){
+ const c=COURSES.find(x=>x.code===selCourse);
+ let h=`<h2>Course Details</h2><div class="row">
+  ${selectHTML("courseSel",COURSES.map(x=>({v:x.code,l:x.code+": "+x.title})),selCourse)}
+  <button class="btn">Select</button><button class="btn">Update</button><span style="flex:1"></span>
+  <button class="btn">New Course</button><button class="btn">Delete Course</button></div>
+ <div class="field-box">
+  <div><label>Code</label><input type="text" value="${c.code}"></div>
+  <div style="flex:2"><label>Title</label><input type="text" value="${c.title}" style="width:100%"></div>
+  <div><label>Subject</label>${selectHTML("",DEPTS.map(d=>({v:d.id,l:d.name})),c.dept)}</div>
+  <div><label>Level</label><input type="text" value="${c.level}" style="width:40px"></div>
+  <div><label>Years</label><input type="text" value="${c.years}" style="width:30px"></div>
+  <div><label>Leader</label>${selectHTML("",STAFF.map(s=>({v:s.id,l:s.name})),c.leader)}</div>
+  <div><label>Shown on CIS?</label>${selectHTML("",[{v:"Y",l:"Yes"},{v:"N",l:"No"}],c.cis)}</div>
+ </div>
+ <table class="grid"><tr><th>Code</th><th>Title</th><th>Dept</th><th>Level</th><th>Years</th><th>Leader</th></tr>
+ ${COURSES.map(x=>`<tr><td>${x.code}</td><td style="text-align:left">${x.title}</td><td>${x.dept}</td><td>${x.level}</td><td>${x.years}</td><td>${staffName(x.leader)}</td></tr>`).join("")}
+ </table>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("courseSel").onchange=e=>{selCourse=e.target.value;renderAll();};
+}
+
+function renderCourseTT(){
+ const options=COURSES;
+ const c=COURSES.find(x=>x.code===selCourse);
+ const occs=[]; MODULES.forEach(m=>m.occs.forEach(o=>{ if(o.course===c.title) occs.push({m,o}); }));
+ let h=`<h2>Course Timetables</h2><div class="row">
+  ${selectHTML("courseSel",options.map(x=>({v:x.code,l:x.code+": "+x.title})),selCourse)}
+  <button class="btn">View by Module</button><button class="btn">View By Time</button><button class="btn">View Chart</button></div>
+ <table class="grid"><tr><th>Module</th><th>Occ.</th><th>Sessions</th></tr>
+ ${occs.length? occs.map(({m,o})=>{
+   const sess=(SESSIONS[`${m.code}|${o.occ}|S1`]||[]).concat(SESSIONS[`${m.code}|${o.occ}|S2`]||[]);
+   return `<tr><td>${m.code}</td><td>${o.occ}</td><td style="text-align:left">${sess.length? sess.map(s=>`${s.day} ${(""+s.start).replace(".25",":15").replace(".75",":45")}\u2013${(""+s.end).replace(".25",":15").replace(".75",":45")}`).join(", "):"No sessions"}</td></tr>`;
+  }).join("") : `<tr><td colspan="3">No modules linked to this course yet</td></tr>`}
+ </table>`;
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("courseSel").onchange=e=>{selCourse=e.target.value;renderAll();};
+}
+
+function renderAdhoc(){
+ let h=`<h2>Ad Hoc Queries</h2>`;
+ if(!selQuery){
+  h+=`<p class="note">In the current system these run raw, free-text SQL directly against the live database — including a saved query that deletes every session outright. Here each query is a fixed, safe, read-only report; anything destructive needs a separate confirmed action with an audit trail, never a one-click query run.</p>
+  <table class="grid"><tr><th>ID</th><th>Name</th><th>Description</th><th></th></tr>
+  ${QUERIES.map(q=>`<tr><td>${q.id}</td><td style="text-align:left">${q.name}</td><td style="text-align:left">${q.desc}</td><td><button class="btn" data-q="${q.id}">${q.danger?"View (blocked)":"Run"}</button></td></tr>`).join("")}
+  </table>`;
+  document.getElementById("panel").innerHTML=h;
+  document.querySelectorAll("[data-q]").forEach(b=> b.onclick=()=>{selQuery=b.dataset.q; renderAll();});
+  return;
+ }
+ const q=QUERIES.find(x=>x.id===selQuery);
+ h+=`<button class="btn" id="back">&larr; Back to queries</button><h3>${q.name}</h3>`;
+ if(q.danger){
+  h+=`<p class="note" style="color:#B00020">This query would delete data directly and is disabled in this prototype. In the rebuild, destructive operations require a typed confirmation, run inside a transaction, and are logged with who ran them.</p>`;
+ } else {
+  const rows=q.run();
+  h+=`<table class="grid"><tr>${rows[0].cols.map(c=>`<th>${c}</th>`).join("")}</tr>${rows.map(r=>`<tr>${r.row.map(v=>`<td>${v}</td>`).join("")}</tr>`).join("")}</table>`;
+ }
+ document.getElementById("panel").innerHTML=h;
+ document.getElementById("back").onclick=()=>{selQuery=null;renderAll();};
+}
+
+function renderPublish(){
+ const headScope=roleDept();
+ const depts=DEPTS.filter(d=> !headScope || d.id===headScope);
+ let h=`<h2>Publish Details</h2>
+ <p class="note">Staff and public pages only show what's been published — Resourcing Leads and HoDs can make changes as they go and publish in bulk when ready.</p>
+ <table class="grid"><tr><th>Department</th><th>Unpublished changes</th><th>Last published</th><th></th></tr>
+ ${depts.map(d=>{const i=DEPTS.findIndex(x=>x.id===d.id); return `<tr><td style="text-align:left">${d.name}</td><td>${[3,0,1][i]}</td><td>${["18 Sep 2026","27 Sep 2026","25 Sep 2026"][i]}</td><td><button class="btn">Publish now</button></td></tr>`;}).join("")}
+ </table>
+ ${!headScope?`<div class="row"><button class="btn">Publish all departments</button></div>`:""}`;
+ document.getElementById("panel").innerHTML=h;
+}
+
+function wireYearSelector(){
+ document.getElementById("yrLabel").textContent=`(${selYear})`;
+ const sel=document.getElementById("yearSel");
+ sel.innerHTML=YEARS.map(y=>`<option value="${y}" ${y===selYear?"selected":""}>${y}${yearsWithData.has(y)?"":" (not created)"}</option>`).join("");
+ sel.value=selYear;
+ sel.onchange=e=>{selYear=e.target.value;renderAll();};
+}
+function renderYearPlaceholder(){
+ const canCreate = role==="owner";
+ document.getElementById("panel").innerHTML=`<h2>Academic Year ${selYear}</h2>
+  <p class="note">No year has been created for ${selYear} yet. Creating one copies every module, occurrence, course, staff-year record and session forward from the current year as a starting point — nothing starts blank. Only the Owner can do this.</p>
+  ${canCreate?`<button class="btn" id="createYear">Create ${selYear} as a copy of 2026-27</button>`
+   :`<p class="note" style="color:#B00020">Only the Resourcing Lead (Owner) can create a new academic year.</p>`}`;
+ if(canCreate) document.getElementById("createYear").onclick=()=>{ yearsWithData.add(selYear); renderAll(); };
+}
+function renderAll(){
+ wireYearSelector();
+ if(isStaffRole()){ renderStaffSelf(); return; }
+ if(!visibleTabIds().includes(tab)) tab=visibleTabIds()[0];
+ renderTabs();
+ if(!yearsWithData.has(selYear)){ renderYearPlaceholder(); return; }
+ if(tab==="modules") renderModules();
+ else if(tab==="alloc") renderAlloc();
+ else if(tab==="sessions") renderSessions();
+ else if(tab==="nt") renderNT();
+ else if(tab==="staff") renderStaff();
+ else if(tab==="tt") renderTT();
+ else if(tab==="leaders") renderLeaders();
+ else if(tab==="courses") renderCourses();
+ else if(tab==="coursett") renderCourseTT();
+ else if(tab==="adhoc") renderAdhoc();
+ else if(tab==="publish") renderPublish();
+ else renderReports();
+ if(selYear!=="2026-27"){
+  document.getElementById("panel").insertAdjacentHTML("afterbegin",
+   `<div class="note" style="background:var(--row);border:1px solid var(--navy);padding:6px 10px;margin-bottom:10px">${selYear} was created as a full copy of 2026-27 on demand \u2014 every record here can now be edited independently without touching 2026-27's data.</div>`);
+ }
+}
+renderAll();
+</script>
+</body>
+</html>
