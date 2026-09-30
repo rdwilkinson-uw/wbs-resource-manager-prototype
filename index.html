@@ -487,8 +487,8 @@ const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
 const TABS=[["overview","Overview","OV"],["modules","Module details","MD"],["alloc","Module allocation","AL"],["sessions","Module sessions","SE"],
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
  ["courses","Course details","CO"],["coursett","Course timetables","CT"],["reports","View reports","RP"],["adhoc","Ad hoc queries","QY"],["publish","Publish","PB"]];
-const ROLE_TABS={owner:TABS.map(t=>t[0]),head:["alloc","sessions","leaders","staff","tt","coursett","publish"],pas:["sessions","leaders","tt","coursett","publish"],staff:[]};
-const EDIT={owner:"all",head:["alloc","sessions","leaders","staff","publish"],pas:["sessions"],staff:[]};
+const ROLE_TABS={owner:TABS.map(t=>t[0]),head:["staff","alloc","sessions","leaders","tt","coursett","publish"],pas:["sessions","leaders","tt","coursett","publish"],staff:[]};
+const EDIT={owner:"all",head:["alloc","leaders","publish"],pas:["sessions"],staff:[]};
 const canEdit=(t=tab)=>EDIT[me.role]==="all"||EDIT[me.role].includes(t);
 const isOwner=()=>me.role==="owner";
 
@@ -586,7 +586,7 @@ function capacity(total,target){
  const pct=Math.round(total/target*100);
  return `<div class="capacity${pct>100?" over":""}"><div class="capacity-track"><i style="width:${Math.min(100,pct)}%"></i></div><span>${total} / ${target} (${pct}%)</span></div>`;
 }
-const readOnlyNote=()=>notice("i","Read-only for your role",`You can view this screen but not change it.${me.role==="pas"?" Session times can be edited on Module sessions.":""}`,"amber");
+const readOnlyNote=()=>notice("i","Read-only for your role",`You can view this screen but not change it.${me.role==="pas"?" Session times can be edited on Module sessions.":me.role==="head"?" Staff are allocated and credits apportioned on Module allocation.":""}`,"amber");
 const moduleOptions=()=>Y().modules.map(m=>({v:m.code,l:`${m.code}  ${m.title} (${m.dept})`}));
 const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
 function ensureModule(){if(!M(sel.module))sel.module=(Y().modules[0]||{}).code||"";return M(sel.module);}
@@ -595,7 +595,7 @@ const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.ma
 /* ------------------------------ shell ------------------------------ */
 const ROLE_CARDS=[
  {role:"owner",id:"odum1",letter:"O",title:"Owner",persona:"Martin Oduya, Resourcing Lead",text:"Everything: modules and credit budgets, courses, staff roles, reports and new academic years."},
- {role:"head",id:"farh1",letter:"H",title:"Head",persona:"Helen Faraday, Management & Finance",text:"Allocates staff to any module, edits sessions and leaders, manages their own department's staff and publishes its timetables."},
+ {role:"head",id:"farh1",letter:"H",title:"Head",persona:"Helen Faraday, Management & Finance",text:"Allocates staff and credits on any module and sets module leaders. Views sessions and their own department's staff, and publishes its timetables."},
  {role:"pas",id:"okon1",letter:"P",title:"PAS Admin",persona:"Nadia Okonkwo",text:"Edits module sessions. Can view staff and course timetables, module leaders and publishing without changing them."},
  {role:"staff",id:"andf1",letter:"S",title:"Academic staff",persona:"Felix Andrade, Computing",text:"Sees only their own published timetable, read-only, and who else teaches each of their modules."}];
 function renderLogin(){
@@ -614,7 +614,7 @@ function renderTop(){
  $("#whoRole").textContent=ROLE_LABEL[me.role]+" · switch";
 }
 function renderNav(){
- $("#nav").innerHTML=TABS.filter(t=>ROLE_TABS[me.role].includes(t[0])).map(([k,l,i])=>
+ $("#nav").innerHTML=ROLE_TABS[me.role].map(k=>TABS.find(t=>t[0]===k)).map(([k,l,i])=>
   `<button data-act="go" data-tab="${k}" class="${tab===k?"active":""}"${tab===k?' aria-current="page"':""}><span class="nav-icon">${i}</span><span>${l}</span></button>`).join("");
  const yd=Y();
  if(!yd){$("#sideFoot").innerHTML="";return;}
@@ -685,28 +685,30 @@ VIEWS.overview=()=>{
 };
 
 /* ---------------------------- Staff details ---------------------------- */
-function visibleGroups(){const hg=headGroup();return hg?GROUPS.filter(g=>g.id===hg):GROUPS;}
+// Heads can view every group (read-only totals), with their own department listed first.
+function visibleGroups(){const hg=headGroup();return hg?[...GROUPS].sort((a,b)=>(b.id===hg)-(a.id===hg)):GROUPS;}
 VIEWS.staff=()=>{
  const groups=visibleGroups();
  if(!groups.some(g=>g.id===sel.group))sel.group=(groups[0]||{}).id;
  const g=G(sel.group),ed=canEdit("staff"),owner=isOwner();
  const list=inYear().filter(p=>SY(p.id).group===g.id);
  const actions=(owner?`<button class="btn" data-act="newGroup">New group</button><button class="btn danger" data-act="deleteGroup">Delete group</button>`:"")+
-  (ed?`<button class="btn primary" data-act="newStaff">New staff</button>`:"");
+  (owner?`<button class="btn primary" data-act="newStaff">New staff</button>`:"");
  let h=pageHead("People & capacity","Staff details",
-  me.role==="head"?"Your department's staff, their credit targets and what other staff see of them.":"Group membership, credit targets, sign-in roles and name visibility.",actions);
- if(!ed)h+=readOnlyNote();
+  me.role==="head"?"Credit totals by staff group. Your own department opens first; choose any other group to view it. Staff records are maintained by the Owner.":"Group membership, credit targets, sign-in roles and name visibility.",actions);
+ const totalsOnly=me.role==="head",mode=totalsOnly?"totals":sel.staffMode;
+ if(!ed&&!totalsOnly)h+=readOnlyNote();
  h+=`<div class="filterbar">
-  <label class="field">Staff group${selectH('data-chg="selGroup"',groups.map(x=>({v:x.id,l:x.name})),sel.group,groups.length<2)}</label>
+  <label class="field">Staff group${selectH('data-chg="selGroup"',groups.map(x=>({v:x.id,l:x.name+(x.id===headGroup()?" (your department)":"")})),sel.group,groups.length<2)}</label>
   <label class="field grow">Find staff<input data-inp="staffSearch" placeholder="Search name or email" aria-label="Search staff"></label>
-  ${segmented("staffMode",sel.staffMode,[["list","Details"],["totals","Totals"]])}</div>`;
+  ${totalsOnly?"":segmented("staffMode",sel.staffMode,[["list","Details"],["totals","Totals"]])}</div>`;
  const tot=list.reduce((a,p)=>{const s=SY(p.id);a.t+=s.target;a.a+=breakdown(p.id).total;return a;},{t:0,a:0});
  h+=`<div class="grid cols-4 metrics">
   ${metric("Staff in group",list.length,`${list.filter(p=>SY(p.id).status==="HPL").length} sessional (HPL)`)}
   ${metric("Target credits",tot.t.toLocaleString(),"sum of individual targets","var(--lime)")}
   ${metric("Allocated",tot.a.toLocaleString(),"teaching and non-teaching","var(--blue)")}
   ${metric("Remaining",(tot.t-tot.a).toLocaleString(),tot.t-tot.a<0?"group is over target":"still available","var(--amber)")}</div>`;
- return h+(sel.staffMode==="totals"?staffTotals(list):staffDetails(g,list,ed,owner));
+ return h+(mode==="totals"?staffTotals(list):staffDetails(g,list,ed,owner));
 };
 function staffDetails(g,list,ed,owner){
  const roleOpts=[{v:"staff",l:"Academic staff"},{v:"pas",l:"PAS Admin"},{v:"head",l:"Head"},{v:"owner",l:"Owner"}];
@@ -728,8 +730,8 @@ function staffDetails(g,list,ed,owner){
     <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="publish" aria-label="Name shown to staff"`,[{v:"1",l:"Real name"},{v:"0",l:s.status==="HPL"?"HPL":"TBC"}],s.publish?"1":"0",!ed)}</td>
     <td>${selectH(`data-chg="role" data-id="${p.id}" aria-label="Sign-in role"`,roleOpts,p.role,!owner)}</td>
     <td><input style="width:72px" value="${esc(s.room)}" data-chg="staffField" data-id="${p.id}" data-f="room" aria-label="Room"${ed?"":" disabled"}></td>
-    <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${ed?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
-   ||`<tr><td colspan="9">${empty("No staff in this group yet",ed?"Add someone with New staff.":"")}</td></tr>`}
+    <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${owner?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
+   ||`<tr><td colspan="9">${empty("No staff in this group yet",owner?"Add someone with New staff.":"")}</td></tr>`}
  </tbody></table></div>
  ${owner&&movable.length?`<div class="card-foot"><span class="lbl">Move staff into this group</span>${selectH('id="moveSel" aria-label="Staff to move"',[{v:"",l:"Choose a person…"}].concat(staffOptions(movable)),"")}<button class="btn small" data-act="moveStaff">Move</button></div>`:""}
  </article>
@@ -742,7 +744,7 @@ function staffTotals(list){
  const sum=k=>rows.reduce((a,r)=>a+r.b[k],0);
  return `<article class="card"><div class="card-head"><h2>Totals for ${esc(gName(sel.group))}</h2><span class="muted" style="font-size:11px">Teaching is split by semester as allocated on Module allocation</span></div>
  <div class="table-wrap"><table><thead><tr><th>Name</th><th class="r">Target</th>${cols.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th class="r">Non-teaching</th><th class="r">Total</th><th class="r">Remaining</th><th></th></tr></thead><tbody>
- ${rows.map(({p,s,b})=>{const rem=s.target-b.total;return `<tr><td class="name-cell">${esc(nameOf(p.id))}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
+ ${rows.map(({p,s,b})=>{const rem=s.target-b.total;return `<tr data-name="${esc((nameOf(p.id)+" "+p.email).toLowerCase())}"><td class="name-cell">${esc(nameOf(p.id))}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
   <td class="r">${rem<0?`<span class="tag red">${rem}</span>`:rem}</td><td class="r"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button></td></tr>`;}).join("")}
  ${rows.length?`<tr class="sum"><td>Group total</td><td class="r">${rows.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${rows.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+6}">${empty("No staff in this group","")}</td></tr>`}
  </tbody></table></div></article>`;
@@ -795,7 +797,7 @@ function catStatus(m,c){
 VIEWS.alloc=()=>{
  const m=ensureModule(),ed=canEdit("alloc");
  let h=pageHead("Workload","Module allocation",me.role==="head"?"Every module is listed, whichever department owns it, because staff from any department can teach on it. Budgets are set by the Owner.":"Divide each category's budget between named staff, per occurrence.",
-  (isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+`<button class="btn" data-act="goto" data-tab="sessions">Edit sessions</button>`);
+  (isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+`<button class="btn" data-act="goto" data-tab="sessions">${canEdit("sessions")?"Edit sessions":"View sessions"}</button>`);
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
  h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label>
   <span class="muted" style="font-size:12px;align-self:center">Leader: <b>${m.occs.length?m.occs.map(o=>`${o.occ}: ${Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"none"}`).join("; "):"—"}</b></span></div>`;
@@ -829,6 +831,7 @@ VIEWS.sessions=()=>{
  const m=ensureModule(),ed=canEdit("sessions");
  let h=pageHead("Timetabling","Module sessions","Day and time of each occurrence's timetabled teaching. Everyone allocated to that semester sees these sessions on their timetable.",
   (isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit module</button>`:"")+(ROLE_TABS[me.role].includes("alloc")?`<button class="btn" data-act="goto" data-tab="alloc">Allocate staff</button>`:""));
+ if(!ed)h+=readOnlyNote();
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
  h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label></div>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","Sessions are added per occurrence once one exists.")}</article>`;
@@ -1085,7 +1088,7 @@ const ACT={
 
  /* ---- staff ---- */
  newStaff(){
-  if(!guard("staff"))return;
+  if(!isOwner())return toast("Only the Owner can add staff","Ask the Resourcing Lead to create the record.",true);
   const hg=headGroup(),owner=isOwner();
   openModal({title:"New member of staff",ok:"Add staff member",body:`<div class="form-grid">
    <label class="field">Forename<input id="nsF"></label><label class="field">Surname<input id="nsS"></label>
@@ -1111,7 +1114,7 @@ const ACT={
    }});
  },
  removeStaff(el){
-  if(!guard("staff"))return;const id=el.dataset.id,b=breakdown(id);
+  if(!isOwner())return toast("Only the Owner can remove staff","Ask the Resourcing Lead to remove the record.",true);const id=el.dataset.id,b=breakdown(id);
   if(b.total>0)return toast(`${nameOf(id)} still holds ${b.total} credits`,"Remove their module and non-teaching allocations first, or move them to another group instead.",true);
   if(PEOPLE.find(p=>p.id===id).role==="owner"&&PEOPLE.filter(p=>p.role==="owner").length<=1)return toast("Can't remove the last Owner","Make someone else an Owner first.",true);
   openModal({title:`Remove ${nameOf(id)} from ${selYear}?`,ok:"Remove",danger:true,body:`<p>They won't appear in ${selYear} any more. Their records in other years are kept.</p>`,
