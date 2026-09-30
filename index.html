@@ -996,10 +996,11 @@ VIEWS.leaders=()=>{
 /* --------------------------- Non-teaching roles --------------------------- */
 VIEWS.nt=()=>{
  const yd=Y(),mode=sel.ntMode==="edit"?"edit":"summary";
- if(mode==="edit"&&sel.nt==="__all")sel.nt=NT_CATS[0];
- if(sel.nt!=="__all"&&!NT_CATS.includes(sel.nt))sel.nt=NT_CATS[0];
  const byTitle=(a,b)=>a.title.localeCompare(b.title);
  const count=cat=>yd.nt.filter(r=>r.cat===cat).length;
+ const withRoles=NT_CATS.filter(c=>count(c));
+ if(mode==="edit"&&sel.nt==="__all")sel.nt=withRoles[0]||NT_CATS[0];
+ if(sel.nt!=="__all"&&!NT_CATS.includes(sel.nt))sel.nt=withRoles[0]||NT_CATS[0];
  let h=pageHead("Workload","Non-teaching roles",mode==="summary"?"A read-only summary of every role in a role type: who holds it, their credits and comments.":"Create and edit roles, and set who holds them.",
   `<button class="btn" data-act="ntTypeNew">New role type</button>`+(mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:""));
  const untyped=yd.nt.filter(r=>!NT_CATS.includes(r.cat));
@@ -1007,7 +1008,11 @@ VIEWS.nt=()=>{
   <div class="table-wrap"><table><thead><tr><th>Role</th><th>Held by</th><th>Role type</th></tr></thead><tbody>
   ${untyped.map(r=>`<tr><td class="name-cell">${esc(r.title)}</td><td>${esc(r.people.map(p=>p.s).join(", ")||"Nobody")}</td>
    <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"")}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
- const typeOpts=(mode==="summary"?[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}]:[]).concat(NT_CATS.map(c=>({v:c,l:`${c} (${count(c)})`})));
+ // Role type drop-down: only types that have roles, in the standard order, with the one being viewed at the top.
+ // (The type being viewed stays listed even if it has no roles yet, e.g. one just created.)
+ const allOpt=mode==="summary"?[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}]:[];
+ const rest=withRoles.filter(c=>c!==sel.nt).map(c=>({v:c,l:`${c} (${count(c)})`}));
+ const typeOpts=sel.nt==="__all"?allOpt.concat(rest):[{v:sel.nt,l:`${sel.nt} (${count(sel.nt)})`}].concat(rest,allOpt);
  h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
 
  if(mode==="summary"){
