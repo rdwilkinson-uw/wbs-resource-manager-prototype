@@ -108,20 +108,32 @@ CREATE TABLE staff_group (
 CREATE TABLE staff (
     id            integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     staff_number  text UNIQUE,                        -- HR / payroll number, optional
+    legacy_staff_id text UNIQUE,                      -- staff_id from the old system (e.g. 'odum1'),
+                                                      -- used to match people across yearly databases
     forename      text NOT NULL,
     surname       text NOT NULL,
-    email         text NOT NULL,                      -- also the login username
+    email         text,                               -- the login username; someone without one
+                                                      -- can't be invited to sign in until it's added
     is_active     boolean NOT NULL DEFAULT true,      -- leavers: deactivate, don't delete
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
     CHECK (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
 );
 
-CREATE UNIQUE INDEX staff_email_unique ON staff (lower(email));
+CREATE UNIQUE INDEX staff_email_unique ON staff (lower(email)) WHERE email IS NOT NULL;
 
 ALTER TABLE staff_group
     ADD CONSTRAINT staff_group_leader_fk
     FOREIGN KEY (leader_staff_id) REFERENCES staff (id) ON DELETE SET NULL;
+
+-- Contract statuses (old table: staff_status). A lookup rather than a fixed
+-- list so new statuses can be added without a schema change.
+CREATE TABLE contract_status (
+    code           text PRIMARY KEY,                  -- 'FT', 'PT', 'HPL', 'NEW', 'TBA'...
+    description    text NOT NULL,
+    is_sessional   boolean NOT NULL DEFAULT false,    -- true for HPL: hidden names show 'HPL' not 'TBC'
+    display_order  integer NOT NULL DEFAULT 100
+);
 
 -- A person's details for one academic year. A staff member must have a row
 -- here to be allocated work in that year.
@@ -131,8 +143,7 @@ CREATE TABLE staff_year (
     staff_id          integer NOT NULL REFERENCES staff (id) ON DELETE RESTRICT,
     academic_year_id  integer NOT NULL REFERENCES academic_year (id) ON DELETE CASCADE,
     staff_group_id    integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
-    contract_type     text NOT NULL DEFAULT 'FT'
-                      CHECK (contract_type IN ('FT', 'PT', 'HPL', 'Other')),
+    contract_type     text NOT NULL DEFAULT 'FT' REFERENCES contract_status (code),
     fte               numeric(4,3) NOT NULL DEFAULT 1.000 CHECK (fte >= 0 AND fte <= 1.5),
     target_credits    numeric(7,2) CHECK (target_credits >= 0),
     room              text,
@@ -283,6 +294,7 @@ CREATE TABLE credit_category (
     code           text NOT NULL UNIQUE,
     name           text NOT NULL,
     applies_to     text NOT NULL CHECK (applies_to IN ('teaching', 'non_teaching')),
+    legacy_code    text,                              -- old time_slot.taught_in or role_type.type_code
     is_management  boolean NOT NULL DEFAULT false,
     is_timetabled  boolean NOT NULL DEFAULT false,
     semester       smallint CHECK (semester IN (1, 2)),
@@ -309,6 +321,9 @@ CREATE TABLE course (
     staff_group_id   integer REFERENCES staff_group (id) ON DELETE RESTRICT,
     leader_staff_id  integer REFERENCES staff (id) ON DELETE SET NULL,
     show_on_cis      boolean NOT NULL DEFAULT true,   -- listed on the Course Information Site
+    subject          text,                            -- old course.subject
+    is_corporate     boolean NOT NULL DEFAULT false,  -- old course.corporate
+    display_order    smallint,                        -- order on menus and the CIS
     is_active        boolean NOT NULL DEFAULT true,
     created_at       timestamptz NOT NULL DEFAULT now(),
     updated_at       timestamptz NOT NULL DEFAULT now()
@@ -321,6 +336,7 @@ CREATE TABLE module (
     title                  text NOT NULL,
     owning_staff_group_id  integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
     academic_credits       smallint CHECK (academic_credits > 0),  -- e.g. 15 / 30 (not workload)
+    subject                text,                                    -- old module.subject
     level                  smallint CHECK (level BETWEEN 3 AND 8),
     is_active              boolean NOT NULL DEFAULT true,
     created_at             timestamptz NOT NULL DEFAULT now(),
@@ -335,6 +351,7 @@ CREATE TABLE occurrence (
     academic_year_id  integer NOT NULL REFERENCES academic_year (id) ON DELETE CASCADE,
     occ_code          text NOT NULL CHECK (occ_code ~ '^[A-Z0-9]{1,3}$'),
     description       text,                           -- campus, mode, cohort...
+    no_of_groups      numeric(5,2) NOT NULL DEFAULT 1 CHECK (no_of_groups > 0),  -- old occurrence.no_of_groups
     created_at        timestamptz NOT NULL DEFAULT now(),
     updated_at        timestamptz NOT NULL DEFAULT now(),
     UNIQUE (module_id, academic_year_id, occ_code),
@@ -346,7 +363,8 @@ CREATE TABLE course_occurrence (
     course_id      integer NOT NULL REFERENCES course (id) ON DELETE RESTRICT,
     occurrence_id  integer NOT NULL REFERENCES occurrence (id) ON DELETE CASCADE,
     year_of_study  smallint CHECK (year_of_study BETWEEN 1 AND 7),
-    is_core        boolean,
+    is_core        boolean,                           -- old course_module.mandatory_flag
+    is_primary     boolean NOT NULL DEFAULT false,    -- old course_module.primary_flag
     PRIMARY KEY (course_id, occurrence_id)
 );
 
@@ -677,8 +695,8 @@ BEGIN
        AND s.is_active;
 
     -- Occurrences. The occurrence trigger creates their 0-credit budget lines.
-    INSERT INTO occurrence (module_id, academic_year_id, occ_code, description)
-    SELECT o.module_id, v_new_year, o.occ_code, o.description
+    INSERT INTO occurrence (module_id, academic_year_id, occ_code, description, no_of_groups)
+    SELECT o.module_id, v_new_year, o.occ_code, o.description, o.no_of_groups
       FROM occurrence o
       JOIN module m ON m.id = o.module_id
      WHERE o.academic_year_id = p_from_year_id
@@ -706,8 +724,8 @@ BEGIN
      WHERE t_new.activity_id = m.new_id;
 
     -- Course links.
-    INSERT INTO course_occurrence (course_id, occurrence_id, year_of_study, is_core)
-    SELECT co.course_id, o_new.id, co.year_of_study, co.is_core
+    INSERT INTO course_occurrence (course_id, occurrence_id, year_of_study, is_core, is_primary)
+    SELECT co.course_id, o_new.id, co.year_of_study, co.is_core, co.is_primary
       FROM course_occurrence co
       JOIN course c         ON c.id = co.course_id AND c.is_active
       JOIN occurrence o_old ON o_old.id = co.occurrence_id
@@ -772,11 +790,12 @@ SELECT sy.academic_year_id,
        sy.staff_id,
        CASE
            WHEN sy.publish_name          THEN s.forename || ' ' || s.surname
-           WHEN sy.contract_type = 'HPL' THEN 'HPL'
+           WHEN cs.is_sessional          THEN 'HPL'
            ELSE 'TBC'
        END AS public_name
   FROM staff_year sy
-  JOIN staff s ON s.id = sy.staff_id;
+  JOIN staff s ON s.id = sy.staff_id
+  JOIN contract_status cs ON cs.code = sy.contract_type;
 
 -- Every credit a person holds, one row per allocation, with its category.
 CREATE VIEW v_allocation_detail AS
@@ -884,6 +903,14 @@ BEGIN
                        t || '_set_updated_at', t);
     END LOOP;
 END $$;
+
+-- Contract statuses. The migration replaces these with the old staff_status rows.
+INSERT INTO contract_status (code, description, is_sessional, display_order) VALUES
+    ('FT',  'Full time',                    false, 10),
+    ('PT',  'Part time',                    false, 20),
+    ('HPL', 'Hourly paid / sessional',      true,  30),
+    ('NEW', 'New starter',                  false, 40),
+    ('TBA', 'To be appointed',              false, 50);
 
 INSERT INTO academic_year (code, start_date, end_date, status)
 VALUES ('2026-27', DATE '2026-09-01', DATE '2027-08-31', 'current');

@@ -277,7 +277,7 @@ tr.selected td{background:var(--t-cyan)}
 .empty b{display:block;font-family:var(--display);font-size:17px;color:var(--heading);margin-bottom:4px}
 
 /* ---------- modal, toast ---------- */
-.modal-backdrop{position:fixed;inset:0;background:rgba(4,28,42,.56);z-index:50;display:none;place-items:center;padding:20px;backdrop-filter:blur(4px)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(4,28,42,.56);z-index:120;display:none;place-items:center;padding:20px;backdrop-filter:blur(4px)}
 .modal-backdrop.open{display:grid}
 .modal{width:min(620px,100%);max-height:90%;overflow:auto;background:var(--surface);border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.3);animation:modalIn .2s ease-out}
 @keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:none}}
@@ -288,7 +288,7 @@ tr.selected td{background:var(--t-cyan)}
 .modal-body .form-grid .wide{grid-column:1/-1}
 .modal-err{color:var(--t-red-ink);font-size:12px;font-weight:700;margin-top:12px;min-height:1em}
 .modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
-.toast-stack{position:fixed;right:22px;bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:80;display:grid;gap:9px}
+.toast-stack{position:fixed;right:22px;bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:130;display:grid;gap:9px}
 .toast{width:330px;max-width:calc(100vw - 44px);background:#102a3b;color:#fff;padding:13px 15px;border-radius:11px;box-shadow:var(--shadow);animation:toastIn .3s ease-out;border-left:4px solid var(--lime)}
 .toast.err{border-left-color:var(--red)}
 .toast b{display:block;font-size:12px}
@@ -315,6 +315,15 @@ tr.selected td{background:var(--t-cyan)}
 .role-card b{display:block;color:var(--heading)}
 .role-card .persona{display:block;color:var(--teal-text);font-size:11px;font-weight:800;margin-top:2px}
 .role-card small{display:block;color:var(--muted);margin-top:6px;line-height:1.35}
+.import-box{margin-top:16px;padding:16px;border:1px dashed var(--input-line);border-radius:12px;background:var(--surface)}
+.import-box h3{margin-bottom:4px}
+.import-box p{margin:0 0 10px;color:var(--muted);font-size:12px}
+.import-box .file-btn{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.import-box input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.role-card.pick{cursor:default}
+.role-card.pick:hover{box-shadow:none}
+.role-card.pick select{width:100%;margin:8px 0}
+.role-card.pick .btn{width:100%}
 .login-note{margin-top:14px;padding:12px 14px;background:var(--filter);border-radius:10px;color:var(--muted);font-size:11px}
 
 /* ---------- responsive ---------- */
@@ -371,6 +380,10 @@ tr.selected td{background:var(--t-cyan)}
    <h2>Choose who to sign in as</h2>
    <p>Each role sees different screens and can change different things.</p>
    <div class="role-cards" id="roleCards"></div>
+   <div class="import-box" id="importBox"><h3>Preview with your own data</h3>
+    <p>Choose a JSON export of a Resource Manager database from phpMyAdmin. It's read by this browser only: nothing is uploaded or saved, and closing the tab discards it.</p>
+    <label class="btn primary file-btn">Choose export file…<input type="file" id="importFile" accept=".json,application/json" aria-label="phpMyAdmin JSON export"></label>
+    <span class="muted" id="importStatus" style="font-size:12px;margin-left:8px"></span></div>
    <div class="login-note"><b>Demonstration only.</b> In the real system each person signs in with their university email and a password they set from an invite email. Their role comes from their account; there is no role picker.</div>
   </div>
  </section>
@@ -418,7 +431,7 @@ const int=v=>Math.max(0,Math.round(parseFloat(v)||0));
 const sumV=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
 const plural=(n,w,p)=>`${n} ${n===1?w:(p||w+"s")}`;
 
-let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER;
+let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null;
 
 function slots(spec){ // spec: {catId:[total,{staffId:credits}]}
  const s={};CATS.forEach(c=>{const v=spec[c.id]||[0,{}];s[c.id]={total:v[0],alloc:{...v[1]}};});return s;
@@ -446,6 +459,7 @@ function seed(){
   {code:"MKT-BRND",title:"BA Brand & Promotion",dept:"MKT",level:"UG",years:3,leader:"doym1",cis:true},
   {code:"COMP-SWD",title:"BSc Software Development",dept:"COMP",level:"UG",years:3,leader:"odum1",cis:true}];
  NT_CATS=["Management - General","Management - Programmes","Learning & Teaching"];
+ STATUSES=["FT","PT","HPL","NEW","TBA"];IMPORT=null;
  const sy=(group,status,fte,target,room,publish=true)=>({group,status,fte,target,room,phone:"",publish});
  YEARS={"2026-27":{status:"current",
   staff:{odum1:sy("COMP","FT",1,850,"CH2001"),andf1:sy("COMP","FT",1,550,""),pemg1:sy("COMP","HPL",0,0,""),
@@ -614,6 +628,15 @@ const ROLE_CARDS=[
  {role:"pas",id:"okon1",letter:"P",title:"PAS Admin",persona:"Nadia Okonkwo",text:"Edits module sessions. Can view staff and course timetables, module leaders and publishing without changing them."},
  {role:"staff",id:"andf1",letter:"S",title:"Academic staff",persona:"Felix Andrade, Computing",text:"Sees only their own published timetable, read-only, and who else teaches each of their modules."}];
 function renderLogin(){
+ if(IMPORT){ // real data: choose which real person to preview each role as
+  const yd=YEARS[IMPORT.year],ppl=[...PEOPLE].sort((a,b)=>a.surname.localeCompare(b.surname));
+  $("#roleCards").innerHTML=ROLE_CARDS.map(r=>`<div class="role-card pick"><span class="role-letter">${r.letter}</span><b>${r.title}</b><small>${esc(r.text)}</small>
+   <select id="who-${r.role}" aria-label="Person to preview as ${r.title}">${ppl.map(p=>opt(p.id,`${p.surname}, ${p.forename} (${(yd.staff[p.id]||{}).group||"no group"})`,IMPORT.defaults[r.role])).join("")}</select>
+   <button class="btn primary small" data-act="signIn" data-role="${r.role}">Preview as ${r.title}</button></div>`).join("");
+  $("#importStatus").textContent=`Loaded ${IMPORT.db}. Choose another file to replace it.`;
+  return;
+ }
+ $("#importStatus").textContent="";
  $("#roleCards").innerHTML=ROLE_CARDS.map(r=>`<button class="role-card" data-act="signIn" data-role="${r.role}" data-id="${r.id}"><span class="role-letter">${r.letter}</span><b>${r.title}</b><span class="persona">${esc(r.persona)}</span><small>${esc(r.text)}</small></button>`).join("");
 }
 function renderTop(){
@@ -638,8 +661,9 @@ function renderNav(){
 }
 function yearBanner(){
  const yd=Y();
- if(!yd||yd.status!=="planning"||me.role==="staff")return "";
- return notice("!","Next academic year",`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||"the current year"}.`,"amber");
+ const imp=IMPORT&&me.role!=="staff"?`<div class="notice"><div class="glyph">⇪</div><div style="flex:1"><strong>Your own data: ${esc(IMPORT.db)}</strong><p>Held only in this browser tab. Nothing has been uploaded or saved; reloading or closing the tab discards it.</p></div><button class="btn small" data-act="importReport">Import report</button></div>`:"";
+ if(!yd||yd.status!=="planning"||me.role==="staff")return imp;
+ return imp+notice("!","Next academic year",`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||"the current year"}.`,"amber");
 }
 function render(anim=false){
  const main=$("#main"),scroll=main.scrollTop;
@@ -738,7 +762,7 @@ function staffDetails(g,list,ed,owner){
   ${list.map(p=>{const s=SY(p.id),b=breakdown(p.id);
    return `<tr data-name="${esc((nameOf(p.id)+" "+p.email).toLowerCase())}">
     <td><span class="name-cell">${esc(p.surname)}, ${esc(p.forename)}</span><span class="sub">${esc(p.email)} · ${p.id}</span></td>
-    <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="status" aria-label="Contract"`,["FT","PT","HPL","NEW","TBA"].map(v=>({v,l:v})),s.status,!ed)}</td>
+    <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="status" aria-label="Contract"`,STATUSES.map(v=>({v,l:v})),s.status,!ed)}</td>
     <td class="r"><input class="num sm" type="number" step="0.05" min="0" max="1.5" value="${s.fte}" data-chg="staffField" data-id="${p.id}" data-f="fte" aria-label="FTE"${ed?"":" disabled"}></td>
     <td class="r"><input class="num" type="number" min="0" value="${s.target}" data-chg="staffField" data-id="${p.id}" data-f="target" aria-label="Target credits"${ed?"":" disabled"}></td>
     <td>${capacity(b.total,s.target)}</td>
@@ -915,8 +939,10 @@ function eventsFor(list){
  }).join("");
 }
 function chartHTML(items){
- return [1,2].map(sem=>{const its=items.filter(i=>i.sem===sem);
-  return `<div class="section-title"><h2>Semester ${sem}</h2><span>${plural(its.length,"session")} a week</span></div>
+ const sems=[...new Set(CATS.filter(c=>c.tt).map(c=>c.sem))].sort((a,b)=>a-b);
+ const semTitle=s=>s===1||s===2?`Semester ${s}`:(CATS.find(c=>c.tt&&c.sem===s)||{label:"Other"}).label;
+ return sems.map(sem=>{const its=items.filter(i=>i.sem===sem);
+  return `<div class="section-title"><h2>${esc(semTitle(sem))}</h2><span>${plural(its.length,"session")} a week</span></div>
   <div class="tt-wrap"><div class="timetable"><div class="tt-corner"></div>${DAYS.map(d=>`<div class="day-head">${DAY_NAME[d]}</div>`).join("")}
    <div class="tt-times">${Array.from({length:12},(_,i)=>`<div>${fmt(DAY0+i)}</div>`).join("")}</div>
    ${DAYS.map(d=>`<div class="tt-day">${eventsFor(its.filter(i=>i.day===d))}</div>`).join("")}</div></div>`;}).join("");
@@ -924,8 +950,8 @@ function chartHTML(items){
 function timeHTML(items){
  if(!items.length)return `<article class="card">${empty("No timetabled sessions","")}</article>`;
  const s=[...items].sort((a,b)=>a.sem-b.sem||DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
- return `<article class="card"><div class="table-wrap"><table><thead><tr><th>Semester</th><th>Day</th><th>Start</th><th>End</th><th>Module</th><th>Notes</th></tr></thead><tbody>
-  ${s.map(i=>`<tr><td>${i.sem}</td><td>${DAY_NAME[i.day]}</td><td>${fmt(i.start)}</td><td>${fmt(i.end)}</td><td><span class="name-cell">${i.module}-${i.occ}</span><span class="sub">${esc(i.title||"")}</span></td><td>${esc(i.c)}</td></tr>`).join("")}</tbody></table></div></article>`;
+ return `<article class="card"><div class="table-wrap"><table><thead><tr><th>Taught in</th><th>Day</th><th>Start</th><th>End</th><th>Module</th><th>Notes</th></tr></thead><tbody>
+  ${s.map(i=>`<tr><td>${esc(i.cat)}</td><td>${DAY_NAME[i.day]}</td><td>${fmt(i.start)}</td><td>${fmt(i.end)}</td><td><span class="name-cell">${i.module}-${i.occ}</span><span class="sub">${esc(i.title||"")}</span></td><td>${esc(i.c)}</td></tr>`).join("")}</tbody></table></div></article>`;
 }
 function teamName(t,viewer){
  if(viewer==null)return t.name;
@@ -1082,17 +1108,18 @@ function viewNoYear(){
 /* =============================== ACTIONS =============================== */
 function guard(t){if(!canEdit(t)){toast("Not available for your role","This change needs a role with edit access to this screen.",true);return false;}return true;}
 const ACT={
- signIn(el){me={role:el.dataset.role,id:el.dataset.id};if(P(me.id).theme)applyTheme(P(me.id).theme);tab=ROLE_TABS[me.role][0]||"mine";
+ signIn(el){const pick=document.getElementById("who-"+el.dataset.role);me={role:el.dataset.role,id:pick?pick.value:el.dataset.id};
+  if(pick&&me.role!=="staff")P(me.id).role=me.role;if(P(me.id).theme)applyTheme(P(me.id).theme);tab=ROLE_TABS[me.role][0]||"mine";
   if(me.role==="head"){sel.group=SY(me.id).group;const own=inYear().find(p=>SY(p.id).group===sel.group);if(own)sel.staff=own.id;}
   if(!YEARS[selYear])selYear="2026-27";
   $("#login").classList.add("hidden");render(true);toast(`Signed in as ${nameOf(me.id)}`,ROLE_LABEL[me.role]);},
  signOut(){me=null;applyTheme(null);closeModal();$("#login").classList.remove("hidden");},
  resetDemo(){openModal({title:"Reset the demo?",body:"<p>Every change you've made, in every year, is discarded and the sample data is restored.</p>",ok:"Reset demo",danger:true,
-  onOk(){seed();selYear="2026-27";Object.assign(sel,{module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
+  onOk(){seed();renderLogin();selYear="2026-27";Object.assign(sel,{module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
  go(el){tab=el.dataset.tab;sel.query=null;render(true);},
  goto(el){(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
  modalClose(){closeModal();},
- modalOk(){const r=modalCb?modalCb():undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();render();},
+ modalOk(){const r=modalCb?modalCb():undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
  toggle(el){const b=el.closest(".module-block");b.classList.toggle("open");el.setAttribute("aria-expanded",b.classList.contains("open"));},
  staffMode(el){sel.staffMode=el.dataset.v;render();},
  ttView(el){sel.ttView=el.dataset.v;render();},
@@ -1109,7 +1136,7 @@ const ACT={
    <label class="field">Forename<input id="nsF"></label><label class="field">Surname<input id="nsS"></label>
    <label class="field wide">University email<input id="nsE" type="email" placeholder="name@example.ac.uk"></label>
    <label class="field">Group${selectH('id="nsG"',visibleGroups().map(g=>({v:g.id,l:g.name})),hg||sel.group,!!hg)}</label>
-   <label class="field">Contract${selectH('id="nsC"',["FT","PT","HPL","NEW","TBA"].map(v=>({v,l:v})),"NEW")}</label>
+   <label class="field">Contract${selectH('id="nsC"',STATUSES.map(v=>({v,l:v})),"NEW")}</label>
    <label class="field">FTE<input id="nsFte" type="number" step="0.05" min="0" max="1.5" value="1"></label>
    <label class="field">Target credits<input id="nsT" type="number" min="0" value="550"></label>
    <label class="field">Name shown to staff${selectH('id="nsP"',[{v:"1",l:"Publish name"},{v:"0",l:"Hide"}],"1")}</label>
@@ -1364,6 +1391,219 @@ ACT.theme=()=>{const next=effTheme()==="dark"?"light":"dark";applyTheme(next);
  else toast(on,"For this visit only. Sign in to save it to your account.");};
 try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",paintThemeButtons);}catch(e){}
 paintThemeButtons();
+
+
+/* ==========================================================================
+   IMPORT: reads a phpMyAdmin JSON export of an existing Resource Manager
+   database (e.g. wbsrmadmin_rm2627) entirely inside the browser. Nothing is
+   uploaded; the page cannot make network requests to other sites anyway.
+   ========================================================================== */
+function parsePhpMyAdmin(text){
+ const tables={};let db="";
+ text=text.replace(/^\uFEFF/,"");
+ let parsed=null;
+ try{parsed=JSON.parse(text);}catch(e){}
+ if(Array.isArray(parsed)){ // phpMyAdmin 5.x: [{type:"header"},{type:"database"},{type:"table",name,data:[…]}]
+  parsed.forEach(x=>{if(!x||typeof x!=="object")return;
+   if(x.type==="database")db=x.name||db;
+   if(x.type==="table"&&Array.isArray(x.data)){tables[x.name]=x.data;db=db||x.database||"";}});
+ }else{ // phpMyAdmin 4.x: comment lines "// db.table" each followed by a JSON array
+  const re=/^\/\/\s*([^\s.]+)\.(\S+)\s*$/gm,marks=[];let m;
+  while((m=re.exec(text)))marks.push({db:m[1],table:m[2].replace(/`/g,""),end:re.lastIndex,start:m.index});
+  marks.forEach((mk,i)=>{const chunk=text.slice(mk.end,i+1<marks.length?marks[i+1].start:text.length);const a=chunk.indexOf("[");if(a<0)return;
+   try{tables[mk.table]=JSON.parse(chunk.slice(a).trim());db=db||mk.db;}catch(e){}});
+ }
+ return {db,tables};
+}
+
+function buildFromLegacy(T,dbName){
+ const warns={},warn=(k,msg)=>{(warns[k]=warns[k]||{msg,n:0,eg:[]}).n++;},eg=(k,x)=>{if(warns[k]&&warns[k].eg.length<5)warns[k].eg.push(x);};
+ const str=v=>v==null?"":String(v).trim(),num=v=>{const n=parseFloat(v);return isNaN(n)?0:n;},rows=n=>Array.isArray(T[n])?T[n]:[];
+ const counts={};
+ const ym=/rm(\d{2})(\d{2})/i.exec(dbName||"");const year=ym?`20${ym[1]}-${ym[2]}`:"Imported";
+
+ // groups
+ const groups=rows("staff_group").map(g=>({id:str(g.staff_group_id),name:str(g.staff_group_name)||str(g.staff_group_id),leader:str(g.leader_id),dept:str(g.subject_group).toUpperCase()==="Y"})).filter(g=>g.id);
+ const ensureGroup=id=>{if(!groups.some(g=>g.id===id))groups.push({id,name:id==="NONE"?"No group recorded":id,leader:"",dept:false});};
+
+ // statuses
+ const statuses=rows("staff_status").sort((a,b)=>num(a.display_order)-num(b.display_order)).map(r=>str(r.status)).filter(Boolean);
+
+ // people and their details for this year
+ const people=[],staff={},emails={};
+ rows("staff").forEach(r=>{
+  const id=str(r.staff_id);if(!id||staff[id])return;
+  const email=str(r.email).toLowerCase();
+  if(!email){warn("noemail","staff have no email address, so couldn't be invited to sign in until one is added");eg("noemail",id);}
+  else if(emails[email]){warn("dupemail","email addresses are shared by more than one staff record (email must be unique for sign-in)");eg("dupemail",email);}
+  else emails[email]=id;
+  let g=str(r.staff_group_id);
+  if(!g){g="NONE";warn("nogroup","staff have no group; they're shown in \"No group recorded\"");eg("nogroup",id);}
+  ensureGroup(g);
+  let st=str(r.status)||"TBA";if(statuses.length&&!statuses.includes(st)){warn("status","staff have a contract status that isn't in the staff_status list");eg("status",`${id}: ${st}`);}
+  people.push({id,forename:str(r.forename)||"(no forename)",surname:str(r.surname)||id,email,role:"staff"});
+  staff[id]={group:g,status:st,fte:num(r.fte),target:Math.round(num(r.allocation)),room:str(r.room),phone:str(r.phone),publish:str(r.publish).toUpperCase()!=="N"};
+ });
+ counts.staff=people.length;
+ const extra=rows("membership").filter(m=>staff[str(m.staff_id)]&&staff[str(m.staff_id)].group!==str(m.staff_group_id));
+ if(extra.length){warns.membership={msg:"extra group memberships weren't imported: the new design gives each person one group (their staff_group_id)",n:extra.length,eg:extra.slice(0,5).map(m=>`${str(m.staff_id)} also in ${str(m.staff_group_id)}`)};}
+
+ // credit categories: teaching from time_slot, non-teaching from role_type
+ const cats=[],catByCode={};
+ const addCat=(code,label,order)=>{
+  const tt=code<"D";let id;
+  if(/leader|leadership/i.test(label)&&!cats.some(c=>c.id==="ML"))id="ML";
+  else if(/moderat/i.test(label)&&!cats.some(c=>c.id==="MO"))id="MO";
+  else{id="T"+code;let k=2;while(cats.some(c=>c.id===id))id="T"+code+(k++);}
+  const c={id,label,legacy:code};
+  if(tt){c.tt=true;const n=/\b([12])\b/.exec(label);c.sem=n&&!/1\s*(&|and|\+)\s*2/i.test(label)?+n[1]:0;}
+  cats.push(c);catByCode[code]=id;
+ };
+ const ts=rows("time_slot").slice().sort((a,b)=>num(a.order_no)-num(b.order_no));
+ ts.forEach(t=>{const code=str(t.taught_in);if(code)addCat(code,str(t.when)||code);});
+ if(!ts.length)warn("notimeslot","The time_slot table wasn't in the export, so teaching categories are named by their code only");
+ // timetabled categories that aren't plainly semester 1 or 2 get their own chart section
+ let nextSem=3;cats.filter(c=>c.tt&&!c.sem).forEach(c=>c.sem=nextSem++);
+ if(!cats.some(c=>c.id==="ML")){cats.push({id:"ML",label:"Module Leader"});warn("noml","No Module Leader category was found in time_slot, so one was added (leaders come from each occurrence's leader_id)");}
+ if(!cats.some(c=>c.id==="MO")){cats.push({id:"MO",label:"Moderation"});warn("nomo","No Moderation category was found in time_slot, so one was added (moderators come from each occurrence's moderator_id)");}
+ const roleType={};rows("role_type").forEach(r=>roleType[str(r.type_code)]=str(r.type_description)||str(r.type_code));
+ const actType={};rows("activity").forEach(a=>actType[str(a.activity_no)]=str(a.type_code));
+ const blankSlots=()=>{const o={};cats.forEach(c=>o[c.id]={total:0,alloc:{}});return o;};
+
+ // modules and occurrences
+ const modules=[],modBy={};
+ rows("module").forEach(r=>{const code=str(r.module_code);if(!code||modBy[code])return;
+  const d=str(r.staff_group_id);if(d)ensureGroup(d);
+  const m={code,title:str(r.module_title)||code,dept:d,credit:Math.round(num(r.credits)),occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
+  modules.push(m);modBy[code]=m;});
+ const occBy={};
+ rows("occurrence").forEach(r=>{const code=str(r.module_code),occ=str(r.occurrence).toUpperCase();if(!code||!occ)return;
+  let m=modBy[code];if(!m){m={code,title:code,dept:"",credit:0,occs:[]};modules.push(m);modBy[code]=m;warn("orphanocc","occurrences belong to a module that isn't in the module table; a placeholder module was created");eg("orphanocc",code);}
+  const o={occ,groups:num(r.no_of_groups)||1,courses:[],slots:blankSlots(),_leader:str(r.leader_id),_moderator:str(r.moderator_id)};
+  m.occs.push(o);occBy[code+"|"+occ]=o;});
+ counts.modules=modules.length;counts.occurrences=Object.keys(occBy).length;
+
+ // teaching roles = category budget lines
+ const trBy={};
+ rows("teaching_role").forEach(r=>{const no=str(r.activity_no),o=occBy[str(r.module_code)+"|"+str(r.occurrence).toUpperCase()];
+  if(!o){warn("orphantr","teaching roles point at an occurrence that doesn't exist and were skipped");eg("orphantr",`${str(r.module_code)} ${str(r.occurrence)}`);return;}
+  let code=str(r.taught_in);
+  if(!catByCode[code]){addCat(code,code);const c=cats[cats.length-1];if(c.tt&&!c.sem)c.sem=nextSem++;
+   [...modules].forEach(m=>m.occs.forEach(x=>x.slots[c.id]=x.slots[c.id]||{total:0,alloc:{}}));
+   warn("unknowncat","teaching roles use a taught_in code that isn't in time_slot; a category was added for it");eg("unknowncat",code);}
+  const cid=catByCode[code];
+  if(o.slots[cid].total){warn("duptr","occurrences have more than one budget line for the same category; their budgets were added together");}
+  o.slots[cid].total+=num(r.role_allocation);
+  trBy[no]={m:str(r.module_code),occ:str(r.occurrence).toUpperCase(),cid,o};});
+ counts.teachingRoles=Object.keys(trBy).length;
+
+ // non-teaching roles
+ const nt=[],ntBy={},ntCats=new Set();
+ rows("non_teaching_role").forEach(r=>{const no=str(r.activity_no);const cat=roleType[actType[no]]||"Uncategorised";ntCats.add(cat);
+  const role={id:"nt"+no,title:str(r.role_title)||`Role ${no}`,cat,people:[]};nt.push(role);ntBy[no]=role;});
+ counts.nonTeachingRoles=nt.length;
+
+ // the credit ledger
+ let allocs=0;
+ rows("activity_allocation").forEach(r=>{const no=str(r.activity_no),sid=str(r.staff_id),cr=num(r.staff_allocation);
+  if(!staff[sid]){warn("allocstaff","allocations are for a staff_id that isn't in the staff table and were skipped");eg("allocstaff",sid);return;}
+  if(trBy[no]){const s=trBy[no].o.slots[trBy[no].cid];s.alloc[sid]=(s.alloc[sid]||0)+cr;allocs++;}
+  else if(ntBy[no]){ntBy[no].people.push({s:sid,cr,note:str(r.comments)});allocs++;}
+  else{warn("allocact","allocations point at an activity that is neither a teaching nor a non-teaching role and were skipped");eg("allocact",no);}});
+ counts.allocations=allocs;
+
+ // leaders and moderators: in the old system these are occurrence columns, separate from credits
+ let addedL=0;
+ modules.forEach(m=>m.occs.forEach(o=>{
+  [["ML",o._leader||m._leader],["MO",o._moderator||m._moderator]].forEach(([k,id])=>{
+   if(!id)return;if(!staff[id]){warn("leaderstaff","leaders or moderators are a staff_id that isn't in the staff table");eg("leaderstaff",id);return;}
+   if(!(id in o.slots[k].alloc)){o.slots[k].alloc[id]=0;addedL++;}
+  });delete o._leader;delete o._moderator;}));
+ modules.forEach(m=>{delete m._leader;delete m._moderator;});
+ if(addedL)warns.leaders={msg:"named leaders or moderators held no Module Leader / Moderation credits; they were added with 0 credits so they still show as leader or moderator",n:addedL,eg:[]};
+
+ // courses
+ const courses=rows("course").slice().sort((a,b)=>num(a.display_order)-num(b.display_order)).map(r=>{
+  const subj=str(r.subject),g=groups.find(x=>x.id===subj||x.name.toLowerCase()===subj.toLowerCase());
+  return {code:str(r.course_code),title:str(r.course_title)||str(r.course_code),dept:g?g.id:subj,level:/^p/i.test(str(r.level))?"PG":"UG",
+   years:Math.max(1,Math.round(num(r.no_of_years))||1),leader:staff[str(r.leader_staff_id)]?str(r.leader_staff_id):"",cis:str(r.cis).toUpperCase()!=="N"};}).filter(c=>c.code);
+ counts.courses=courses.length;
+ let links=0;
+ rows("course_module").forEach(r=>{const o=occBy[str(r.module_code)+"|"+str(r.occurrence).toUpperCase()],c=str(r.course_code);
+  if(!o||!courses.some(x=>x.code===c)){warn("orphanlink","course links point at a course or occurrence that doesn't exist and were skipped");eg("orphanlink",`${c} / ${str(r.module_code)} ${str(r.occurrence)}`);return;}
+  if(!o.courses.includes(c)){o.courses.push(c);links++;}});
+ counts.courseLinks=links;
+
+ // timetabled sessions
+ const sessions={},toH=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(str(t));return m?+m[1]+(+m[2])/60:null;};
+ let sess=0;
+ rows("session").slice().sort((a,b)=>num(a.session_no)-num(b.session_no)).forEach(r=>{const tr=trBy[str(r.activity_no)];
+  if(!tr){warn("orphansess","sessions belong to a teaching role that doesn't exist and were skipped");return;}
+  const c=cats.find(x=>x.id===tr.cid);
+  if(!c.tt){warn("sessnott","sessions are attached to a category that isn't timetabled (taught_in D or later) and were skipped");eg("sessnott",`${tr.m} ${tr.occ}`);return;}
+  const d=str(r.day).slice(0,3),day=d.charAt(0).toUpperCase()+d.slice(1).toLowerCase(),start=toH(r.start_time),end=toH(r.end_time);
+  if(!DAYS.includes(day)){warn("sessday","sessions have a day that isn't Monday to Friday and were skipped");eg("sessday",`${tr.m} ${tr.occ}: ${str(r.day)||"blank"}`);return;}
+  if(start==null||end==null||end<=start){warn("sesstime","sessions have a missing time, or end before they start, and were skipped");eg("sesstime",`${tr.m} ${tr.occ} ${day}`);return;}
+  if(start<9||end>21.5){warn("sessrange","sessions fall partly outside the 09:15 to 21:15 timetable grid (kept, but may be clipped on charts)");eg("sessrange",`${tr.m} ${tr.occ} ${day} ${fmt(start)}`);}
+  const key=skey(tr.m,tr.occ,tr.cid);(sessions[key]=sessions[key]||[]).push({day,start:+start.toFixed(4),end:+end.toFixed(4),c:str(r.comments)});sess++;});
+ counts.sessions=sess;
+
+ // who to preview as, by default: a department leader for Head, otherwise the first person
+ const byName=[...people].sort((a,b)=>a.surname.localeCompare(b.surname));
+ const deptLeader=(groups.find(g=>g.dept&&staff[g.leader])||{}).leader;
+ const teacher=byName.find(p=>modules.some(m=>m.occs.some(o=>cats.some(c=>c.tt&&p.id in o.slots[c.id].alloc))));
+ const first=(byName[0]||{}).id;
+ return {year,cats,groups,people,courses,ntCats:[...ntCats].sort(),statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
+  yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{}},
+  counts,warnings:Object.values(warns),defaults:{owner:first,head:deptLeader||first,pas:first,staff:(teacher||{}).id||first}};
+}
+
+function applyImport(res,db,tablesFound){
+ CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:["Uncategorised"];STATUSES=res.statuses.length?res.statuses:["FT","PT","HPL"];
+ YEARS={[res.year]:res.yearData};
+ const ym=/^(\d{4})-/.exec(res.year);YEAR_ORDER=ym?[res.year,`${+ym[1]+1}-${String(+ym[1]+2).slice(2)}`]:[res.year];
+ selYear=res.year;
+ const yd=YEARS[res.year],when=stamp();
+ GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,when));yd.lastPublished[g.id]=when;});
+ Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],query:null,staffMode:"list"});
+ IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound};
+}
+
+function importReportHTML(){
+ const c=IMPORT.counts,rows=[["Staff",c.staff],["Modules",c.modules],["Occurrences",c.occurrences],["Category budget lines",c.teachingRoles],["Non-teaching roles",c.nonTeachingRoles],
+  ["Credit allocations",c.allocations],["Courses",c.courses],["Course links",c.courseLinks],["Timetabled sessions",c.sessions]];
+ return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.</p>
+  <div class="table-wrap"><table><tbody>${rows.map(([l,n])=>`<tr><td>${l}</td><td class="r"><b>${n}</b></td></tr>`).join("")}</tbody></table></div>
+  <h3 style="margin:16px 0 6px">Credit categories found</h3><p>${CATS.map(x=>`${esc(x.label)}${x.legacy?` (${esc(x.legacy)})`:""}${x.tt?", timetabled":""}`).join("; ")}</p>
+  <h3 style="margin:16px 0 6px">${IMPORT.warnings.length?"Things to check":"No problems found"}</h3>
+  ${IMPORT.warnings.map(w=>`<div class="notice amber" style="margin-bottom:8px"><div class="glyph">${w.n}</div><div><p style="margin:0">${esc(w.msg)}.${w.eg.length?`<br><span class="muted">For example: ${esc(w.eg.join(", "))}</span>`:""}</p></div></div>`).join("")}
+  <p style="margin-top:12px">These are the same checks the real migration will make. Anything listed here is worth tidying in the current system first, or deciding how the new one should treat it.</p>`;
+}
+ACT.importReport=()=>{if(!IMPORT)return;openModal({title:"Import report",body:importReportHTML(),ok:"Close",onOk(){}});$("#modalOk").previousElementSibling.style.display="none";};
+const _close=closeModal;closeModal=function(){const c=$("#modalOk").previousElementSibling;if(c)c.style.display="";_close();};
+
+document.getElementById("importFile").addEventListener("change",e=>{
+ const f=e.target.files&&e.target.files[0];if(!f)return;
+ const status=$("#importStatus");status.textContent="Reading…";
+ const r=new FileReader();
+ r.onerror=()=>{status.textContent="";toast("Couldn't read that file","Try exporting it again from phpMyAdmin.",true);};
+ r.onload=()=>{
+  try{
+   const {db,tables}=parsePhpMyAdmin(String(r.result));
+   const found=Object.keys(tables);
+   if(!found.length)throw new Error("This doesn't look like a phpMyAdmin JSON export. In phpMyAdmin choose Export, then Format: JSON.");
+   const need=["staff","staff_group","module","occurrence","teaching_role","activity_allocation"].filter(t=>!found.includes(t));
+   if(need.length)throw new Error(`The export is missing these tables: ${need.join(", ")}. Export the whole database, not individual tables.`);
+   const res=buildFromLegacy(tables,db);
+   if(!res.people.length)throw new Error("The staff table in this export is empty.");
+   applyImport(res,db,found);renderLogin();
+   toast("Data loaded",`${res.counts.staff} staff and ${res.counts.modules} modules from ${db||"the export"}. Choose who to preview as.`);
+   ACT.importReport();
+  }catch(err){status.textContent="";toast("Couldn't import that file",err.message,true);}
+  e.target.value="";
+ };
+ r.readAsText(f);
+});
 
 seed();renderLogin();
 </script>
