@@ -123,6 +123,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 
 select:disabled,input:disabled{opacity:.7;cursor:not-allowed}
 input.num{width:76px;text-align:right}
 input.num.sm{width:64px}
+input.note-in{display:block;width:140px;margin:4px 0 0 auto;min-height:28px;font-size:11px;padding:4px 7px;text-align:left}
 .spacer{flex:1}
 .segmented{display:inline-flex;background:var(--filter);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
 .segmented button{border:0;background:transparent;padding:7px 11px;border-radius:6px;font-size:11px;font-weight:800;color:var(--muted)}
@@ -254,6 +255,25 @@ tr.selected td{background:var(--t-cyan)}
 .person-card span{display:block;color:var(--muted);font-size:10px;margin-top:2px}
 .person-card.me{border-color:var(--cyan)}
 
+.bd-card+.bd-card{margin-top:14px}
+.check-list{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:10px}
+.check-row{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line-2);font-size:13px;cursor:pointer}
+.check-row:last-child{border-bottom:0}
+.check-row:hover{background:var(--hover)}
+.check-row input{min-height:0;width:16px;height:16px;margin:0}
+.check-row .muted{margin-left:auto;font-size:11px}
+.nt-summary{table-layout:fixed;min-width:760px}
+.nt-summary td{overflow-wrap:anywhere}
+.nt-summary td.role-cell{border-right:1px solid var(--line-2)}
+.bd-table{table-layout:fixed;min-width:760px}
+.bd-table td{vertical-align:top;overflow-wrap:anywhere}
+.bd-table td .occ{margin-top:-3px}
+.plus-btn{width:26px;height:26px;border-radius:50%;border:0;background:var(--primary);color:#fff;font-weight:900;font-size:15px;line-height:1;display:inline-grid;place-items:center}
+.plus-btn[aria-expanded="true"]{background:var(--badge)}
+.detail-row td{background:var(--hover);padding:12px 16px 16px}
+.bd-total{display:flex;justify-content:flex-end;gap:26px;flex-wrap:wrap;margin-top:14px;padding:12px 18px;background:var(--filter);border:1px solid var(--line);border-radius:12px;font-size:12px}
+.bd-total b{font-size:14px;color:var(--heading)}
+.bd-total b.over{color:var(--t-red-ink)}
 /* ---------- reports, publish ---------- */
 .report-grid{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start}
 .report-menu{padding:8px}
@@ -432,9 +452,12 @@ const sumV=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
 const plural=(n,w,p)=>`${n} ${n===1?w:(p||w+"s")}`;
 
 let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null;
+// Role types for non-teaching roles, in the order of the old role_type table.
+const DEFAULT_NT_CATS=["Management - General","Management - Programmes","Management - Recruitment & International","Management - Learning & Teaching",
+ "Management - Research","Management - External Engagement","Programmes","Learning & Teaching","Research","External Engagement"];
 
-function slots(spec){ // spec: {catId:[total,{staffId:credits}]}
- const s={};CATS.forEach(c=>{const v=spec[c.id]||[0,{}];s[c.id]={total:v[0],alloc:{...v[1]}};});return s;
+function slots(spec){ // spec: {catId:[total,{staffId:credits},{staffId:comment}]}
+ const s={};CATS.forEach(c=>{const v=spec[c.id]||[0,{}];s[c.id]={total:v[0],alloc:{...v[1]},notes:{...(v[2]||{})}};});return s;
 }
 function seed(){
  CATS=[{id:"S1",label:"Semester 1",sem:1,tt:true},{id:"S2",label:"Semester 2",sem:2,tt:true},{id:"SV",label:"Supervision"},
@@ -458,7 +481,7 @@ function seed(){
   {code:"MGT-ENTM",title:"BA Enterprise Management",dept:"MGT",level:"UG",years:3,leader:"farh1",cis:true},
   {code:"MKT-BRND",title:"BA Brand & Promotion",dept:"MKT",level:"UG",years:3,leader:"doym1",cis:true},
   {code:"COMP-SWD",title:"BSc Software Development",dept:"COMP",level:"UG",years:3,leader:"odum1",cis:true}];
- NT_CATS=["Management - General","Management - Programmes","Learning & Teaching"];
+ NT_CATS=DEFAULT_NT_CATS.slice();
  STATUSES=["FT","PT","HPL","NEW","TBA"];IMPORT=null;
  const sy=(group,status,fte,target,room,publish=true)=>({group,status,fte,target,room,phone:"",publish});
  YEARS={"2026-27":{status:"current",
@@ -467,10 +490,10 @@ function seed(){
    shap1:sy("MKT","FT",1,550,"MK020"),caso1:sy("MKT","HPL",0,0,"",false)},
   modules:[
    {code:"MGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,occs:[
-    {occ:"A",groups:3,courses:["MGT-ENTM"],slots:slots({S1:[140,{andf1:60,farh1:70}],SV:[20,{farh1:20}],ML:[16,{farh1:16}],MO:[12,{okon1:12}],MC:[18,{farh1:9,okon1:9}]})},
+    {occ:"A",groups:3,courses:["MGT-ENTM"],slots:slots({S1:[140,{andf1:60,farh1:70},{andf1:"Reduced to 2 groups"}],SV:[20,{farh1:20},{farh1:"4 Cr / Project"}],ML:[16,{farh1:16}],MO:[12,{okon1:12}],MC:[18,{farh1:9,okon1:9}]})},
     {occ:"C",groups:2,courses:["MKT-BRND"],slots:slots({S1:[118,{shap1:59,doym1:59}],ML:[12,{doym1:12}],MO:[7,{shap1:7}],MC:[18,{shap1:9,doym1:9}]})}]},
    {code:"CPX2205",title:"Applied Software Design",dept:"COMP",credit:15,occs:[
-    {occ:"A",groups:2,courses:["COMP-SWD"],slots:slots({S1:[70,{odum1:40,andf1:30}],S2:[30,{andf1:30}],SV:[15,{odum1:15}],ML:[10,{odum1:10}],MO:[6,{andf1:6}]})}]},
+    {occ:"A",groups:2,courses:["COMP-SWD"],slots:slots({S1:[70,{odum1:40,andf1:30}],S2:[30,{andf1:30}],SV:[15,{odum1:15},{odum1:"7.5 Cr / Student"}],ML:[10,{odum1:10}],MO:[6,{andf1:6}]})}]},
    {code:"MKX1010",title:"Principles of Marketing",dept:"MKT",credit:15,occs:[
     {occ:"A",groups:2,courses:["MKT-BRND","MGT-ENTM"],slots:slots({S2:[90,{shap1:45,caso1:45}],ML:[10,{shap1:10}],MO:[6,{doym1:6}]})}]},
    {code:"CPX3310",title:"Secure Systems Engineering",dept:"COMP",credit:15,occs:[
@@ -486,7 +509,10 @@ function seed(){
    {id:"nt1",title:"Course Leader - BSc Software Development",cat:"Management - Programmes",people:[{s:"odum1",cr:289,note:"0.34 FTE"}]},
    {id:"nt2",title:"Course Leader - BA Enterprise Management",cat:"Management - Programmes",people:[{s:"okon1",cr:183,note:"0.215 FTE, shared"},{s:"farh1",cr:69,note:"Pro-rata"}]},
    {id:"nt3",title:"Apprenticeships Link Tutor",cat:"Management - General",people:[{s:"doym1",cr:85,note:"0.1 FTE"}]},
-   {id:"nt4",title:"Personal Academic Tutors",cat:"Learning & Teaching",people:[{s:"shap1",cr:25,note:""},{s:"caso1",cr:15,note:""}]}],
+   {id:"nt4",title:"Personal Academic Tutors",cat:"Learning & Teaching",people:[{s:"shap1",cr:25,note:""},{s:"caso1",cr:15,note:""}]},
+   {id:"nt5",title:"Admissions Tutor - Computing",cat:"Management - Recruitment & International",people:[{s:"andf1",cr:45,note:"UG COMP"}]},
+   {id:"nt6",title:"Scholarship",cat:"Research",people:[{s:"andf1",cr:60,note:""},{s:"farh1",cr:60,note:""}]},
+   {id:"nt7",title:"Personal Academic Tutors - Computing",cat:"Learning & Teaching",people:[{s:"andf1",cr:20,note:"L4 Software 26-27"},{s:"odum1",cr:20,note:""}]}],
   changes:[],published:{},lastPublished:{}}};
  YEAR_ORDER=["2026-27","2027-28"];
  // Start with everything published, as the live system would be.
@@ -496,7 +522,7 @@ function seed(){
 
 /* ------------------------------ state ------------------------------ */
 let me=null, tab="overview", selYear="2026-27";
-const sel={module:"MGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",report:"activity",query:null,
+const sel={module:"MGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",report:"activity",query:null,
  ttView:"chart",ctView:"module",myView:"chart",staffMode:"list"};
 
 const Y=()=>YEARS[selYear];
@@ -508,7 +534,16 @@ const gName=id=>(G(id)||{name:id||"—"}).name;
 const M=code=>Y().modules.find(m=>m.code===code);
 const C=code=>COURSES.find(c=>c.code===code);
 const CAT=id=>CATS.find(c=>c.id===id);
-const inYear=(yd=Y())=>PEOPLE.filter(p=>yd.staff[p.id]).sort((a,b)=>a.surname.localeCompare(b.surname));
+// Staff are listed in staff ID order everywhere (e.g. andf1, doym1, farh1).
+const byStaffId=(a,b)=>a.id.localeCompare(b.id,"en",{numeric:true,sensitivity:"base"});
+const inYear=(yd=Y())=>PEOPLE.filter(p=>yd.staff[p.id]).sort(byStaffId);
+// Suggest an ID: first 3 letters of surname + first letter of forename + the next free digit.
+function suggestStaffId(f,s){
+ const clean=v=>String(v||"").toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");
+ const base=(clean(s)+"xxx").slice(0,3)+(clean(f)[0]||"x");
+ for(let n=1;n<=9;n++){const id=base+n;if(!PEOPLE.some(p=>p.id.toLowerCase()===id))return id;}
+ return "";
+}
 const skey=(m,o,c)=>`${m}|${o}|${c}`;
 const ROLE_LABEL={owner:"Owner",head:"Head",pas:"PAS Admin",staff:"Academic staff"};
 const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
@@ -550,23 +585,39 @@ function clashPairs(items){
  }
  return out;
 }
-function staffModules(id,yd=Y()){
- const out=[];
- yd.modules.forEach(m=>m.occs.forEach(o=>{
-  const mine=CATS.filter(c=>id in o.slots[c.id].alloc).map(c=>({label:c.label,credits:o.slots[c.id].alloc[id],
-   sess:(yd.sessions[skey(m.code,o.occ,c.id)]||[]).map(s=>({...s}))}));
-  if(!mine.length)return;
-  const team={};
-  CATS.forEach(c=>Object.entries(o.slots[c.id].alloc).forEach(([sid,cr])=>{
-   const s=yd.staff[sid]||{};
-   team[sid]=team[sid]||{id:sid,name:nameOf(sid),hidden:s.publish===false,hpl:s.status==="HPL",roles:[]};
-   team[sid].roles.push(`${c.label} ${cr}`);
-  }));
-  out.push({code:m.code,title:m.title,occ:o.occ,mine,team:Object.values(team)});
+// A member of staff's work broken down by credit category (Semester 1, Semester 2 … Non-Teaching Roles).
+// Empty categories are left out. Used for the "By module" view and for published snapshots.
+function teamOf(o,yd){
+ const team={};
+ CATS.forEach(c=>Object.entries(o.slots[c.id].alloc).forEach(([sid,cr])=>{
+  const s=yd.staff[sid]||{};
+  team[sid]=team[sid]||{id:sid,name:nameOf(sid),hidden:s.publish===false,hpl:s.status==="HPL",roles:[]};
+  team[sid].roles.push(`${c.label} ${cr}`);
  }));
- return out;
+ return Object.values(team).sort(byStaffId);
 }
-function snapshot(id,yd=Y(),when=stamp()){return {at:when,items:staffItems(id,yd),modules:staffModules(id,yd)};}
+function staffBreakdown(id,yd=Y()){
+ const sections=[];
+ CATS.forEach(c=>{
+  const rows=[];
+  yd.modules.forEach(m=>m.occs.forEach(o=>{
+   if(!(id in o.slots[c.id].alloc))return;
+   rows.push({code:m.code,title:m.title,occ:o.occ,
+    sessions:c.tt?(yd.sessions[skey(m.code,o.occ,c.id)]||[]).map(s=>({day:s.day,start:s.start,end:s.end})):null,
+    mgt:id in o.slots.ML.alloc?"LEAD":id in o.slots.MO.alloc?"MOD":"",
+    credits:o.slots[c.id].alloc[id],comment:(o.slots[c.id].notes||{})[id]||"",team:teamOf(o,yd)});
+  }));
+  rows.sort((a,b)=>a.code.localeCompare(b.code)||a.occ.localeCompare(b.occ));
+  if(rows.length)sections.push({label:c.label,kind:"teach",rows});
+ });
+ const nt=[];
+ NT_CATS.forEach(cat=>yd.nt.filter(r=>r.cat===cat).forEach(r=>r.people.filter(p=>p.s===id).forEach(p=>nt.push({title:r.title,type:cat,credits:p.cr,comment:p.note||"",
+  team:r.people.map(q=>{const s=yd.staff[q.s]||{};return {id:q.s,name:nameOf(q.s),hidden:s.publish===false,hpl:s.status==="HPL",roles:[`${q.cr}`]};}).sort(byStaffId)}))));
+ if(nt.length)sections.push({label:"Non-Teaching Roles",kind:"nt",rows:nt});
+ const s=yd.staff[id]||{};
+ return {sections,target:s.target||0,total:breakdown(id,yd).total};
+}
+function snapshot(id,yd=Y(),when=stamp()){return {at:when,items:staffItems(id,yd),breakdown:staffBreakdown(id,yd)};}
 function yearBudget(yd=Y()){
  let budget=0,assigned=0,over=0;
  yd.modules.forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const s=o.slots[c.id],a=sumV(s.alloc);budget+=s.total;assigned+=Math.min(a,s.total);if(a>s.total)over++;})));
@@ -593,7 +644,8 @@ function openModal({title,body,ok="Save",danger=false,onOk}){
  $("#modalTitle").textContent=title;$("#modalBody").innerHTML=body;$("#modalErr").textContent="";
  const b=$("#modalOk");b.textContent=ok;b.className="btn "+(danger?"danger":"primary");modalCb=onOk;
  $("#modalBg").classList.add("open");
- setTimeout(()=>{const f=$("#modalBody input:not([disabled]),#modalBody select:not([disabled])");(f||b).focus();},40);
+ // focus the first field straight away (never later, which could steal focus from a field already being typed in)
+ const f=$("#modalBody input:not([disabled]),#modalBody select:not([disabled])");(f||b).focus();
 }
 function closeModal(){$("#modalBg").classList.remove("open");modalCb=null;}
 function toast(title,detail="",err=false){
@@ -617,7 +669,7 @@ function capacity(total,target){
 }
 const readOnlyNote=()=>notice("i","Read-only for your role",`You can view this screen but not change it.${me.role==="pas"?" Session times can be edited on Module sessions.":me.role==="head"?" Staff are allocated and credits apportioned on Module allocation.":""}`,"amber");
 const moduleOptions=()=>Y().modules.map(m=>({v:m.code,l:`${m.code}  ${m.title} (${m.dept})`}));
-const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
+const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${p.id}  ${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
 function ensureModule(){if(!M(sel.module))sel.module=(Y().modules[0]||{}).code||"";return M(sel.module);}
 const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.map(([k,l])=>`<button class="${cur===k?"active":""}" data-act="${act}" data-v="${k}" aria-pressed="${cur===k}">${l}</button>`).join("")}</div>`;
 
@@ -629,9 +681,9 @@ const ROLE_CARDS=[
  {role:"staff",id:"andf1",letter:"S",title:"Academic staff",persona:"Felix Andrade, Computing",text:"Sees only their own published timetable, read-only, and who else teaches each of their modules."}];
 function renderLogin(){
  if(IMPORT){ // real data: choose which real person to preview each role as
-  const yd=YEARS[IMPORT.year],ppl=[...PEOPLE].sort((a,b)=>a.surname.localeCompare(b.surname));
+  const yd=YEARS[IMPORT.year],ppl=[...PEOPLE].sort(byStaffId);
   $("#roleCards").innerHTML=ROLE_CARDS.map(r=>`<div class="role-card pick"><span class="role-letter">${r.letter}</span><b>${r.title}</b><small>${esc(r.text)}</small>
-   <select id="who-${r.role}" aria-label="Person to preview as ${r.title}">${ppl.map(p=>opt(p.id,`${p.surname}, ${p.forename} (${(yd.staff[p.id]||{}).group||"no group"})`,IMPORT.defaults[r.role])).join("")}</select>
+   <select id="who-${r.role}" aria-label="Person to preview as ${r.title}">${ppl.map(p=>opt(p.id,`${p.id}  ${p.surname}, ${p.forename} (${(yd.staff[p.id]||{}).group||"no group"})`,IMPORT.defaults[r.role])).join("")}</select>
    <button class="btn primary small" data-act="signIn" data-role="${r.role}">Preview as ${r.title}</button></div>`).join("");
   $("#importStatus").textContent=`Loaded ${IMPORT.db}. Choose another file to replace it.`;
   return;
@@ -739,7 +791,7 @@ VIEWS.staff=()=>{
  if(!ed&&!totalsOnly)h+=readOnlyNote();
  h+=`<div class="filterbar">
   <label class="field">Staff group${selectH('data-chg="selGroup"',groups.map(x=>({v:x.id,l:x.name+(x.id===headGroup()?" (your department)":"")})),sel.group,groups.length<2)}</label>
-  <label class="field grow">Find staff<input data-inp="staffSearch" placeholder="Search name or email" aria-label="Search staff"></label>
+  <label class="field grow">Find staff<input data-inp="staffSearch" placeholder="Search ID, name or email" aria-label="Search staff"></label>
   ${totalsOnly?"":segmented("staffMode",sel.staffMode,[["list","Details"],["totals","Totals"]])}</div>`;
  const tot=list.reduce((a,p)=>{const s=SY(p.id);a.t+=s.target;a.a+=breakdown(p.id).total;return a;},{t:0,a:0});
  h+=`<div class="grid cols-4 metrics">
@@ -751,17 +803,19 @@ VIEWS.staff=()=>{
 };
 function staffDetails(g,list,ed,owner){
  const roleOpts=[{v:"staff",l:"Academic staff"},{v:"pas",l:"PAS Admin"},{v:"head",l:"Head"},{v:"owner",l:"Owner"}];
- const movable=inYear().filter(p=>SY(p.id).group!==g.id);
- return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(g.name)}</h2><span class="tag ${g.dept?"blue":"gray"}">${g.dept?"Department":"Other group"}</span></div></div>
+ return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(g.name)}</h2><span class="tag ${g.dept?"blue":"gray"}">${g.dept?"Department":"Non-department group"}</span></div>${owner?`<button class="btn primary small" data-act="addToGroup">Add staff to this group</button>`:""}</div>
   <div style="padding:18px"><div class="form-grid">
    <label class="field">Group ID<input value="${esc(g.id)}" disabled></label>
    <label class="field wide">Group name<input data-chg="groupField" data-f="name" value="${esc(g.name)}"${owner?"":" disabled"}></label>
    <label class="field">Group leader${selectH('data-chg="groupField" data-f="leader"',[{v:"",l:"None"}].concat(staffOptions()),g.leader,!owner)}</label>
+   <label class="field">Kind of group${selectH('data-chg="groupField" data-f="dept"',[{v:"1",l:"Department"},{v:"0",l:"Non-department (e.g. SMT, HPL)"}],g.dept?"1":"0",!owner)}</label>
   </div></div></article>
- <article class="card"><div class="table-wrap"><table><thead><tr><th>Staff member</th><th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
+ <article class="card"><div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Staff member</th>${owner?"<th>Group</th>":""}<th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
   ${list.map(p=>{const s=SY(p.id),b=breakdown(p.id);
-   return `<tr data-name="${esc((nameOf(p.id)+" "+p.email).toLowerCase())}">
-    <td><span class="name-cell">${esc(p.surname)}, ${esc(p.forename)}</span><span class="sub">${esc(p.email)} · ${p.id}</span></td>
+   return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}">
+    <td class="name-cell">${esc(p.id)}</td>
+    <td><span class="name-cell">${esc(p.surname)}, ${esc(p.forename)}</span><span class="sub">${esc(p.email)||"No email address"}</span></td>
+    ${owner?`<td>${selectH(`data-chg="staffGroup" data-id="${p.id}" aria-label="Group for ${esc(nameOf(p.id))}" style="max-width:150px"`,GROUPS.map(x=>({v:x.id,l:x.id})),s.group)}</td>`:""}
     <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="status" aria-label="Contract"`,STATUSES.map(v=>({v,l:v})),s.status,!ed)}</td>
     <td class="r"><input class="num sm" type="number" step="0.05" min="0" max="1.5" value="${s.fte}" data-chg="staffField" data-id="${p.id}" data-f="fte" aria-label="FTE"${ed?"":" disabled"}></td>
     <td class="r"><input class="num" type="number" min="0" value="${s.target}" data-chg="staffField" data-id="${p.id}" data-f="target" aria-label="Target credits"${ed?"":" disabled"}></td>
@@ -770,9 +824,8 @@ function staffDetails(g,list,ed,owner){
     <td>${selectH(`data-chg="role" data-id="${p.id}" aria-label="Sign-in role"`,roleOpts,p.role,!owner)}</td>
     <td><input style="width:72px" value="${esc(s.room)}" data-chg="staffField" data-id="${p.id}" data-f="room" aria-label="Room"${ed?"":" disabled"}></td>
     <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${owner?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
-   ||`<tr><td colspan="9">${empty("No staff in this group yet",owner?"Add someone with New staff.":"")}</td></tr>`}
+   ||`<tr><td colspan="${owner?11:10}">${empty("No staff in this group yet",owner?"Add someone with New staff.":"")}</td></tr>`}
  </tbody></table></div>
- ${owner&&movable.length?`<div class="card-foot"><span class="lbl">Move staff into this group</span>${selectH('id="moveSel" aria-label="Staff to move"',[{v:"",l:"Choose a person…"}].concat(staffOptions(movable)),"")}<button class="btn small" data-act="moveStaff">Move</button></div>`:""}
  </article>
  <p class="hint"><b>Name shown to staff</b> controls what colleagues see when they open a module on their own timetable. Owner, Heads and PAS Admin always see real names.
  <b>Sign-in role</b> can only be changed by the Owner; everyone can already see their own timetable, and granting a role emails an invite so the person sets their own password.</p>`;
@@ -782,10 +835,10 @@ function staffTotals(list){
  const rows=list.map(p=>({p,s:SY(p.id),b:breakdown(p.id)}));
  const sum=k=>rows.reduce((a,r)=>a+r.b[k],0);
  return `<article class="card"><div class="card-head"><h2>Totals for ${esc(gName(sel.group))}</h2><span class="muted" style="font-size:11px">Teaching is split by semester as allocated on Module allocation</span></div>
- <div class="table-wrap"><table><thead><tr><th>Name</th><th class="r">Target</th>${cols.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th class="r">Non-teaching</th><th class="r">Total</th><th class="r">Remaining</th><th></th></tr></thead><tbody>
- ${rows.map(({p,s,b})=>{const rem=s.target-b.total;return `<tr data-name="${esc((nameOf(p.id)+" "+p.email).toLowerCase())}"><td class="name-cell">${esc(nameOf(p.id))}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
+ <div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Name</th><th class="r">Target</th>${cols.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th class="r">Non-teaching</th><th class="r">Total</th><th class="r">Remaining</th><th></th></tr></thead><tbody>
+ ${rows.map(({p,s,b})=>{const rem=s.target-b.total;return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"><td class="name-cell">${esc(p.id)}</td><td>${esc(nameOf(p.id))}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
   <td class="r">${rem<0?`<span class="tag red">${rem}</span>`:rem}</td><td class="r"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button></td></tr>`;}).join("")}
- ${rows.length?`<tr class="sum"><td>Group total</td><td class="r">${rows.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${rows.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+6}">${empty("No staff in this group","")}</td></tr>`}
+ ${rows.length?`<tr class="sum"><td>Group total</td><td></td><td class="r">${rows.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${rows.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+7}">${empty("No staff in this group","")}</td></tr>`}
  </tbody></table></div></article>`;
 }
 
@@ -848,7 +901,9 @@ VIEWS.alloc=()=>{
   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.label)}</h2>${st.tag}</div><span class="muted" style="font-size:11px">${st.a} of ${st.t} credits</span></div>
   <div class="table-wrap"><table><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th>`).join("")}<th></th></tr></thead><tbody>
    ${ids.map(id=>`<tr><td><span class="name-cell">${esc(nameOf(id))}</span><span class="sub">${esc(gName((SY(id)||{}).group))}</span></td>
-    ${m.occs.map(o=>`<td class="r">${id in o.slots[c.id].alloc||ed?`<input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:"—"}</td>`).join("")}
+    ${m.occs.map(o=>{const has=id in o.slots[c.id].alloc,note=(o.slots[c.id].notes||{})[id]||"";
+     return `<td class="r">${has||ed?`<input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:"—"}
+     ${has&&(ed||note)?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="50" data-chg="allocNote" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:""}</td>`;}).join("")}
     <td class="r">${ed?`<button class="icon-btn" data-act="rmAlloc" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)}">✕</button>`:""}</td></tr>`).join("")
     ||`<tr><td colspan="${m.occs.length+2}" class="muted">No one allocated yet.</td></tr>`}
    <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td>`).join("")}<td></td></tr>
@@ -911,20 +966,49 @@ VIEWS.leaders=()=>{
 
 /* --------------------------- Non-teaching roles --------------------------- */
 VIEWS.nt=()=>{
- const roles=Y().nt.filter(r=>r.cat===sel.nt);
- let h=pageHead("Workload","Non-teaching roles","Named duties outside module teaching, and the credits each person receives for them.",`<button class="btn primary" data-act="ntNew">New role</button>`);
- h+=`<div class="filterbar"><label class="field grow">Category${selectH('data-chg="selNt"',NT_CATS.map(c=>({v:c,l:c})),sel.nt)}</label></div>`;
- if(!roles.length)return h+`<article class="card">${empty("No roles in this category yet","Create one with New role.")}</article>`;
+ const yd=Y(),mode=sel.ntMode==="edit"?"edit":"summary";
+ if(mode==="edit"&&sel.nt==="__all")sel.nt=NT_CATS[0];
+ if(sel.nt!=="__all"&&!NT_CATS.includes(sel.nt))sel.nt=NT_CATS[0];
+ const byTitle=(a,b)=>a.title.localeCompare(b.title);
+ const count=cat=>yd.nt.filter(r=>r.cat===cat).length;
+ let h=pageHead("Workload","Non-teaching roles",mode==="summary"?"A read-only summary of every role in a role type: who holds it, their credits and comments.":"Create and edit roles, and set who holds them.",
+  mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:"");
+ const untyped=yd.nt.filter(r=>!NT_CATS.includes(r.cat));
+ if(untyped.length)h+=`<article class="card" style="border-color:var(--b-amber)"><div class="card-head" style="background:var(--t-amber)"><div class="left"><h2>${plural(untyped.length,"role needs","roles need")} a role type</h2></div></div>
+  <div class="table-wrap"><table><thead><tr><th>Role</th><th>Held by</th><th>Role type</th></tr></thead><tbody>
+  ${untyped.map(r=>`<tr><td class="name-cell">${esc(r.title)}</td><td>${esc(r.people.map(p=>p.s).join(", ")||"Nobody")}</td>
+   <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"")}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
+ const typeOpts=(mode==="summary"?[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}]:[]).concat(NT_CATS.map(c=>({v:c,l:`${c} (${count(c)})`})));
+ h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
+
+ if(mode==="summary"){
+  const cats=sel.nt==="__all"?NT_CATS.filter(c=>count(c)):[sel.nt];
+  let grand=0;
+  const cards=cats.map(cat=>{
+   const roles=yd.nt.filter(r=>r.cat===cat).sort(byTitle),tot=roles.reduce((a,r)=>a+r.people.reduce((x,p)=>x+p.cr,0),0);grand+=tot;
+   const body=roles.map(r=>{const ps=[...r.people].sort((a,b)=>a.s.localeCompare(b.s,"en",{numeric:true})),rt=ps.reduce((a,p)=>a+p.cr,0);
+    const roleCell=`<td rowspan="${Math.max(1,ps.length)}" class="role-cell"><span class="name-cell">${esc(r.title)}</span>${ps.length>1?`<span class="sub">${ps.length} people, ${rt} credits</span>`:""}</td>`;
+    if(!ps.length)return `<tr>${roleCell}<td colspan="5" class="muted">No one holds this role yet.</td></tr>`;
+    return ps.map((p,i)=>`<tr>${i===0?roleCell:""}<td class="name-cell">${esc(p.s)}</td><td>${esc(nameOf(p.s))}</td><td>${esc((SY(p.s)||{}).group||"—")}</td><td class="r"><b>${p.cr}</b></td><td>${esc(p.note)}</td></tr>`).join("");}).join("");
+   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(cat)}</h2><span class="tag gray">${plural(roles.length,"role")}</span><span class="tag">${tot} credits</span></div></div>
+    ${roles.length?`<div class="table-wrap"><table class="nt-summary"><thead><tr><th style="width:30%">Role</th><th style="width:9%">Staff ID</th><th style="width:20%">Staff member</th><th style="width:9%">Group</th><th class="r" style="width:8%">Credits</th><th style="width:24%">Comments</th></tr></thead><tbody>${body}
+    <tr class="sum"><td colspan="4">Total for ${esc(cat)}</td><td class="r">${tot}</td><td></td></tr></tbody></table></div>`:empty("No roles of this type yet","Add one from Edit roles.")}</article>`;}).join("");
+  return h+(cards||`<article class="card">${empty("No non-teaching roles yet","Add one from Edit roles.")}</article>`)
+   +(sel.nt==="__all"&&cats.length>1?`<div class="bd-total"><span>All role types <b>${grand}</b> credits</span></div>`:"");
+ }
+
+ const roles=yd.nt.filter(r=>r.cat===sel.nt).sort(byTitle);
+ if(!roles.length)return h+`<article class="card">${empty("No roles of this type yet","Create one with New role.")}</article>`;
  return h+roles.map(r=>`<article class="card"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
-  <button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div>
+  <div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div></div>
   <div class="table-wrap"><table><thead><tr><th>Staff</th><th class="r">Credits</th><th>Comments</th><th></th></tr></thead><tbody>
-  ${r.people.map((p,i)=>`<tr><td><span class="name-cell">${esc(nameOf(p.s))}</span><span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
+  ${r.people.map((p,i)=>`<tr><td><span class="name-cell">${esc(p.s)}  ${esc(nameOf(p.s))}</span><span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
    <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"></td>
-   <td><input style="width:100%" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"></td>
+   <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"></td>
    <td class="r"><button class="icon-btn" data-act="ntRm" data-r="${r.id}" data-i="${i}" aria-label="Remove ${esc(nameOf(p.s))}">✕</button></td></tr>`).join("")||`<tr><td colspan="4" class="muted">No one holds this role yet.</td></tr>`}
   </tbody></table></div>
   <div class="card-foot"><span class="lbl">Add</span>${selectH(`id="nt-${r.id}-s" aria-label="Staff"`,[{v:"",l:"Choose staff…"}].concat(staffOptions()),"")}
-   <input id="nt-${r.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><input id="nt-${r.id}-c" placeholder="Comment" aria-label="Comment">
+   <input id="nt-${r.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><input id="nt-${r.id}-c" maxlength="50" placeholder="Comment" aria-label="Comment">
    <button class="btn small primary" data-act="ntAdd" data-r="${r.id}">Add</button></div></article>`).join("");
 };
 
@@ -958,15 +1042,24 @@ function teamName(t,viewer){
  if(t.id===viewer)return t.name+" (you)";
  return t.hidden?(t.hpl?"HPL":"TBC"):t.name;
 }
-function modulesHTML(mods,viewer,whoLabel){
- if(!mods.length)return `<article class="card">${empty("No module involvement recorded","")}</article>`;
- return `<article class="card">${mods.map(g=>`<div class="module-block"><button class="module-summary" data-act="toggle" aria-expanded="false">
-  <span class="module-code">${g.code}-${g.occ}</span><span>${esc(g.title)}</span><span class="muted hide-sm">${esc(g.mine.map(x=>x.label).join(", "))}</span>
-  <span class="hide-sm"><b>${g.mine.reduce((a,x)=>a+x.credits,0)}</b> <span class="muted">credits</span></span><span class="chev" aria-hidden="true">›</span></button>
-  <div class="module-detail"><h3>${whoLabel}</h3><div class="table-wrap"><table><tbody>
-   ${g.mine.map(x=>`<tr><td>${esc(x.label)}</td><td class="r">${x.credits} credits</td><td>${x.sess.length?x.sess.map(s=>`${DAY_NAME[s.day]} ${fmt(s.start)}–${fmt(s.end)}`).join("; "):'<span class="muted">No timetabled sessions</span>'}</td></tr>`).join("")}</tbody></table></div>
-  <h3 style="margin-top:14px">Everyone on this occurrence</h3><div class="team-grid">
-   ${g.team.map(t=>`<div class="person-card${t.id===viewer?" me":""}"><b>${esc(teamName(t,viewer))}</b><span>${esc(t.roles.join(", "))} credits</span></div>`).join("")}</div></div></div>`).join("")}</article>`;
+let rowSeq=0;
+function breakdownHTML(bd,viewer){
+ if(!bd||!bd.sections.length)return `<article class="card">${empty("Nothing allocated yet","No module or non-teaching credits are recorded for this year.")}</article>`;
+ const sess=r=>r.sessions==null?'<span class="muted">–</span>':r.sessions.length?r.sessions.map(s=>`${s.day} ${fmt(s.start)}–${fmt(s.end)}`).join("<br>"):'<span class="muted">Not timetabled</span>';
+ const more=(id,label)=>`<button class="plus-btn" data-act="toggleRow" data-row="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Show everyone on ${esc(label)}">+</button>`;
+ const team=t=>`<div class="team-grid">${t.map(p=>`<div class="person-card${p.id===viewer?" me":""}"><b>${esc(teamName(p,viewer))}</b><span>${esc(p.roles.join(", "))} credits</span></div>`).join("")}</div>`;
+ const html=bd.sections.map(sec=>{
+  const nt=sec.kind==="nt",cols=nt?4:7;
+  return `<article class="card bd-card"><div class="card-head"><h2>${esc(sec.label)}</h2><span class="tag gray">${sec.rows.reduce((a,r)=>a+r.credits,0)} credits</span></div>
+  <div class="table-wrap"><table class="bd-table"><thead><tr>${nt?`<th style="width:64%">Role</th>`:`<th style="width:33%">Module</th><th style="width:6%">Occ.</th><th style="width:17%">Sessions</th><th style="width:8%">Mgt</th>`}<th class="r" style="width:8%">Credits</th><th style="width:22%">Comments</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
+  ${sec.rows.map(r=>{const id="bd"+(++rowSeq),label=nt?r.title:`${r.code} occurrence ${r.occ}`;
+   return `<tr>${nt?`<td><span class="name-cell">${esc(r.title)}</span><span class="sub">${esc(r.type)}</span></td>`
+     :`<td><span class="name-cell">${esc(r.code)}</span> ${esc(r.title)}</td><td><span class="occ">${esc(r.occ)}</span></td><td style="white-space:nowrap">${sess(r)}</td><td>${r.mgt?`<span class="tag ${r.mgt==="LEAD"?"blue":"plain gray"}">${r.mgt}</span>`:""}</td>`}
+    <td class="r"><b>${r.credits}</b></td><td>${esc(r.comment)}</td><td class="c">${more(id,label)}</td></tr>
+    <tr class="detail-row" id="${id}" hidden><td colspan="${cols}"><h3>${nt?"Everyone holding this role":"Everyone on this occurrence"}</h3>${team(r.team)}</td></tr>`;}).join("")}
+  </tbody></table></div></article>`;}).join("");
+ const rem=bd.target-bd.total;
+ return html+`<div class="bd-total"><span>Target <b>${bd.target||"—"}</b></span><span>Total <b>${bd.total}</b></span><span>${bd.target?(rem>=0?`<b>${rem}</b> credits remaining`:`<b class="over">${-rem}</b> credits over target`):"No target set"}</span></div>`;
 }
 const ttSeg=(act,cur)=>segmented(act,cur,[["module","By module"],["time","By time"],["chart","Chart"]]);
 
@@ -976,23 +1069,23 @@ VIEWS.tt=()=>{
  let h=pageHead("Timetables","Staff timetable",hg?"Any member of staff's timetable, grouped by department with yours first.":"Any member of staff's timetable and module involvement.");
  if(!sel.staff)return h+`<article class="card">${empty("No staff","")}</article>`;
  const items=staffItems(sel.staff),cl=clashPairs(items),s=SY(sel.staff),last=Y().lastPublished[s.group];
- h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>SY(p.id).group===g.id);return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,nameOf(p.id),sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
+ h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>SY(p.id).group===g.id);return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,`${p.id}  ${nameOf(p.id)}`,sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
  h+=notice("i","Live view",`This includes changes that haven't been published yet. ${esc(P(sel.staff).forename)} sees the version published ${last?`on ${last}`:"when their department is first published"}.`);
  if(cl.length)h+=notice("!",plural(cl.length,"timetable clash","timetable clashes"),cl.map(([a,b])=>`${DAY_NAME[a.day]} semester ${a.sem}: ${a.module}-${a.occ} ${fmt(a.start)}–${fmt(a.end)} overlaps ${b.module}-${b.occ} ${fmt(b.start)}–${fmt(b.end)}`).join(". ")+".","red");
- if(sel.ttView==="module")return h+modulesHTML(staffModules(sel.staff),null,"Their involvement");
+ if(sel.ttView==="module")return h+breakdownHTML(staffBreakdown(sel.staff),null);
  if(sel.ttView==="time")return h+timeHTML(items);
  return h+chartHTML(items);
 };
 
 function viewMine(){
  const p=P(me.id),yd=Y();
- let h=pageHead(selYear,"My timetable","Read-only. Open a module to see who else teaches on it.");
+ let h=pageHead(selYear,"My timetable","Read-only. Use + on any row to see who else teaches on that module or holds that role.");
  if(!yd)return h+`<article class="card">${empty("No timetable for this year","")}</article>`;
  const snap=yd.published[me.id];
  if(!snap)return h+`<article class="card">${empty("Not published yet",`Your department hasn't published a ${selYear} timetable yet.`)}</article>`;
  h+=notice("i","Your published timetable",`Last published ${snap.at}. It changes only when your department publishes updates, not while they're being drafted.`);
  h+=`<div class="filterbar"><span class="muted" style="align-self:center;font-size:12px">Signed in as <b>${esc(nameOf(p.id))}</b> (${esc(p.email)})</span><span class="spacer"></span>${ttSeg("myView",sel.myView)}</div>`;
- if(sel.myView==="module")return h+modulesHTML(snap.modules,me.id,"Your involvement");
+ if(sel.myView==="module")return h+breakdownHTML(snap.breakdown,me.id);
  if(sel.myView==="time")return h+timeHTML(snap.items);
  return h+chartHTML(snap.items);
 }
@@ -1115,13 +1208,15 @@ const ACT={
   $("#login").classList.add("hidden");render(true);toast(`Signed in as ${nameOf(me.id)}`,ROLE_LABEL[me.role]);},
  signOut(){me=null;applyTheme(null);closeModal();$("#login").classList.remove("hidden");},
  resetDemo(){openModal({title:"Reset the demo?",body:"<p>Every change you've made, in every year, is discarded and the sample data is restored.</p>",ok:"Reset demo",danger:true,
-  onOk(){seed();renderLogin();selYear="2026-27";Object.assign(sel,{module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
+  onOk(){seed();renderLogin();selYear="2026-27";Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
  go(el){tab=el.dataset.tab;sel.query=null;render(true);},
  goto(el){(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
  modalClose(){closeModal();},
  modalOk(){const r=modalCb?modalCb():undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
+ toggleRow(el){const r=document.getElementById(el.dataset.row);if(!r)return;const open=r.hidden;r.hidden=!open;el.setAttribute("aria-expanded",open);el.textContent=open?"−":"+";},
  toggle(el){const b=el.closest(".module-block");b.classList.toggle("open");el.setAttribute("aria-expanded",b.classList.contains("open"));},
  staffMode(el){sel.staffMode=el.dataset.v;render();},
+ ntMode(el){sel.ntMode=el.dataset.v;render();},
  ttView(el){sel.ttView=el.dataset.v;render();},
  myView(el){sel.myView=el.dataset.v;render();},
  ctView(el){sel.ctView=el.dataset.v;render();},
@@ -1133,7 +1228,9 @@ const ACT={
   if(!isOwner())return toast("Only the Owner can add staff","Ask the Resourcing Lead to create the record.",true);
   const hg=headGroup(),owner=isOwner();
   openModal({title:"New member of staff",ok:"Add staff member",body:`<div class="form-grid">
-   <label class="field">Forename<input id="nsF"></label><label class="field">Surname<input id="nsS"></label>
+   <label class="field">Forename<input id="nsF" autocomplete="off"></label><label class="field">Surname<input id="nsS" autocomplete="off"></label>
+   <label class="field">Staff ID<input id="nsId" maxlength="5" autocomplete="off" placeholder="e.g. smij1" aria-describedby="nsIdHint"></label>
+   <p class="hint" id="nsIdHint" style="margin:auto 0 0">Filled in from the name (3 letters of surname, first letter of forename, then a number). Change it if needed.</p>
    <label class="field wide">University email<input id="nsE" type="email" placeholder="name@example.ac.uk"></label>
    <label class="field">Group${selectH('id="nsG"',visibleGroups().map(g=>({v:g.id,l:g.name})),hg||sel.group,!!hg)}</label>
    <label class="field">Contract${selectH('id="nsC"',STATUSES.map(v=>({v,l:v})),"NEW")}</label>
@@ -1145,9 +1242,11 @@ const ACT={
    onOk(){
     const f=mval("nsF"),s=mval("nsS"),e=mval("nsE").toLowerCase();
     if(!f||!s)return "Enter both a forename and a surname.";
+    const id=mval("nsId");
+    if(!/^[A-Za-z0-9]{5}$/.test(id))return "The staff ID must be exactly 5 letters or numbers, for example smij1.";
+    if(PEOPLE.some(p=>p.id.toLowerCase()===id.toLowerCase()))return `The staff ID ${id} is already used by ${nameOf(PEOPLE.find(p=>p.id.toLowerCase()===id.toLowerCase()).id)}.`;
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))return "Enter a valid email address; it becomes their sign-in username.";
     if(PEOPLE.some(p=>p.email.toLowerCase()===e))return "Someone already uses that email address.";
-    const base=(s.slice(0,3)+f[0]).toLowerCase().replace(/[^a-z]/g,"x");let n=1;while(PEOPLE.some(p=>p.id===base+n))n++;const id=base+n;
     const g=hg||mval("nsG");
     PEOPLE.push({id,forename:f,surname:s,email:e,role:owner?mval("nsR"):"staff"});
     Y().staff[id]={group:g,status:mval("nsC"),fte:parseFloat(mval("nsFte"))||0,target:int(mval("nsT")),room:"",phone:"",publish:mval("nsP")==="1"};
@@ -1161,6 +1260,18 @@ const ACT={
   if(PEOPLE.find(p=>p.id===id).role==="owner"&&PEOPLE.filter(p=>p.role==="owner").length<=1)return toast("Can't remove the last Owner","Make someone else an Owner first.",true);
   openModal({title:`Remove ${nameOf(id)} from ${selYear}?`,ok:"Remove",danger:true,body:`<p>They won't appear in ${selYear} any more. Their records in other years are kept.</p>`,
    onOk(){const g=SY(id).group;delete Y().staff[id];delete Y().published[id];touch([g],`Removed ${nameOf(id)} from ${selYear}`);toast("Removed",nameOf(id));}});
+ },
+ addToGroup(){
+  if(!isOwner())return;const g=G(sel.group),others=inYear().filter(p=>SY(p.id).group!==g.id);
+  if(!others.length)return toast("Everyone is already in this group","");
+  openModal({title:`Add staff to ${g.name}`,ok:"Add to group",body:`<p>Tick the people to add. Each person belongs to one group, so they move here from the group shown on the right.</p>
+   <input id="atgSearch" placeholder="Filter by ID or name" aria-label="Filter staff" style="width:100%">
+   <div class="check-list">${others.map(p=>`<label class="check-row" data-name="${esc((p.id+" "+nameOf(p.id)).toLowerCase())}"><input type="checkbox" value="${p.id}"><b>${esc(p.id)}</b> ${esc(nameOf(p.id))}<span class="muted">${esc(gName(SY(p.id).group))}</span></label>`).join("")}</div>`,
+   onOk(){const ids=[...document.querySelectorAll("#modalBody .check-row input:checked")].map(i=>i.value);
+    if(!ids.length)return "Tick at least one person.";
+    const from=ids.map(id=>SY(id).group);ids.forEach(id=>SY(id).group=g.id);
+    touch(from.concat([g.id]),`Moved ${ids.map(nameOf).join(", ")} into ${g.name}`);
+    toast(`${plural(ids.length,"person","people")} added to ${g.name}`,ids.map(nameOf).join(", "));}});
  },
  moveStaff(){
   const id=mval("moveSel");if(!id)return toast("Choose a person to move","",true);
@@ -1226,7 +1337,7 @@ const ACT={
   openModal({title:"Add credit category",ok:"Add category",body:`<p>It appears on every module's budget and allocation, at 0 credits, in every year that isn't archived.</p><label class="field">Category name<input id="ncN" placeholder="e.g. External Engagement"></label>`,
    onOk(){const n=mval("ncN");if(!n)return "Enter a name.";if(CATS.some(c=>c.label.toLowerCase()===n.toLowerCase()))return "That category already exists.";
     let id=n.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"CX",k=1;while(CATS.some(c=>c.id===id)){k++;id=id.slice(0,2)+k;}
-    CATS.push({id,label:n});Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>o.slots[id]={total:0,alloc:{}})));
+    CATS.push({id,label:n});Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>o.slots[id]={total:0,alloc:{},notes:{}})));
     toast("Credit category added",n);}});
  },
 
@@ -1239,7 +1350,7 @@ const ACT={
  },
  rmAlloc(el){
   if(!guard("alloc"))return;const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id;
-  m.occs.forEach(o=>delete o.slots[c].alloc[id]);touch(groupsOf([id],[m.dept]),`Removed ${nameOf(id)} from ${m.code} ${CAT(c).label}`);render();
+  m.occs.forEach(o=>{delete o.slots[c].alloc[id];if(o.slots[c].notes)delete o.slots[c].notes[id];});touch(groupsOf([id],[m.dept]),`Removed ${nameOf(id)} from ${m.code} ${CAT(c).label}`);render();
  },
 
  /* ---- sessions ---- */
@@ -1259,9 +1370,9 @@ const ACT={
  /* ---- non-teaching ---- */
  ntNew(){
   openModal({title:"New non-teaching role",ok:"Create role",body:`<div class="form-grid"><label class="field wide">Role title<input id="nrT" placeholder="e.g. Admissions Tutor"></label>
-   <label class="field wide">Category${selectH('id="nrC"',NT_CATS.map(c=>({v:c,l:c})),sel.nt)}</label></div>`,
+   <label class="field wide">Role type${selectH('id="nrC"',NT_CATS.map(c=>({v:c,l:c})),NT_CATS.includes(sel.nt)?sel.nt:NT_CATS[0])}</label></div>`,
    onOk(){const t=mval("nrT");if(!t)return "Give the role a title.";const cat=mval("nrC");
-    if(Y().nt.some(r=>r.cat===cat&&r.title.toLowerCase()===t.toLowerCase()))return "A role with that title already exists in this category.";
+    if(Y().nt.some(r=>r.cat===cat&&r.title.toLowerCase()===t.toLowerCase()))return "A role with that title already exists in this role type.";
     Y().nt.push({id:"nt"+Math.random().toString(36).slice(2,8),title:t,cat,people:[]});sel.nt=cat;toast("Role created",t);}});
  },
  ntDelete(el){const r=Y().nt.find(x=>x.id===el.dataset.r);
@@ -1326,7 +1437,12 @@ const CHG={
  selCourse(el){sel.course=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
  groupField(el){if(!isOwner())return;const g=G(sel.group),f=el.dataset.f;
-  if(f==="name"){if(!el.value.trim())return render();g.name=el.value.trim();}else g[f]=el.value;toast("Group updated",g.name);render();},
+  if(f==="name"){if(!el.value.trim())return render();g.name=el.value.trim();}else if(f==="dept")g.dept=el.value==="1";else g[f]=el.value;toast("Group updated",g.name);render();},
+ staffGroup(el){
+  if(!isOwner())return render();const id=el.dataset.id,from=SY(id).group,to=el.value;if(from===to)return;
+  SY(id).group=to;touch([from,to],`Moved ${nameOf(id)} from ${gName(from)} to ${gName(to)}`);
+  toast(`${nameOf(id)} moved`,`Now in ${gName(to)}. Choose that group above to see them.`);render();
+ },
  staffField(el){
   if(!guard("staff"))return;const id=el.dataset.id,s=SY(id),f=el.dataset.f;
   const labels={status:"contract",fte:"FTE",target:"target",publish:"name visibility",room:"room"};
@@ -1358,10 +1474,18 @@ const CHG={
  },
  leader(el){
   if(!guard("leaders"))return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.value,slot=o.slots[c];
-  const before=Object.keys(slot.alloc);slot.alloc=id?{[id]:slot.total}:{};
+  const before=Object.keys(slot.alloc),oldNotes=slot.notes||{};slot.alloc=id?{[id]:slot.total}:{};slot.notes=id&&oldNotes[id]?{[id]:oldNotes[id]}:{};
   touch(groupsOf(before.concat(id?[id]:[]),[m.dept]),`${m.code} occ ${o.occ}: ${c==="ML"?"module leader":"moderator"} ${id?"set to "+nameOf(id):"cleared"}`);
   toast(c==="ML"?"Module leader updated":"Moderator updated",id?`${nameOf(id)} now holds occ ${o.occ}'s ${slot.total} ${CAT(c).label} credits.`:"Nobody holds this role now.");render();
  },
+ allocNote(el){
+  if(!guard("alloc"))return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.dataset.id,slot=o.slots[c];
+  slot.notes=slot.notes||{};const v=el.value.trim().slice(0,50);if(v)slot.notes[id]=v;else delete slot.notes[id];
+  touch(groupsOf([id],[m.dept]),`${nameOf(id)}: comment on ${m.code} occ ${o.occ} ${CAT(c).label} ${v?"updated":"cleared"}`);render();
+ },
+ ntType(el){if(!isOwner()||!el.value)return render();const r=Y().nt.find(x=>x.id===el.dataset.r);const from=r.cat;r.cat=el.value;
+  touch(groupsOf(r.people.map(p=>p.s)),`${r.title}: role type set to ${r.cat}`);toast("Role type updated",`${r.title} is now under ${r.cat}.`);
+  if(from&&sel.ntMode==="edit"&&sel.nt===from)sel.nt=r.cat;render();},
  ntField(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r.people[+el.dataset.i];
   if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value;render();}
 };
@@ -1373,7 +1497,10 @@ document.addEventListener("keydown",e=>{
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("tr[data-act]")){e.preventDefault();ACT[e.target.dataset.act](e.target);}
 });
 document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");if(!el||!me)return;const f=CHG[el.dataset.chg];if(f)f(el);});
-document.addEventListener("input",e=>{if(e.target.dataset.inp==="staffSearch"){const q=e.target.value.trim().toLowerCase();
+document.addEventListener("input",e=>{
+ if(e.target.id==="nsId")e.target.dataset.touched="1";
+ if(e.target.id==="atgSearch"){const q=e.target.value.trim().toLowerCase();document.querySelectorAll("#modalBody .check-row").forEach(r=>r.style.display=!q||r.dataset.name.includes(q)?"":"none");}
+ if((e.target.id==="nsF"||e.target.id==="nsS")&&$("#nsId")&&!$("#nsId").dataset.touched)$("#nsId").value=suggestStaffId(mval("nsF"),mval("nsS"));if(e.target.dataset.inp==="staffSearch"){const q=e.target.value.trim().toLowerCase();
  document.querySelectorAll("tr[data-name]").forEach(r=>r.style.display=!q||r.dataset.name.includes(q)?"":"none");}});
 $("#modalBg").addEventListener("click",e=>{if(e.target.id==="modalBg")closeModal();});
 
@@ -1433,6 +1560,7 @@ function buildFromLegacy(T,dbName){
  const people=[],staff={},emails={};
  rows("staff").forEach(r=>{
   const id=str(r.staff_id);if(!id||staff[id])return;
+  if(!/^[A-Za-z0-9]{5}$/.test(id)){warn("idformat","staff IDs aren't the usual 5 letters or numbers");eg("idformat",id);}
   const email=str(r.email).toLowerCase();
   if(!email){warn("noemail","staff have no email address, so couldn't be invited to sign in until one is added");eg("noemail",id);}
   else if(emails[email]){warn("dupemail","email addresses are shared by more than one staff record (email must be unique for sign-in)");eg("dupemail",email);}
@@ -1466,9 +1594,11 @@ function buildFromLegacy(T,dbName){
  let nextSem=3;cats.filter(c=>c.tt&&!c.sem).forEach(c=>c.sem=nextSem++);
  if(!cats.some(c=>c.id==="ML")){cats.push({id:"ML",label:"Module Leader"});warn("noml","No Module Leader category was found in time_slot, so one was added (leaders come from each occurrence's leader_id)");}
  if(!cats.some(c=>c.id==="MO")){cats.push({id:"MO",label:"Moderation"});warn("nomo","No Moderation category was found in time_slot, so one was added (moderators come from each occurrence's moderator_id)");}
- const roleType={};rows("role_type").forEach(r=>roleType[str(r.type_code)]=str(r.type_description)||str(r.type_code));
- const actType={};rows("activity").forEach(a=>actType[str(a.activity_no)]=str(a.type_code));
- const blankSlots=()=>{const o={};cats.forEach(c=>o[c.id]={total:0,alloc:{}});return o;};
+ // role types in their display order (as in the old Non Teaching Roles drop-down); codes matched case-insensitively
+ const roleTypes=rows("role_type").slice().sort((a,b)=>num(a.display_order)-num(b.display_order)||str(a.type_code).localeCompare(str(b.type_code)));
+ const roleType={};roleTypes.forEach(r=>roleType[str(r.type_code).toUpperCase()]=str(r.type_description)||str(r.type_code));
+ const actType={};rows("activity").forEach(a=>actType[str(a.activity_no)]=str(a.type_code).toUpperCase());
+ const blankSlots=()=>{const o={};cats.forEach(c=>o[c.id]={total:0,alloc:{},notes:{}});return o;};
 
  // modules and occurrences
  const modules=[],modBy={};
@@ -1489,7 +1619,7 @@ function buildFromLegacy(T,dbName){
   if(!o){warn("orphantr","teaching roles point at an occurrence that doesn't exist and were skipped");eg("orphantr",`${str(r.module_code)} ${str(r.occurrence)}`);return;}
   let code=str(r.taught_in);
   if(!catByCode[code]){addCat(code,code);const c=cats[cats.length-1];if(c.tt&&!c.sem)c.sem=nextSem++;
-   [...modules].forEach(m=>m.occs.forEach(x=>x.slots[c.id]=x.slots[c.id]||{total:0,alloc:{}}));
+   [...modules].forEach(m=>m.occs.forEach(x=>x.slots[c.id]=x.slots[c.id]||{total:0,alloc:{},notes:{}}));
    warn("unknowncat","teaching roles use a taught_in code that isn't in time_slot; a category was added for it");eg("unknowncat",code);}
   const cid=catByCode[code];
   if(o.slots[cid].total){warn("duptr","occurrences have more than one budget line for the same category; their budgets were added together");}
@@ -1498,16 +1628,22 @@ function buildFromLegacy(T,dbName){
  counts.teachingRoles=Object.keys(trBy).length;
 
  // non-teaching roles
- const nt=[],ntBy={},ntCats=new Set();
- rows("non_teaching_role").forEach(r=>{const no=str(r.activity_no);const cat=roleType[actType[no]]||"Uncategorised";ntCats.add(cat);
+ const nt=[],ntBy={};
+ rows("non_teaching_role").forEach(r=>{const no=str(r.activity_no);const cat=roleType[actType[no]]||"";
+  if(!cat){warn("ntnotype","non-teaching roles have no matching role type; choose one for each on Non-teaching roles");eg("ntnotype",str(r.role_title)||no);}
   const role={id:"nt"+no,title:str(r.role_title)||`Role ${no}`,cat,people:[]};nt.push(role);ntBy[no]=role;});
  counts.nonTeachingRoles=nt.length;
+ // role types for non-teaching roles: every role_type row, except ones used only by teaching activities
+ const teachTypes=new Set(Object.keys(trBy).map(no=>actType[no]).filter(Boolean)),ntUsed=new Set(nt.map(r=>r.cat));
+ let ntCats=roleTypes.filter(r=>!(teachTypes.has(str(r.type_code).toUpperCase())&&!ntUsed.has(roleType[str(r.type_code).toUpperCase()]))).map(r=>roleType[str(r.type_code).toUpperCase()]);
+ ntCats=[...new Set(ntCats)];
+ if(!roleTypes.length){warn("norole","The role_type table wasn't in the export, so the standard role types were used");ntCats=DEFAULT_NT_CATS.slice();}
 
  // the credit ledger
  let allocs=0;
  rows("activity_allocation").forEach(r=>{const no=str(r.activity_no),sid=str(r.staff_id),cr=num(r.staff_allocation);
   if(!staff[sid]){warn("allocstaff","allocations are for a staff_id that isn't in the staff table and were skipped");eg("allocstaff",sid);return;}
-  if(trBy[no]){const s=trBy[no].o.slots[trBy[no].cid];s.alloc[sid]=(s.alloc[sid]||0)+cr;allocs++;}
+  if(trBy[no]){const s=trBy[no].o.slots[trBy[no].cid];s.alloc[sid]=(s.alloc[sid]||0)+cr;const cm=str(r.comments);if(cm)s.notes[sid]=cm;allocs++;}
   else if(ntBy[no]){ntBy[no].people.push({s:sid,cr,note:str(r.comments)});allocs++;}
   else{warn("allocact","allocations point at an activity that is neither a teaching nor a non-teaching role and were skipped");eg("allocact",no);}});
  counts.allocations=allocs;
@@ -1549,23 +1685,23 @@ function buildFromLegacy(T,dbName){
  counts.sessions=sess;
 
  // who to preview as, by default: a department leader for Head, otherwise the first person
- const byName=[...people].sort((a,b)=>a.surname.localeCompare(b.surname));
+ const byName=[...people].sort(byStaffId);
  const deptLeader=(groups.find(g=>g.dept&&staff[g.leader])||{}).leader;
  const teacher=byName.find(p=>modules.some(m=>m.occs.some(o=>cats.some(c=>c.tt&&p.id in o.slots[c.id].alloc))));
  const first=(byName[0]||{}).id;
- return {year,cats,groups,people,courses,ntCats:[...ntCats].sort(),statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
+ return {year,cats,groups,people,courses,ntCats,statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
   yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{}},
   counts,warnings:Object.values(warns),defaults:{owner:first,head:deptLeader||first,pas:first,staff:(teacher||{}).id||first}};
 }
 
 function applyImport(res,db,tablesFound){
- CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:["Uncategorised"];STATUSES=res.statuses.length?res.statuses:["FT","PT","HPL"];
+ CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();STATUSES=res.statuses.length?res.statuses:["FT","PT","HPL"];
  YEARS={[res.year]:res.yearData};
  const ym=/^(\d{4})-/.exec(res.year);YEAR_ORDER=ym?[res.year,`${+ym[1]+1}-${String(+ym[1]+2).slice(2)}`]:[res.year];
  selYear=res.year;
  const yd=YEARS[res.year],when=stamp();
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,when));yd.lastPublished[g.id]=when;});
- Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],query:null,staffMode:"list"});
+ Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],ntMode:"summary",query:null,staffMode:"list"});
  IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound};
 }
 
