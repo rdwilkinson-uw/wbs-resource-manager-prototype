@@ -338,7 +338,8 @@ CREATE INDEX http_session_expire_idx ON http_session (expire);
 --                                   Module Leader, Moderation, Major Changes)
 --   applies_to = 'non_teaching'  -> a grouping for named duties
 --                                   (e.g. Management - Programmes)
--- semester is set for Semester 1 / Semester 2 so totals split by semester.
+-- semester is set for Semester 1 / 2 / 3 so totals split by semester. The
+-- Owner adds, renames and deletes these as "time slots" in the app.
 -- is_timetabled marks categories that carry timetabled sessions.
 
 CREATE TABLE credit_category (
@@ -349,7 +350,7 @@ CREATE TABLE credit_category (
     legacy_code    text,                              -- old time_slot.taught_in or role_type.type_code
     is_management  boolean NOT NULL DEFAULT false,
     is_timetabled  boolean NOT NULL DEFAULT false,
-    semester       smallint CHECK (semester IN (1, 2)),
+    semester       smallint CHECK (semester BETWEEN 1 AND 9),   -- Semester 1, 2, 3...; totals split by it
     sort_order     integer NOT NULL DEFAULT 100,
     is_active      boolean NOT NULL DEFAULT true,
     created_at     timestamptz NOT NULL DEFAULT now(),

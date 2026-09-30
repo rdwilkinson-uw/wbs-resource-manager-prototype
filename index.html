@@ -864,7 +864,7 @@ const namesOrNone=(o,k,l)=>{const ids=Object.keys(o.slots[k].alloc);return ids.l
 VIEWS.modules=()=>{
  const m=ensureModule();
  let h=pageHead("Curriculum","Module details","Module records, their occurrences, linked courses and the credit budget for each category.",
-  `<button class="btn" data-act="addCategory">Add credit category</button><button class="btn primary" data-act="newModule">New module</button>`);
+  `<button class="btn" data-act="timeSlots">Time slots</button><button class="btn primary" data-act="newModule">New module</button>`);
  if(!m)return h+`<article class="card">${empty("No modules yet","Create the first one with New module.")}</article>`;
  h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label>
   <button class="btn" data-act="goto" data-tab="alloc">Allocate staff</button><button class="btn" data-act="goto" data-tab="sessions">Edit sessions</button></div>
@@ -1220,6 +1220,26 @@ VIEWS.publish=()=>{
    ${list.length?list.map(c=>`<div class="publish-item"><span class="change-icon" aria-hidden="true">✎</span><div><b>${esc(c.text)}</b><p>by ${esc(c.who)}</p></div><span class="when">${esc(c.when)}</span></div>`).join(""):`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">Nothing waiting to publish.</p>`}</article>`;}).join("");
 };
 
+/* ------------------------------ Time slots ------------------------------ */
+// How much a time slot is used, across every year: budgets, allocations and sessions.
+function slotUse(id){let n=0;Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>{const s=o.slots[id];if(!s)return;
+ if(s.total)n++;n+=Object.keys(s.alloc).length;n+=(yd.sessions[skey(m.code,o.occ,id)]||[]).length;})));return n;}
+function slotManagerHTML(){
+ const fixed=id=>id==="ML"||id==="MO";
+ return `<p>Time slots are the categories budgeted on every module occurrence and divided between staff on Module allocation. Their order here is the order used everywhere.</p>
+ <div class="table-wrap"><table><thead><tr><th>Name</th><th>Timetabled</th><th class="r">In use</th><th></th></tr></thead><tbody>
+ ${CATS.map(c=>{const u=slotUse(c.id);return `<tr><td><input value="${esc(c.label)}" maxlength="30" data-chg="slotName" data-cat="${c.id}" aria-label="Name of ${esc(c.label)}" style="width:100%"></td>
+  <td>${c.tt?'<span class="tag">Yes, has sessions</span>':'<span class="tag gray">No</span>'}</td><td class="r">${u?u:'<span class="muted">Unused</span>'}</td>
+  <td class="r">${fixed(c.id)?'<span class="muted" style="font-size:11px">Required</span>':u?'<span class="muted" style="font-size:11px">In use</span>':`<button class="icon-btn" data-act="slotDelete" data-cat="${c.id}" aria-label="Delete ${esc(c.label)}">✕</button>`}</td></tr>`;}).join("")}
+ </tbody></table></div>
+ <h3 style="margin:18px 0 8px">Add a time slot</h3>
+ <div class="form-grid"><label class="field wide">Name<input id="tsN" maxlength="30" placeholder="e.g. Placement Visits"></label>
+  <label class="field">Timetabled?${selectH('id="tsT"',[{v:"0",l:"No, credits only"},{v:"1",l:"Yes, has sessions"}],"0")}</label>
+  <label class="field">Position${selectH('id="tsP"',[{v:"-1",l:"At the start"}].concat(CATS.map((c,i)=>({v:i,l:"After "+c.label}))),CATS.length-1)}</label></div>
+ <div style="margin-top:12px"><button class="btn primary small" data-act="slotAdd">Add time slot</button></div>
+ <p class="hint">A new time slot starts at 0 credits on every module in every year. One can only be deleted when no module has a budget, allocation or session in it. Module Leader and Moderation are required because leaders and moderators come from them.</p>`;
+}
+
 /* ---------------------------- Year not created ---------------------------- */
 function viewNoYear(){
  const src=YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
@@ -1239,7 +1259,9 @@ const ACT={
   $("#login").classList.add("hidden");render(true);toast(`Signed in as ${nameOf(me.id)}`,ROLE_LABEL[me.role]);},
  signOut(){me=null;applyTheme(null);closeModal();$("#login").classList.remove("hidden");},
  resetDemo(){openModal({title:"Reset the demo?",body:"<p>Every change you've made, in every year, is discarded and the sample data is restored.</p>",ok:"Reset demo",danger:true,
-  onOk(){seed();renderLogin();selYear="2026-27";Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
+  onOk(){seed();renderLogin();selYear="2026-27";
+   if(!P(me.id))me={role:me.role,id:ROLE_CARDS.find(r=>r.role===me.role).id}; // was previewing imported data: switch to the sample person for this role
+  Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
  go(el){tab=el.dataset.tab;sel.query=null;render(true);},
  goto(el){(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
  modalClose(){closeModal();},
@@ -1375,13 +1397,24 @@ const ACT={
  deleteAllOcc(){const m=M(sel.module);delOccs(m,[...m.occs]);},
  rmCourse(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses=o.courses.filter(c=>c!==el.dataset.course);
   touch([m.dept,(C(el.dataset.course)||{}).dept],`Unlinked ${el.dataset.course} from ${m.code} occ ${o.occ}`);render();},
- addCategory(){
-  if(!isOwner())return;
-  openModal({title:"Add credit category",ok:"Add category",body:`<p>It appears on every module's budget and allocation, at 0 credits, in every year that isn't archived.</p><label class="field">Category name<input id="ncN" placeholder="e.g. External Engagement"></label>`,
-   onOk(){const n=mval("ncN");if(!n)return "Enter a name.";if(CATS.some(c=>c.label.toLowerCase()===n.toLowerCase()))return "That category already exists.";
-    let id=n.replace(/[^A-Za-z]/g,"").slice(0,2).toUpperCase()||"CX",k=1;while(CATS.some(c=>c.id===id)){k++;id=id.slice(0,2)+k;}
-    CATS.push({id,label:n});Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>o.slots[id]={total:0,alloc:{},notes:{}})));
-    toast("Credit category added",n);}});
+ // ---- time slots (credit categories budgeted on every module occurrence) ----
+ timeSlots(){if(!isOwner())return;openModal({title:"Time slots",ok:"Done",body:slotManagerHTML(),onOk(){}});$("#modalOk").previousElementSibling.style.display="none";},
+ slotAdd(){
+  if(!isOwner())return;const n=mval("tsN").replace(/\s+/g," "),tt=mval("tsT")==="1",after=+mval("tsP");
+  if(!n){$("#modalErr").textContent="Enter a name for the time slot.";return;}
+  if(CATS.some(c=>c.label.toLowerCase()===n.toLowerCase())){$("#modalErr").textContent="A time slot with that name already exists.";return;}
+  let id=(n.replace(/[^A-Za-z0-9]/g,"").slice(0,2).toUpperCase()||"TS"),k=1;const base=id;while(CATS.some(c=>c.id===id)){k++;id=base+k;}
+  const c={id,label:n};
+  if(tt){c.tt=true;const m=/\b(\d)\b/.exec(n),used=CATS.filter(x=>x.tt).map(x=>x.sem);c.sem=m&&!used.includes(+m[1])?+m[1]:Math.max(2,...used)+1;}
+  CATS.splice(after+1,0,c);
+  Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>o.slots[id]={total:0,alloc:{},notes:{}})));
+  $("#modalErr").textContent="";$("#modalBody").innerHTML=slotManagerHTML();toast("Time slot added",`${n} now appears on every module, starting at 0 credits.`);
+ },
+ slotDelete(el){
+  if(!isOwner())return;const c=CAT(el.dataset.cat);if(!c||slotUse(c.id))return;
+  CATS=CATS.filter(x=>x.id!==c.id);
+  Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>{delete o.slots[c.id];delete yd.sessions[skey(m.code,o.occ,c.id)];})));
+  $("#modalBody").innerHTML=slotManagerHTML();toast("Time slot deleted",c.label);
  },
 
  /* ---- allocation ---- */
@@ -1553,6 +1586,11 @@ const CHG={
  ntType(el){if(!isOwner()||!el.value)return render();const r=Y().nt.find(x=>x.id===el.dataset.r);const from=r.cat;r.cat=el.value;
   touch(groupsOf(r.people.map(p=>p.s)),`${r.title}: role type set to ${r.cat}`);toast("Role type updated",`${r.title} is now under ${r.cat}.`);
   if(from&&sel.ntMode==="edit"&&sel.nt===from)sel.nt=r.cat;render();},
+ slotName(el){
+  if(!isOwner())return;const c=CAT(el.dataset.cat),n=el.value.trim().replace(/\s+/g," ");
+  if(!n||CATS.some(x=>x!==c&&x.label.toLowerCase()===n.toLowerCase())){el.value=c.label;$("#modalErr").textContent=n?"Another time slot already has that name.":"A time slot needs a name.";return;}
+  $("#modalErr").textContent="";c.label=n;toast("Time slot renamed",n);
+ },
  ntField(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r.people[+el.dataset.i];
   if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value;render();}
 };
@@ -1560,6 +1598,8 @@ const CHG={
 document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;const f=ACT[el.dataset.act];if(f){e.preventDefault();f(el,e);}});
 document.addEventListener("keydown",e=>{
  if(e.key==="Escape"&&$("#modalBg").classList.contains("open"))closeModal();
+ if(e.key==="Enter"&&e.target.id==="tsN"){e.preventDefault();ACT.slotAdd();return;}
+ if(e.key==="Enter"&&e.target.matches("[data-chg=slotName]")){e.preventDefault();e.target.blur();return;}
  if(e.key==="Enter"&&$("#modalBg").classList.contains("open")&&e.target.matches("#modalBody input")){e.preventDefault();ACT.modalOk();}
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("tr[data-act]")){e.preventDefault();ACT[e.target.dataset.act](e.target);}
 });
@@ -1753,6 +1793,16 @@ function buildFromLegacy(T,dbName){
   if(start<9||end>21.5){warn("sessrange","sessions fall partly outside the 09:15 to 21:15 timetable grid (kept, but may be clipped on charts)");eg("sessrange",`${tr.m} ${tr.occ} ${day} ${fmt(start)}`);}
   const key=skey(tr.m,tr.occ,tr.cid);(sessions[key]=sessions[key]||[]).push({day,start:+start.toFixed(4),end:+end.toFixed(4),c:str(r.comments)});sess++;});
  counts.sessions=sess;
+ // Leave out time slots nothing uses: no budget, allocation or session on any module (e.g. an unnamed
+ // "New Time Slot" placeholder, or a Semester 3 that isn't needed). Semester 1 and 2, Supervision, Module
+ // Leader, Moderation and Major Changes are always kept. The Owner can add time slots again on Module details.
+ const catUsed=id=>modules.some(m=>m.occs.some(o=>{const x=o.slots[id];return x&&(x.total||Object.keys(x.alloc).length||(sessions[skey(m.code,o.occ,id)]||[]).length);}));
+ const standard=/^(semester\s*[12]\b|supervision|module\s*lead|moderat|major\s*change)/i;
+ const unused=cats.filter(c=>c.id!=="ML"&&c.id!=="MO"&&!standard.test(c.label)&&!catUsed(c.id));
+ if(unused.length){
+  unused.forEach(c=>{cats.splice(cats.indexOf(c),1);modules.forEach(m=>m.occs.forEach(o=>delete o.slots[c.id]));});
+  warns.unusedslots={msg:"time slots have no budget, allocation or session on any module and were left out (the Owner can add them again from Time slots on Module details)",n:unused.length,eg:unused.map(c=>`${c.label} (${c.legacy})`)};
+ }
 
  // who to preview as, by default: a department leader for Head, otherwise the first person
  const byName=[...people].sort(byStaffId);
