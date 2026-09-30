@@ -1052,7 +1052,9 @@ function eventsFor(list){
  }).join("");
 }
 function chartHTML(items){
- const sems=[...new Set(CATS.filter(c=>c.tt).map(c=>c.sem))].sort((a,b)=>a-b);
+ // Semester 1 and 2 are always drawn; any other timetabled category only when it has sessions here,
+ // so unused time slots (e.g. an old "New Time Slot" placeholder) don't show as empty timetables.
+ const sems=[...new Set(CATS.filter(c=>c.tt).map(c=>c.sem))].filter(s=>s===1||s===2||items.some(i=>i.sem===s)).sort((a,b)=>a-b);
  const semTitle=s=>s===1||s===2?`Semester ${s}`:(CATS.find(c=>c.tt&&c.sem===s)||{label:"Other"}).label;
  return sems.map(sem=>{const its=items.filter(i=>i.sem===sem);
   return `<div class="section-title"><h2>${esc(semTitle(sem))}</h2><span>${plural(its.length,"session")} a week</span></div>
