@@ -256,6 +256,14 @@ tr.selected td{background:var(--t-cyan)}
 .person-card.me{border-color:var(--cyan)}
 
 .bd-card+.bd-card{margin-top:14px}
+.chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted)}
+tr.addl-row td{background:var(--t-lime)}
+tr.addl-row:hover td{background:var(--t-lime)}
+.mode-pick{display:grid;gap:8px;margin:0 0 12px}
+.mode-pick label{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;cursor:pointer;font-size:13px}
+.mode-pick label:has(input:checked){border-color:var(--cyan);background:var(--t-cyan)}
+.mode-pick input{min-height:0;width:16px;height:16px;margin:2px 0 0}
+.mode-pick small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
 .check-list{max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:10px}
 .check-row{display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--line-2);font-size:13px;cursor:pointer}
 .check-row:last-child{border-bottom:0}
@@ -537,6 +545,10 @@ const CAT=id=>CATS.find(c=>c.id===id);
 // Staff are listed in staff ID order everywhere (e.g. andf1, doym1, farh1).
 const byStaffId=(a,b)=>a.id.localeCompare(b.id,"en",{numeric:true,sensitivity:"base"});
 const inYear=(yd=Y())=>PEOPLE.filter(p=>yd.staff[p.id]).sort(byStaffId);
+// Group membership: every person has one main group (staff_year.group) plus any additional groups (staff_year.extra).
+// The main group decides publishing and a Head's department; group totals count main members only.
+const extrasOf=(id,yd=Y())=>((yd.staff[id]||{}).extra||[]);
+const inGroup=(id,gid,yd=Y())=>{const s=yd.staff[id];return !!s&&(s.group===gid||(s.extra||[]).includes(gid));};
 // Suggest an ID: first 3 letters of surname + first letter of forename + the next free digit.
 function suggestStaffId(f,s){
  const clean=v=>String(v||"").toLowerCase().normalize("NFD").replace(/[^a-z]/g,"");
@@ -782,7 +794,7 @@ VIEWS.staff=()=>{
  const groups=visibleGroups();
  if(!groups.some(g=>g.id===sel.group))sel.group=(groups[0]||{}).id;
  const g=G(sel.group),ed=canEdit("staff"),owner=isOwner();
- const list=inYear().filter(p=>SY(p.id).group===g.id);
+ const list=inYear().filter(p=>inGroup(p.id,g.id)),main=list.filter(p=>SY(p.id).group===g.id),addl=list.length-main.length;
  const actions=(owner?`<button class="btn" data-act="newGroup">New group</button><button class="btn danger" data-act="deleteGroup">Delete group</button>`:"")+
   (owner?`<button class="btn primary" data-act="newStaff">New staff</button>`:"");
  let h=pageHead("People & capacity","Staff details",
@@ -793,10 +805,10 @@ VIEWS.staff=()=>{
   <label class="field">Staff group${selectH('data-chg="selGroup"',groups.map(x=>({v:x.id,l:x.name+(x.id===headGroup()?" (your department)":"")})),sel.group,groups.length<2)}</label>
   <label class="field grow">Find staff<input data-inp="staffSearch" placeholder="Search ID, name or email" aria-label="Search staff"></label>
   ${totalsOnly?"":segmented("staffMode",sel.staffMode,[["list","Details"],["totals","Totals"]])}</div>`;
- const tot=list.reduce((a,p)=>{const s=SY(p.id);a.t+=s.target;a.a+=breakdown(p.id).total;return a;},{t:0,a:0});
+ const tot=main.reduce((a,p)=>{const s=SY(p.id);a.t+=s.target;a.a+=breakdown(p.id).total;return a;},{t:0,a:0});
  h+=`<div class="grid cols-4 metrics">
-  ${metric("Staff in group",list.length,`${list.filter(p=>SY(p.id).status==="HPL").length} sessional (HPL)`)}
-  ${metric("Target credits",tot.t.toLocaleString(),"sum of individual targets","var(--lime)")}
+  ${metric("Staff in group",main.length,addl?`plus ${addl} additional member${addl>1?"s":""}`:`${main.filter(p=>SY(p.id).status==="HPL").length} sessional (HPL)`)}
+  ${metric("Target credits",tot.t.toLocaleString(),addl?"main members only":"sum of individual targets","var(--lime)")}
   ${metric("Allocated",tot.a.toLocaleString(),"teaching and non-teaching","var(--blue)")}
   ${metric("Remaining",(tot.t-tot.a).toLocaleString(),tot.t-tot.a<0?"group is over target":"still available","var(--amber)")}</div>`;
  return h+(mode==="totals"?staffTotals(list):staffDetails(g,list,ed,owner));
@@ -810,12 +822,15 @@ function staffDetails(g,list,ed,owner){
    <label class="field">Group leader${selectH('data-chg="groupField" data-f="leader"',[{v:"",l:"None"}].concat(staffOptions()),g.leader,!owner)}</label>
    <label class="field">Kind of group${selectH('data-chg="groupField" data-f="dept"',[{v:"1",l:"Department"},{v:"0",l:"Non-department (e.g. SMT, HPL)"}],g.dept?"1":"0",!owner)}</label>
   </div></div></article>
- <article class="card"><div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Staff member</th>${owner?"<th>Group</th>":""}<th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
-  ${list.map(p=>{const s=SY(p.id),b=breakdown(p.id);
-   return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}">
+ <article class="card"><div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Staff member</th>${owner?"<th>Main group</th>":""}<th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
+  ${list.map(p=>{const s=SY(p.id),b=breakdown(p.id),isMain=s.group===g.id,others=(s.extra||[]).filter(x=>x!==g.id);
+   return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"${isMain?"":' class="addl-row"'}>
     <td class="name-cell">${esc(p.id)}</td>
-    <td><span class="name-cell">${esc(p.surname)}, ${esc(p.forename)}</span><span class="sub">${esc(p.email)||"No email address"}</span></td>
-    ${owner?`<td>${selectH(`data-chg="staffGroup" data-id="${p.id}" aria-label="Group for ${esc(nameOf(p.id))}" style="max-width:150px"`,GROUPS.map(x=>({v:x.id,l:x.id})),s.group)}</td>`:""}
+    <td><span class="name-cell">${esc(p.surname)}, ${esc(p.forename)}</span><span class="sub">${esc(p.email)||"No email address"}</span>
+     ${isMain?(others.length?`<span class="chips">Also in ${others.map(x=>`<span class="tag plain gray">${esc(x)}${owner?`<button class="x" data-act="rmExtra" data-id="${p.id}" data-g="${esc(x)}" aria-label="Remove ${esc(nameOf(p.id))} from ${esc(gName(x))}">×</button>`:""}</span>`).join(" ")}</span>`:"")
+      :`<span class="chips"><span class="tag blue plain">Additional member</span> main group ${esc(s.group)}</span>`}</td>
+    ${owner?`<td>${isMain?selectH(`data-chg="staffGroup" data-id="${p.id}" aria-label="Main group for ${esc(nameOf(p.id))}" style="max-width:150px"`,GROUPS.map(x=>({v:x.id,l:x.id})),s.group)
+      :`<button class="linkish" data-act="rmExtra" data-id="${p.id}" data-g="${esc(g.id)}">Remove from ${esc(g.id)}</button>`}</td>`:""}
     <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="status" aria-label="Contract"`,STATUSES.map(v=>({v,l:v})),s.status,!ed)}</td>
     <td class="r"><input class="num sm" type="number" step="0.05" min="0" max="1.5" value="${s.fte}" data-chg="staffField" data-id="${p.id}" data-f="fte" aria-label="FTE"${ed?"":" disabled"}></td>
     <td class="r"><input class="num" type="number" min="0" value="${s.target}" data-chg="staffField" data-id="${p.id}" data-f="target" aria-label="Target credits"${ed?"":" disabled"}></td>
@@ -823,22 +838,23 @@ function staffDetails(g,list,ed,owner){
     <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="publish" aria-label="Name shown to staff"`,[{v:"1",l:"Real name"},{v:"0",l:s.status==="HPL"?"HPL":"TBC"}],s.publish?"1":"0",!ed)}</td>
     <td>${selectH(`data-chg="role" data-id="${p.id}" aria-label="Sign-in role"`,roleOpts,p.role,!owner)}</td>
     <td><input style="width:72px" value="${esc(s.room)}" data-chg="staffField" data-id="${p.id}" data-f="room" aria-label="Room"${ed?"":" disabled"}></td>
-    <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${owner?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
+    <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${owner&&isMain?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
    ||`<tr><td colspan="${owner?11:10}">${empty("No staff in this group yet",owner?"Add someone with New staff.":"")}</td></tr>`}
  </tbody></table></div>
  </article>
- <p class="hint"><b>Name shown to staff</b> controls what colleagues see when they open a module on their own timetable. Owner, Heads and PAS Admin always see real names.
+ <p class="hint"><b>Main group</b> decides who publishes a person's timetable. People can also be <b>additional members</b> of other groups (for example SMT) without leaving their department; group totals count main members only.
+ <b>Name shown to staff</b> controls what colleagues see when they open a module on their own timetable. Owner, Heads and PAS Admin always see real names.
  <b>Sign-in role</b> can only be changed by the Owner; everyone can already see their own timetable, and granting a role emails an invite so the person sets their own password.</p>`;
 }
 function staffTotals(list){
  const cols=CATS;
- const rows=list.map(p=>({p,s:SY(p.id),b:breakdown(p.id)}));
- const sum=k=>rows.reduce((a,r)=>a+r.b[k],0);
+ const rows=list.map(p=>({p,s:SY(p.id),b:breakdown(p.id),main:SY(p.id).group===sel.group}));
+ const mains=rows.filter(r=>r.main),sum=k=>mains.reduce((a,r)=>a+r.b[k],0);
  return `<article class="card"><div class="card-head"><h2>Totals for ${esc(gName(sel.group))}</h2><span class="muted" style="font-size:11px">Teaching is split by semester as allocated on Module allocation</span></div>
  <div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Name</th><th class="r">Target</th>${cols.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th class="r">Non-teaching</th><th class="r">Total</th><th class="r">Remaining</th><th></th></tr></thead><tbody>
- ${rows.map(({p,s,b})=>{const rem=s.target-b.total;return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"><td class="name-cell">${esc(p.id)}</td><td>${esc(nameOf(p.id))}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
+ ${rows.map(({p,s,b,main})=>{const rem=s.target-b.total;return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"${main?"":' class="addl-row"'}><td class="name-cell">${esc(p.id)}</td><td>${esc(nameOf(p.id))}${main?"":`<span class="sub">Additional member · main group ${esc(s.group)}</span>`}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
   <td class="r">${rem<0?`<span class="tag red">${rem}</span>`:rem}</td><td class="r"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button></td></tr>`;}).join("")}
- ${rows.length?`<tr class="sum"><td>Group total</td><td></td><td class="r">${rows.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${rows.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+7}">${empty("No staff in this group","")}</td></tr>`}
+ ${rows.length?`<tr class="sum"><td>Group total</td><td>${mains.length<rows.length?"main members only":""}</td><td class="r">${mains.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${mains.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+7}">${empty("No staff in this group","")}</td></tr>`}
  </tbody></table></div></article>`;
 }
 
@@ -972,14 +988,14 @@ VIEWS.nt=()=>{
  const byTitle=(a,b)=>a.title.localeCompare(b.title);
  const count=cat=>yd.nt.filter(r=>r.cat===cat).length;
  let h=pageHead("Workload","Non-teaching roles",mode==="summary"?"A read-only summary of every role in a role type: who holds it, their credits and comments.":"Create and edit roles, and set who holds them.",
-  mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:"");
+  `<button class="btn" data-act="ntTypeNew">New role type</button>`+(mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:""));
  const untyped=yd.nt.filter(r=>!NT_CATS.includes(r.cat));
  if(untyped.length)h+=`<article class="card" style="border-color:var(--b-amber)"><div class="card-head" style="background:var(--t-amber)"><div class="left"><h2>${plural(untyped.length,"role needs","roles need")} a role type</h2></div></div>
   <div class="table-wrap"><table><thead><tr><th>Role</th><th>Held by</th><th>Role type</th></tr></thead><tbody>
   ${untyped.map(r=>`<tr><td class="name-cell">${esc(r.title)}</td><td>${esc(r.people.map(p=>p.s).join(", ")||"Nobody")}</td>
    <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"")}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
  const typeOpts=(mode==="summary"?[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}]:[]).concat(NT_CATS.map(c=>({v:c,l:`${c} (${count(c)})`})));
- h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
+ h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
 
  if(mode==="summary"){
   const cats=sel.nt==="__all"?NT_CATS.filter(c=>count(c)):[sel.nt];
@@ -1069,7 +1085,7 @@ VIEWS.tt=()=>{
  let h=pageHead("Timetables","Staff timetable",hg?"Any member of staff's timetable, grouped by department with yours first.":"Any member of staff's timetable and module involvement.");
  if(!sel.staff)return h+`<article class="card">${empty("No staff","")}</article>`;
  const items=staffItems(sel.staff),cl=clashPairs(items),s=SY(sel.staff),last=Y().lastPublished[s.group];
- h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>SY(p.id).group===g.id);return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,`${p.id}  ${nameOf(p.id)}`,sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
+ h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>inGroup(p.id,g.id));return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,`${p.id}  ${nameOf(p.id)}`,sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
  h+=notice("i","Live view",`This includes changes that haven't been published yet. ${esc(P(sel.staff).forename)} sees the version published ${last?`on ${last}`:"when their department is first published"}.`);
  if(cl.length)h+=notice("!",plural(cl.length,"timetable clash","timetable clashes"),cl.map(([a,b])=>`${DAY_NAME[a.day]} semester ${a.sem}: ${a.module}-${a.occ} ${fmt(a.start)}–${fmt(a.end)} overlaps ${b.module}-${b.occ} ${fmt(b.start)}–${fmt(b.end)}`).join(". ")+".","red");
  if(sel.ttView==="module")return h+breakdownHTML(staffBreakdown(sel.staff),null);
@@ -1249,7 +1265,7 @@ const ACT={
     if(PEOPLE.some(p=>p.email.toLowerCase()===e))return "Someone already uses that email address.";
     const g=hg||mval("nsG");
     PEOPLE.push({id,forename:f,surname:s,email:e,role:owner?mval("nsR"):"staff"});
-    Y().staff[id]={group:g,status:mval("nsC"),fte:parseFloat(mval("nsFte"))||0,target:int(mval("nsT")),room:"",phone:"",publish:mval("nsP")==="1"};
+    Y().staff[id]={group:g,extra:[],status:mval("nsC"),fte:parseFloat(mval("nsFte"))||0,target:int(mval("nsT")),room:"",phone:"",publish:mval("nsP")==="1"};
     sel.group=g;touch([g],`Added ${f} ${s} to ${gName(g)}`);
     toast("Staff member added",`An invite has been queued to ${e}.`);
    }});
@@ -1262,16 +1278,28 @@ const ACT={
    onOk(){const g=SY(id).group;delete Y().staff[id];delete Y().published[id];touch([g],`Removed ${nameOf(id)} from ${selYear}`);toast("Removed",nameOf(id));}});
  },
  addToGroup(){
-  if(!isOwner())return;const g=G(sel.group),others=inYear().filter(p=>SY(p.id).group!==g.id);
+  if(!isOwner())return;const g=G(sel.group),others=inYear().filter(p=>!inGroup(p.id,g.id));
   if(!others.length)return toast("Everyone is already in this group","");
-  openModal({title:`Add staff to ${g.name}`,ok:"Add to group",body:`<p>Tick the people to add. Each person belongs to one group, so they move here from the group shown on the right.</p>
+  openModal({title:`Add staff to ${g.name}`,ok:"Add to group",body:`<div class="mode-pick" role="radiogroup" aria-label="How to add them">
+    <label><input type="radio" name="atgMode" value="extra" checked><span><b>Additional member</b><small>They stay in their current main group as well, for example a Head of School who is also in SMT.</small></span></label>
+    <label><input type="radio" name="atgMode" value="main"><span><b>Main group</b><small>They move here from their current main group. Their timetable is then published by this group.</small></span></label></div>
    <input id="atgSearch" placeholder="Filter by ID or name" aria-label="Filter staff" style="width:100%">
-   <div class="check-list">${others.map(p=>`<label class="check-row" data-name="${esc((p.id+" "+nameOf(p.id)).toLowerCase())}"><input type="checkbox" value="${p.id}"><b>${esc(p.id)}</b> ${esc(nameOf(p.id))}<span class="muted">${esc(gName(SY(p.id).group))}</span></label>`).join("")}</div>`,
+   <div class="check-list">${others.map(p=>`<label class="check-row" data-name="${esc((p.id+" "+nameOf(p.id)).toLowerCase())}"><input type="checkbox" value="${p.id}"><b>${esc(p.id)}</b> ${esc(nameOf(p.id))}<span class="muted">main group ${esc(SY(p.id).group)}</span></label>`).join("")}</div>`,
    onOk(){const ids=[...document.querySelectorAll("#modalBody .check-row input:checked")].map(i=>i.value);
     if(!ids.length)return "Tick at least one person.";
-    const from=ids.map(id=>SY(id).group);ids.forEach(id=>SY(id).group=g.id);
-    touch(from.concat([g.id]),`Moved ${ids.map(nameOf).join(", ")} into ${g.name}`);
-    toast(`${plural(ids.length,"person","people")} added to ${g.name}`,ids.map(nameOf).join(", "));}});
+    const mode=(document.querySelector('#modalBody input[name="atgMode"]:checked')||{}).value||"extra",names=ids.map(nameOf).join(", ");
+    if(mode==="main"){const from=ids.map(id=>SY(id).group);
+     ids.forEach(id=>{const s=SY(id);s.group=g.id;s.extra=(s.extra||[]).filter(x=>x!==g.id);});
+     touch(from.concat([g.id]),`Moved ${names} into ${g.name} as their main group`);
+     toast(`${plural(ids.length,"person","people")} moved to ${g.name}`,names);}
+    else{ids.forEach(id=>{const s=SY(id);s.extra=[...new Set((s.extra||[]).concat(g.id))];});
+     touch(ids.map(id=>SY(id).group).concat([g.id]),`Added ${names} to ${g.name} as additional member${ids.length>1?"s":""}`);
+     toast(`${plural(ids.length,"person","people")} added to ${g.name}`,`${names}, keeping their main group.`);}}});
+ },
+ rmExtra(el){
+  if(!isOwner())return;const id=el.dataset.id,gid=el.dataset.g,s=SY(id);
+  s.extra=(s.extra||[]).filter(x=>x!==gid);touch([s.group,gid],`Removed ${nameOf(id)} from ${gName(gid)} (additional membership)`);
+  toast(`${nameOf(id)} removed from ${gName(gid)}`,`Still in their main group, ${gName(s.group)}.`);render();
  },
  moveStaff(){
   const id=mval("moveSel");if(!id)return toast("Choose a person to move","",true);
@@ -1292,8 +1320,8 @@ const ACT={
  },
  deleteGroup(){
   if(!isOwner())return;const g=G(sel.group);
-  const used=Object.entries(YEARS).filter(([,yd])=>Object.values(yd.staff).some(s=>s.group===g.id)).map(([y])=>y);
-  if(used.length)return toast(`Can't delete ${g.name}`,`Staff are still assigned to it in ${used.join(", ")}. Move or remove them first.`,true);
+  const used=Object.entries(YEARS).filter(([,yd])=>Object.values(yd.staff).some(s=>s.group===g.id||(s.extra||[]).includes(g.id))).map(([y])=>y);
+  if(used.length)return toast(`Can't delete ${g.name}`,`Staff (main or additional members) are still in it in ${used.join(", ")}. Move or remove them first.`,true);
   if(COURSES.some(c=>c.dept===g.id)||Object.values(YEARS).some(yd=>yd.modules.some(m=>m.dept===g.id)))return toast(`Can't delete ${g.name}`,"Courses or modules still belong to it.",true);
   openModal({title:`Delete ${g.name}?`,ok:"Delete group",danger:true,body:"<p>The group has no staff, courses or modules, so nothing else changes.</p>",
    onOk(){GROUPS=GROUPS.filter(x=>x.id!==g.id);sel.group=GROUPS[0].id;toast("Group deleted",g.name);}});
@@ -1368,6 +1396,29 @@ const ACT={
  },
 
  /* ---- non-teaching ---- */
+ ntTypeNew(){
+  if(!isOwner())return;
+  openModal({title:"New role type",ok:"Add role type",body:`<p>Role types group non-teaching roles (for example "Management - Research"). They're shared by every academic year.</p>
+   <div class="form-grid"><label class="field wide">Name<input id="rtN" maxlength="45" placeholder="e.g. Management - Student Experience"></label>
+   <label class="field wide">Position in the list${selectH('id="rtP"',[{v:"-1",l:"At the top"}].concat(NT_CATS.map((c,i)=>({v:i,l:"After "+c}))),NT_CATS.length-1)}</label></div>`,
+   onOk(){const n=mval("rtN").replace(/\s+/g," ");if(!n)return "Enter a name for the role type.";
+    if(NT_CATS.some(c=>c.toLowerCase()===n.toLowerCase()))return "That role type already exists.";
+    NT_CATS.splice(+mval("rtP")+1,0,n);sel.nt=n;toast("Role type added",n);}});
+ },
+ ntTypeRename(){
+  if(!isOwner())return;const old=sel.nt;
+  openModal({title:`Rename ${old}`,ok:"Rename",body:`<p>Every role of this type, in every academic year, moves to the new name.</p><label class="field">New name<input id="rtR" maxlength="45" value="${esc(old)}"></label>`,
+   onOk(){const n=mval("rtR").replace(/\s+/g," ");if(!n)return "Enter a name.";if(n===old)return;
+    if(NT_CATS.some(c=>c!==old&&c.toLowerCase()===n.toLowerCase()))return "Another role type already has that name.";
+    NT_CATS[NT_CATS.indexOf(old)]=n;Object.values(YEARS).forEach(yd=>yd.nt.forEach(r=>{if(r.cat===old)r.cat=n;}));sel.nt=n;toast("Role type renamed",`${old} is now ${n}.`);}});
+ },
+ ntTypeDelete(){
+  if(!isOwner())return;const t=sel.nt,n=Object.values(YEARS).reduce((a,yd)=>a+yd.nt.filter(r=>r.cat===t).length,0);
+  if(n)return toast(`Can't delete ${t}`,`${plural(n,"role still uses","roles still use")} it. Move ${n===1?"it":"them"} to another role type first.`,true);
+  if(NT_CATS.length<=1)return toast("At least one role type is needed","",true);
+  openModal({title:`Delete ${t}?`,ok:"Delete role type",danger:true,body:"<p>No roles use it, so nothing else changes.</p>",
+   onOk(){NT_CATS=NT_CATS.filter(c=>c!==t);sel.nt=NT_CATS[0];toast("Role type deleted",t);}});
+ },
  ntNew(){
   openModal({title:"New non-teaching role",ok:"Create role",body:`<div class="form-grid"><label class="field wide">Role title<input id="nrT" placeholder="e.g. Admissions Tutor"></label>
    <label class="field wide">Role type${selectH('id="nrC"',NT_CATS.map(c=>({v:c,l:c})),NT_CATS.includes(sel.nt)?sel.nt:NT_CATS[0])}</label></div>`,
@@ -1440,7 +1491,7 @@ const CHG={
   if(f==="name"){if(!el.value.trim())return render();g.name=el.value.trim();}else if(f==="dept")g.dept=el.value==="1";else g[f]=el.value;toast("Group updated",g.name);render();},
  staffGroup(el){
   if(!isOwner())return render();const id=el.dataset.id,from=SY(id).group,to=el.value;if(from===to)return;
-  SY(id).group=to;touch([from,to],`Moved ${nameOf(id)} from ${gName(from)} to ${gName(to)}`);
+  SY(id).group=to;SY(id).extra=(SY(id).extra||[]).filter(x=>x!==to);touch([from,to],`Moved ${nameOf(id)} from ${gName(from)} to ${gName(to)}`);
   toast(`${nameOf(id)} moved`,`Now in ${gName(to)}. Choose that group above to see them.`);render();
  },
  staffField(el){
@@ -1570,11 +1621,14 @@ function buildFromLegacy(T,dbName){
   ensureGroup(g);
   let st=str(r.status)||"TBA";if(statuses.length&&!statuses.includes(st)){warn("status","staff have a contract status that isn't in the staff_status list");eg("status",`${id}: ${st}`);}
   people.push({id,forename:str(r.forename)||"(no forename)",surname:str(r.surname)||id,email,role:"staff"});
-  staff[id]={group:g,status:st,fte:num(r.fte),target:Math.round(num(r.allocation)),room:str(r.room),phone:str(r.phone),publish:str(r.publish).toUpperCase()!=="N"};
+  staff[id]={group:g,extra:[],status:st,fte:num(r.fte),target:Math.round(num(r.allocation)),room:str(r.room),phone:str(r.phone),publish:str(r.publish).toUpperCase()!=="N"};
  });
  counts.staff=people.length;
- const extra=rows("membership").filter(m=>staff[str(m.staff_id)]&&staff[str(m.staff_id)].group!==str(m.staff_group_id));
- if(extra.length){warns.membership={msg:"extra group memberships weren't imported: the new design gives each person one group (their staff_group_id)",n:extra.length,eg:extra.slice(0,5).map(m=>`${str(m.staff_id)} also in ${str(m.staff_group_id)}`)};}
+ // additional group memberships (old membership table): anything other than the person's main group
+ let addl=0;
+ rows("membership").forEach(m=>{const sid=str(m.staff_id),gid=str(m.staff_group_id),s=staff[sid];
+  if(!s||!gid||s.group===gid)return;ensureGroup(gid);s.extra=s.extra||[];if(!s.extra.includes(gid)){s.extra.push(gid);addl++;}});
+ counts.additionalMemberships=addl;
 
  // credit categories: teaching from time_slot, non-teaching from role_type
  const cats=[],catByCode={};
@@ -1707,7 +1761,7 @@ function applyImport(res,db,tablesFound){
 
 function importReportHTML(){
  const c=IMPORT.counts,rows=[["Staff",c.staff],["Modules",c.modules],["Occurrences",c.occurrences],["Category budget lines",c.teachingRoles],["Non-teaching roles",c.nonTeachingRoles],
-  ["Credit allocations",c.allocations],["Courses",c.courses],["Course links",c.courseLinks],["Timetabled sessions",c.sessions]];
+  ["Additional group memberships",c.additionalMemberships||0],["Credit allocations",c.allocations],["Courses",c.courses],["Course links",c.courseLinks],["Timetabled sessions",c.sessions]];
  return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.</p>
   <div class="table-wrap"><table><tbody>${rows.map(([l,n])=>`<tr><td>${l}</td><td class="r"><b>${n}</b></td></tr>`).join("")}</tbody></table></div>
   <h3 style="margin:16px 0 6px">Credit categories found</h3><p>${CATS.map(x=>`${esc(x.label)}${x.legacy?` (${esc(x.legacy)})`:""}${x.tt?", timetabled":""}`).join("; ")}</p>

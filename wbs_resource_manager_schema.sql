@@ -108,8 +108,10 @@ CREATE TABLE staff_group (
 CREATE TABLE staff (
     id            integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     staff_number  text UNIQUE,                        -- HR / payroll number, optional
-    legacy_staff_id text UNIQUE,                      -- staff_id from the old system (e.g. 'odum1'),
-                                                      -- used to match people across yearly databases
+    staff_code    text NOT NULL,                      -- the 5-character staff ID, e.g. 'smij1': usually 3 letters
+                                                      -- of surname + first letter of forename + a digit.
+                                                      -- Same value as staff_id in the old system, so people
+                                                      -- match across the old yearly databases. Default sort order.
     forename      text NOT NULL,
     surname       text NOT NULL,
     email         text,                               -- the login username; someone without one
@@ -117,10 +119,12 @@ CREATE TABLE staff (
     is_active     boolean NOT NULL DEFAULT true,      -- leavers: deactivate, don't delete
     created_at    timestamptz NOT NULL DEFAULT now(),
     updated_at    timestamptz NOT NULL DEFAULT now(),
-    CHECK (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$')
+    CHECK (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
+    CHECK (staff_code ~ '^[A-Za-z0-9]{5}$')
 );
 
 CREATE UNIQUE INDEX staff_email_unique ON staff (lower(email)) WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX staff_code_unique  ON staff (lower(staff_code));
 
 ALTER TABLE staff_group
     ADD CONSTRAINT staff_group_leader_fk
@@ -161,6 +165,54 @@ CREATE TABLE staff_year (
 -- Delete Group is blocked while any staff are assigned: enforced by the
 -- ON DELETE RESTRICT above.
 CREATE INDEX staff_year_group_idx ON staff_year (academic_year_id, staff_group_id);
+
+-- Additional group memberships (old table: membership). staff_year.staff_group_id
+-- is a person's MAIN group (it decides who publishes their timetable and which
+-- department a Head belongs to); they can also belong to other groups, for
+-- example a Head of School who is in their department and in SMT.
+-- Group totals count main members only, so nobody's credits are counted twice.
+CREATE TABLE staff_year_group (
+    staff_id          integer NOT NULL,
+    academic_year_id  integer NOT NULL,
+    staff_group_id    integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
+    PRIMARY KEY (staff_id, academic_year_id, staff_group_id),
+    FOREIGN KEY (staff_id, academic_year_id)
+        REFERENCES staff_year (staff_id, academic_year_id) ON DELETE CASCADE
+);
+
+CREATE INDEX staff_year_group_member_idx ON staff_year_group (academic_year_id, staff_group_id);
+
+-- An additional membership can't repeat the person's main group ...
+CREATE FUNCTION check_additional_group() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM staff_year
+                WHERE staff_id = NEW.staff_id AND academic_year_id = NEW.academic_year_id
+                  AND staff_group_id = NEW.staff_group_id) THEN
+        RAISE EXCEPTION 'That group is already this person''s main group'
+            USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER staff_year_group_check
+    BEFORE INSERT OR UPDATE ON staff_year_group
+    FOR EACH ROW EXECUTE FUNCTION check_additional_group();
+
+-- ... and when someone's main group changes to one they were an additional
+-- member of, that additional membership is dropped.
+CREATE FUNCTION tidy_additional_groups() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    DELETE FROM staff_year_group
+     WHERE staff_id = NEW.staff_id AND academic_year_id = NEW.academic_year_id
+       AND staff_group_id = NEW.staff_group_id;
+    RETURN NEW;
+END $$;
+
+CREATE TRIGGER staff_year_main_group_changed
+    AFTER UPDATE OF staff_group_id ON staff_year
+    FOR EACH ROW EXECUTE FUNCTION tidy_additional_groups();
 
 
 -- =============================================================================
@@ -694,6 +746,13 @@ BEGIN
      WHERE sy.academic_year_id = p_from_year_id
        AND s.is_active;
 
+    -- Additional group memberships for the staff carried forward.
+    INSERT INTO staff_year_group (staff_id, academic_year_id, staff_group_id)
+    SELECT g.staff_id, v_new_year, g.staff_group_id
+      FROM staff_year_group g
+      JOIN staff_year sy ON sy.staff_id = g.staff_id AND sy.academic_year_id = v_new_year
+     WHERE g.academic_year_id = p_from_year_id;
+
     -- Occurrences. The occurrence trigger creates their 0-credit budget lines.
     INSERT INTO occurrence (module_id, academic_year_id, occ_code, description, no_of_groups)
     SELECT o.module_id, v_new_year, o.occ_code, o.description, o.no_of_groups
@@ -826,6 +885,7 @@ SELECT aa.academic_year_id,
 CREATE VIEW v_staff_year_totals AS
 SELECT sy.academic_year_id,
        sy.staff_id,
+       s.staff_code,
        s.forename,
        s.surname,
        sy.staff_group_id,
@@ -842,7 +902,7 @@ SELECT sy.academic_year_id,
   JOIN staff s ON s.id = sy.staff_id
   LEFT JOIN v_allocation_detail d ON d.staff_id = sy.staff_id
                                  AND d.academic_year_id = sy.academic_year_id
- GROUP BY sy.academic_year_id, sy.staff_id, s.forename, s.surname, sy.staff_group_id,
+ GROUP BY sy.academic_year_id, sy.staff_id, s.staff_code, s.forename, s.surname, sy.staff_group_id,
           sy.contract_type, sy.fte, sy.target_credits;
 
 -- Budget vs allocated for every occurrence / category (Module Allocation).
@@ -930,12 +990,20 @@ INSERT INTO credit_category (code, name, applies_to, is_timetabled, semester, so
     ('MOD', 'Moderation',    'teaching', false, NULL, 50),
     ('MC',  'Major Changes', 'teaching', false, NULL, 60);
 
--- Non-teaching categories. Placeholders from the prototype - replace or
--- extend with the real list from the old role_type table (~16 categories).
+-- Non-teaching role types, in the order of the old role_type table. The Owner
+-- can add, rename and reorder these in the app (rows with applies_to =
+-- 'non_teaching'); the migration replaces them with the real role_type rows.
 INSERT INTO credit_category (code, name, applies_to, is_management, sort_order) VALUES
-    ('MGT-GEN',  'Management - General',    'non_teaching', true,  110),
-    ('MGT-PROG', 'Management - Programmes', 'non_teaching', true,  120),
-    ('LT',       'Learning & Teaching',     'non_teaching', false, 130);
+    ('MG', 'Management - General',                    'non_teaching', true,  110),
+    ('MP', 'Management - Programmes',                 'non_teaching', true,  120),
+    ('MR', 'Management - Recruitment & International','non_teaching', true,  130),
+    ('ML-M','Management - Learning & Teaching',        'non_teaching', true,  140),
+    ('MS', 'Management - Research',                   'non_teaching', true,  150),
+    ('ME', 'Management - External Engagement',        'non_teaching', true,  160),
+    ('PR', 'Programmes',                              'non_teaching', false, 170),
+    ('LT', 'Learning & Teaching',                     'non_teaching', false, 180),
+    ('RS', 'Research',                                'non_teaching', false, 190),
+    ('EE', 'External Engagement',                     'non_teaching', false, 200);
 
 
 -- =============================================================================
@@ -944,12 +1012,13 @@ INSERT INTO credit_category (code, name, applies_to, is_management, sort_order) 
 -- The app can't grant the first Owner because no Owner exists yet. Run this
 -- once after deployment, naming the Resourcing Lead:
 --
---   SELECT bootstrap_first_owner('first.last@worc.ac.uk', 'Forename', 'Surname');
+--   SELECT bootstrap_first_owner('smij1', 'first.last@worc.ac.uk', 'Forename', 'Surname');
 --
 -- It refuses to run if any Owner already exists, so it is safe to leave in
 -- place. It queues an invite; the person sets their own password from the email.
 
-CREATE FUNCTION bootstrap_first_owner(p_email    text,
+CREATE FUNCTION bootstrap_first_owner(p_staff_code text,
+                                      p_email    text,
                                       p_forename text,
                                       p_surname  text)
 RETURNS integer
@@ -964,8 +1033,8 @@ BEGIN
 
     SELECT id INTO v_staff FROM staff WHERE lower(email) = lower(p_email);
     IF v_staff IS NULL THEN
-        INSERT INTO staff (forename, surname, email)
-        VALUES (p_forename, p_surname, p_email)
+        INSERT INTO staff (staff_code, forename, surname, email)
+        VALUES (p_staff_code, p_forename, p_surname, p_email)
         RETURNING id INTO v_staff;              -- trigger creates the account
     END IF;
 
@@ -998,5 +1067,5 @@ COMMIT;
 --   GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO rm_app;
 --   GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO rm_app;
 --   REVOKE UPDATE, DELETE ON audit_log FROM rm_app;
---   REVOKE EXECUTE ON FUNCTION bootstrap_first_owner(text, text, text) FROM rm_app, PUBLIC;
+--   REVOKE EXECUTE ON FUNCTION bootstrap_first_owner(text, text, text, text) FROM rm_app, PUBLIC;
 -- =============================================================================
