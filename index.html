@@ -530,7 +530,7 @@ function seed(){
 
 /* ------------------------------ state ------------------------------ */
 let me=null, tab="overview", selYear="2026-27";
-const sel={module:"MGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",report:"activity",query:null,
+const sel={module:"MGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",leadCourse:"",report:"activity",query:null,
  ttView:"chart",ctView:"module",myView:"chart",staffMode:"list"};
 
 const Y=()=>YEARS[selYear];
@@ -758,7 +758,7 @@ VIEWS.overview=()=>{
   if(s.target>0&&t>s.target)issues.push({tag:`<span class="tag red">Over target</span>`,text:`${esc(nameOf(p.id))}: ${t} of ${s.target} credits`,act:`<button class="btn small" data-act="goto" data-tab="staff" data-set="group=${s.group};staffMode=totals">Show totals</button>`});});
  yd.modules.forEach(m=>m.occs.forEach(o=>{
   CATS.forEach(c=>{const a=sumV(o.slots[c.id].alloc);if(a>o.slots[c.id].total)issues.push({tag:`<span class="tag red">Over-allocated</span>`,text:`${m.code} occ ${o.occ}, ${c.label}: ${a} of ${o.slots[c.id].total} credits`,act:`<button class="btn small" data-act="goto" data-tab="alloc" data-set="module=${m.code}">Open allocation</button>`});});
-  [["ML","No module leader"],["MO","No moderator"]].forEach(([k,l])=>{if(!Object.keys(o.slots[k].alloc).length)issues.push({tag:`<span class="tag amber">${l}</span>`,text:`${m.code} ${esc(m.title)}, occ ${o.occ}`,act:`<button class="btn small" data-act="goto" data-tab="leaders" data-set="module=${m.code}">Set leaders</button>`});});
+  [["ML","No module leader"],["MO","No moderator"]].forEach(([k,l])=>{if(!Object.keys(o.slots[k].alloc).length)issues.push({tag:`<span class="tag amber">${l}</span>`,text:`${m.code} ${esc(m.title)}, occ ${o.occ}`,act:`<button class="btn small" data-act="goto" data-tab="leaders" data-set="leadCourse=${o.courses[0]||"__none"}">Set leaders</button>`});});
  }));
  let clashStaff=0;
  staff.forEach(p=>{const cl=clashPairs(staffItems(p.id));if(!cl.length)return;clashStaff++;const [x,y]=cl[0];
@@ -964,20 +964,33 @@ VIEWS.sessions=()=>{
 
 /* ---------------------------- Module leaders ---------------------------- */
 VIEWS.leaders=()=>{
- const m=ensureModule(),ed=canEdit("leaders");
- let h=pageHead("Curriculum","Module leaders and moderators","Who leads and who moderates each occurrence.");
+ const yd=Y(),ed=canEdit("leaders");
+ // Choose a course, then see every module occurrence on it with its leader and moderator.
+ const unlinked=[];yd.modules.forEach(m=>m.occs.forEach(o=>{if(!o.courses.length)unlinked.push({m,o});}));
+ const courseOpts=[...COURSES].sort((a,b)=>a.code.localeCompare(b.code)).map(c=>({v:c.code,l:`${c.code}  ${c.title}`}))
+  .concat([{v:"__all",l:"All modules"}]).concat(unlinked.length?[{v:"__none",l:`Modules not linked to a course (${unlinked.length})`}]:[]);
+ if(!courseOpts.some(o=>o.v===sel.leadCourse))sel.leadCourse=(courseOpts[0]||{}).v;
+ let h=pageHead("Curriculum","Module leaders and moderators","Choose a course to see every module on it, with its leader and moderator.");
  if(!ed)h+=readOnlyNote();
- if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
- h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label></div>`;
- if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","")}</article>`;
+ h+=`<div class="filterbar"><label class="field grow">Course${selectH('data-chg="selLeadCourse"',courseOpts,sel.leadCourse)}</label></div>`;
+ const rows=[];
+ yd.modules.forEach(m=>m.occs.forEach(o=>{
+  if(sel.leadCourse==="__all"||(sel.leadCourse==="__none"?!o.courses.length:o.courses.includes(sel.leadCourse)))rows.push({m,o});}));
+ rows.sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));
+ const c=C(sel.leadCourse),title=c?`${c.code} ${c.title}`:sel.leadCourse==="__all"?"All modules":"Modules not linked to a course";
+ if(!rows.length)return h+`<article class="card"><div class="card-head"><h2>${esc(title)}</h2></div>${empty("No modules on this course yet",isOwner()?"Link module occurrences to it on Module details.":"")}</article>`;
+ const noL=rows.filter(r=>!Object.keys(r.o.slots.ML.alloc).length).length,noM=rows.filter(r=>!Object.keys(r.o.slots.MO.alloc).length).length;
  const opts=[{v:"",l:"None"}].concat(staffOptions());
- const cell=(o,k)=>{const ids=Object.keys(o.slots[k].alloc);
-  return `${selectH(`data-chg="leader" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Module leader":"Moderator"}, occ ${o.occ}"`,opts,ids[0]||"",!ed)}${ids.length>1?` <span class="tag blue">+${ids.length-1} shared</span>`:""}
+ const cell=(m,o,k)=>{const ids=Object.keys(o.slots[k].alloc);
+  return `${selectH(`data-chg="leader" data-module="${esc(m.code)}" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Module leader":"Moderator"}, ${esc(m.code)} occ ${o.occ}" style="width:100%;max-width:280px"`,opts,ids[0]||"",!ed)}${ids.length>1?` <span class="tag blue">+${ids.length-1} shared</span>`:""}
    <span class="sub">${o.slots[k].total} credits budgeted</span>`;};
- return h+`<article class="card"><div class="card-head"><div class="left"><h2>${m.code} ${esc(m.title)}</h2></div></div><div class="table-wrap"><table><thead><tr><th>Occ.</th><th>Courses</th><th>Module leader</th><th>Moderator</th></tr></thead><tbody>
-  ${m.occs.map(o=>`<tr><td><span class="occ">${o.occ}</span></td><td>${o.courses.map(c=>esc(C(c)?C(c).title:c)).join("<br>")||'<span class="muted">None linked</span>'}</td><td>${cell(o,"ML")}</td><td>${cell(o,"MO")}</td></tr>`).join("")}
+ return h+`<article class="card"><div class="card-head"><div class="left"><h2>${esc(title)}</h2><span class="tag gray">${plural(rows.length,"module occurrence")}</span>
+   ${noL?`<span class="tag amber">${noL} without a leader</span>`:""}${noM?`<span class="tag amber">${noM} without a moderator</span>`:""}${!noL&&!noM?`<span class="tag">All led and moderated</span>`:""}</div></div>
+  <div class="table-wrap"><table><thead><tr><th style="width:34%">Module</th><th>Occ.</th><th style="width:28%">Module leader</th><th style="width:28%">Moderator</th></tr></thead><tbody>
+  ${rows.map(({m,o})=>`<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}<span class="sub">${esc(gName(m.dept))}${sel.leadCourse==="__all"&&o.courses.length?" · "+esc(o.courses.join(", ")):""}</span></td>
+   <td><span class="occ">${esc(o.occ)}</span></td><td>${cell(m,o,"ML")}</td><td>${cell(m,o,"MO")}</td></tr>`).join("")}
  </tbody></table></div></article>
- <p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits. To share the credits between people, adjust them on Module allocation.</p>`;
+ <p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits. To share the credits between people, adjust them on Module allocation. A module on several courses appears under each of them.</p>`;
 };
 
 /* --------------------------- Non-teaching roles --------------------------- */
@@ -1486,6 +1499,7 @@ const CHG={
  selModule(el){sel.module=el.value;render();},
  selStaff(el){sel.staff=el.value;render();},
  selCourse(el){sel.course=el.value;render();},
+ selLeadCourse(el){sel.leadCourse=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
  groupField(el){if(!isOwner())return;const g=G(sel.group),f=el.dataset.f;
   if(f==="name"){if(!el.value.trim())return render();g.name=el.value.trim();}else if(f==="dept")g.dept=el.value==="1";else g[f]=el.value;toast("Group updated",g.name);render();},
@@ -1524,10 +1538,10 @@ const CHG={
   sessTouch(key,"Changed a session");render();
  },
  leader(el){
-  if(!guard("leaders"))return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.value,slot=o.slots[c];
+  if(!guard("leaders"))return render();const m=M(el.dataset.module||sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.value,slot=o.slots[c];
   const before=Object.keys(slot.alloc),oldNotes=slot.notes||{};slot.alloc=id?{[id]:slot.total}:{};slot.notes=id&&oldNotes[id]?{[id]:oldNotes[id]}:{};
   touch(groupsOf(before.concat(id?[id]:[]),[m.dept]),`${m.code} occ ${o.occ}: ${c==="ML"?"module leader":"moderator"} ${id?"set to "+nameOf(id):"cleared"}`);
-  toast(c==="ML"?"Module leader updated":"Moderator updated",id?`${nameOf(id)} now holds occ ${o.occ}'s ${slot.total} ${CAT(c).label} credits.`:"Nobody holds this role now.");render();
+  toast(c==="ML"?"Module leader updated":"Moderator updated",id?`${nameOf(id)} now holds ${m.code} occ ${o.occ}'s ${slot.total} ${CAT(c).label} credits.`:"Nobody holds this role now.");render();
  },
  allocNote(el){
   if(!guard("alloc"))return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.dataset.id,slot=o.slots[c];
