@@ -262,6 +262,10 @@ tr.selected td{background:var(--t-cyan)}
 .course-banner{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
 .course-banner h2{font-size:22px}
 .year-card+.year-card{margin-top:14px}
+.sem-card+.sem-card{margin-top:14px}
+.ct-table{table-layout:fixed;min-width:820px}
+.ct-table td{vertical-align:top}
+.ct-line{min-height:20px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lead-table{table-layout:fixed;min-width:760px}
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted)}
 tr.addl-row td{background:var(--t-lime)}
@@ -1314,20 +1318,50 @@ VIEWS.courses=()=>{
  return h;
 };
 VIEWS.coursett=()=>{
- if(!C(sel.course))sel.course=(COURSES[0]||{}).code;
- const c=C(sel.course);
- let h=pageHead("Timetables","Course timetables","Every session for the module occurrences linked to a course, across both semesters.");
+ if(!C(sel.course))sel.course=(courseOptions()[0]||{}).v;
+ const c=C(sel.course),yd=Y();
+ let h=pageHead("Timetables","Course timetables","Choose a course and year to see its modules and sessions, semester by semester.");
  if(!c)return h+`<article class="card">${empty("No courses","")}</article>`;
- h+=`<div class="filterbar"><label class="field grow">Course${selectH('data-chg="selCourse"',courseOptions(),c.code)}</label>${ttSeg("ctView",sel.ctView)}</div>`;
- const items=courseItems(c.code);
- if(sel.ctView==="time")return h+timeHTML(items);
- if(sel.ctView==="chart")return h+chartHTML(items);
- const rows=[];Y().modules.forEach(m=>m.occs.filter(o=>o.courses.includes(c.code)).forEach(o=>rows.push({m,o})));
- return h+`<article class="card">${rows.length?`<div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Leader</th><th>Sessions</th></tr></thead><tbody>
-  ${rows.map(({m,o})=>{const ss=items.filter(i=>i.module===m.code&&i.occ===o.occ);
-   return `<tr><td><span class="name-cell">${m.code}</span><span class="sub">${esc(m.title)}</span></td><td><span class="occ">${o.occ}</span></td><td>${esc(Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"—")}</td>
-   <td>${ss.length?ss.map(s=>`S${s.sem} ${s.day} ${fmt(s.start)}–${fmt(s.end)}`).join("<br>"):'<span class="muted">No sessions</span>'}</td></tr>`;}).join("")}</tbody></table></div>`
-  :empty("No modules linked to this course",isOwner()?"Link occurrences to it on Module details.":"")}</article>`;
+ // occurrences on this course, each with its year (from the module code's first digit)
+ const linked=[];yd.modules.forEach(m=>m.occs.filter(o=>o.courses.includes(c.code)).forEach(o=>linked.push({m,o,y:linkYear(o,m.code,c)})));
+ const years=courseYearsShown(c,linked.some(r=>r.y===0)),count=y=>linked.filter(r=>r.y===y).length;
+ const yearOpts=years.map(y=>({v:String(y),l:`Year ${y}${y===0?" (foundation)":""} (${count(y)})`})).concat(linked.some(r=>r.y==null)?[{v:"none",l:`Year not set (${count(null)})`}]:[]);
+ if(!yearOpts.some(o=>o.v===sel.ctYear))sel.ctYear=(yearOpts.find(o=>count(o.v==="none"?null:+o.v))||yearOpts[0]).v;
+ const yr=sel.ctYear==="none"?null:+sel.ctYear;
+ h+=`<div class="filterbar"><label class="field grow">Course${selectH('data-chg="selCourse"',courseOptions(),c.code)}</label>
+  <label class="field" style="min-width:150px;flex:0 0 190px">Year${selectH('data-chg="selCtYear"',yearOpts,sel.ctYear)}</label>${ttSeg("ctView",sel.ctView)}</div>`;
+ const rows=linked.filter(r=>r.y===yr).sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));
+ const yLabel=yr==null?"Year not set":`Year ${yr}${yr===0?" (foundation)":""}`;
+ if(!rows.length)return h+`<article class="card">${empty(`No modules in ${yLabel} of this course`,isOwner()?"Link module occurrences to the course on Module details.":"")}</article>`;
+ // sessions for just these occurrences
+ const items=[];rows.forEach(({m,o})=>CATS.filter(x=>x.tt).forEach(k=>(yd.sessions[skey(m.code,o.occ,k.id)]||[]).forEach(s=>items.push({...s,module:m.code,title:m.title,occ:o.occ,sem:k.sem,cat:k.label}))));
+ // semesters to show: Semester 1 and 2 always, any other timetabled slot only when this year uses it
+ const semCats=CATS.filter(k=>k.tt&&(k.sem===1||k.sem===2||rows.some(({m,o})=>o.slots[k.id].total||(yd.sessions[skey(m.code,o.occ,k.id)]||[]).length)));
+ const banner=`<div class="course-banner"><div><div class="eyebrow">${esc(c.level==="PG"?"Postgraduate":"Undergraduate")} · ${esc(yLabel)}</div><h2>${esc(c.title)}</h2></div><div class="actions"><span class="tag gray">${plural(rows.length,"module occurrence")}</span></div></div>`;
+ if(sel.ctView==="chart")return h+banner+chartHTML(items);
+ if(sel.ctView==="time")return h+banner+semCats.map(k=>{
+   const its=items.filter(i=>i.cat===k.label).sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
+   return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(its.length,"session")}</span></div>
+    ${its.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:13%">Day</th><th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:40%">Module</th><th style="width:7%">Occ.</th><th style="width:22%">Comments</th></tr></thead><tbody>
+    ${its.map(i=>`<tr><td>${DAY_NAME[i.day]}</td><td>${fmt(i.start)}</td><td>${fmt(i.end)}</td><td><span class="name-cell">${esc(i.module)}</span> ${esc(i.title)}</td><td><span class="occ">${esc(i.occ)}</span></td><td>${esc(i.c)}</td></tr>`).join("")}</tbody></table></div>`
+    :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No sessions in ${esc(k.label)}.</p>`}</article>`;}).join("");
+ // By module: one table per semester, as in the old system
+ let seq=0;
+ return h+banner+semCats.map(k=>{
+  const list=rows.filter(({m,o})=>o.slots[k.id].total||Object.keys(o.slots[k.id].alloc).length||(yd.sessions[skey(m.code,o.occ,k.id)]||[]).length);
+  return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(list.length,"module")}</span></div>
+  ${list.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:33%">Module</th><th style="width:6%">Occ.</th><th style="width:15%">Sessions</th><th class="c" style="width:6%">Grps</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
+  ${list.map(({m,o})=>{const ss=(yd.sessions[skey(m.code,o.occ,k.id)]||[]).slice().sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start),id=`ct${++seq}`;
+   const who=Object.entries(o.slots[k.id].alloc).sort((a,b)=>a[0].localeCompare(b[0])),lead=Object.keys(o.slots.ML.alloc),mod=Object.keys(o.slots.MO.alloc);
+   return `<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}</td><td><span class="occ">${esc(o.occ)}</span></td>
+    <td>${ss.length?ss.map(s=>`<div class="ct-line">${s.day} ${fmt(s.start)}–${fmt(s.end)}</div>`).join(""):'<span class="muted">Not timetabled</span>'}</td>
+    <td class="c">${o.groups}</td><td class="r"><b>${o.slots[k.id].total}</b></td>
+    <td>${ss.map(s=>`<div class="ct-line">${esc(s.c)||"&nbsp;"}</div>`).join("")}</td>
+    <td class="c"><button class="plus-btn" data-act="toggleRow" data-row="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Show who teaches ${esc(m.code)} occurrence ${esc(o.occ)} in ${esc(k.label)}">+</button></td></tr>
+    <tr class="detail-row" id="${id}" hidden><td colspan="7"><h3>Teaching ${esc(m.code)}-${esc(o.occ)} in ${esc(k.label)}</h3>
+     <div class="team-grid">${who.length?who.map(([sid,cr])=>`<div class="person-card"><b>${esc(nameOf(sid))}</b><span>${cr} credits</span></div>`).join(""):'<span class="muted">No one allocated yet.</span>'}</div>
+     <p class="hint">Module leader: ${esc(lead.map(nameOf).join(", ")||"none")} · Moderator: ${esc(mod.map(nameOf).join(", ")||"none")}</p></td></tr>`;}).join("")}
+  </tbody></table></div>`:`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules in ${esc(k.label)}.</p>`}</article>`;}).join("");
 };
 
 /* ------------------------------- Reports ------------------------------- */
@@ -1729,7 +1763,8 @@ const CHG={
   if(!m){toast("No module found",`Nothing matches “${el.value.trim()}”. Type or paste a module code or title, or choose from the list.`,true);return render();}
   sel.module=m.code;render();},
  selStaff(el){sel.staff=el.value;render();},
- selCourse(el){sel.course=el.value;render();},
+ selCourse(el){sel.course=el.value;sel.ctYear="";render();},
+ selCtYear(el){sel.ctYear=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
  groupField(el){if(!isOwner())return;const g=G(sel.group),f=el.dataset.f;
