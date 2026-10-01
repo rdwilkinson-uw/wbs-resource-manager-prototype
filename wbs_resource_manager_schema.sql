@@ -416,7 +416,9 @@ CREATE TABLE occurrence (
 CREATE TABLE course_occurrence (
     course_id      integer NOT NULL REFERENCES course (id) ON DELETE RESTRICT,
     occurrence_id  integer NOT NULL REFERENCES occurrence (id) ON DELETE CASCADE,
-    year_of_study  smallint CHECK (year_of_study BETWEEN 1 AND 7),
+    year_of_study  smallint CHECK (year_of_study BETWEEN 0 AND 7),  -- from the module code's first digit:
+                                                       -- 0 foundation, 1-3 UG years; 4xxx = PG Year 1.
+                                                       -- Placement years are a year out and shift nothing.
     is_core        boolean,                           -- old course_module.mandatory_flag
     is_primary     boolean NOT NULL DEFAULT false,    -- old course_module.primary_flag
     PRIMARY KEY (course_id, occurrence_id)
