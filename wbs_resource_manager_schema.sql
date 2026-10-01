@@ -376,7 +376,8 @@ CREATE TABLE course (
     show_on_cis      boolean NOT NULL DEFAULT true,   -- listed on the Course Information Site
     subject          text,                            -- old course.subject
     is_corporate     boolean NOT NULL DEFAULT false,  -- old course.corporate
-    display_order    smallint,                        -- order on menus and the CIS
+    display_order    smallint,                        -- set on Course details; the order of every course list
+                                                      -- and the Course Information Site menu
     is_active        boolean NOT NULL DEFAULT true,
     created_at       timestamptz NOT NULL DEFAULT now(),
     updated_at       timestamptz NOT NULL DEFAULT now()

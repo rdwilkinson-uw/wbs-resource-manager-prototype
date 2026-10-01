@@ -125,6 +125,8 @@ input.num{width:76px;text-align:right}
 input.num.sm{width:64px}
 select.mini{min-height:26px;padding:2px 4px;font-size:11px;width:auto}
 .course-link{display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0}
+input.pos-in{width:52px;text-align:center;margin-right:4px}
+.move-btn{color:var(--heading);width:26px;height:26px;margin-left:2px}
 input.occ-in{width:52px;text-align:center;font-weight:900;text-transform:uppercase}
 input.note-in{display:block;width:140px;margin:4px 0 0 auto;min-height:28px;font-size:11px;padding:4px 7px;text-align:left}
 .spacer{flex:1}
@@ -721,8 +723,8 @@ function capacity(total,target){
 }
 const readOnlyNote=()=>notice("i","Read-only for your role",`You can view this screen but not change it.${me.role==="pas"?" Session times can be edited on Module sessions.":me.role==="head"?" Staff are allocated and credits apportioned on Module allocation.":""}`,"amber");
 const moduleOptions=()=>Y().modules.map(m=>({v:m.code,l:`${m.code}  ${m.title} (${m.dept})`}));
-// Course dropdowns show the course name only (no course code), alphabetically.
-const courseOptions=(list=COURSES)=>[...list].sort((a,b)=>a.title.localeCompare(b.title)).map(c=>({v:c.code,l:c.title}));
+// Course dropdowns show the course name only (no course code), in the display order set on Course details.
+const courseOptions=(list=COURSES)=>list.map(c=>({v:c.code,l:c.title}));
 // Staff dropdowns show name and group only: staff IDs are kept out of dropdowns for data privacy.
 const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
 // Module picker: separate Module code and Module title boxes. Each can be typed, pasted or picked from its own
@@ -1302,9 +1304,12 @@ const linkedOccs=(code,yd=Y())=>yd.modules.reduce((a,m)=>a+m.occs.filter(o=>o.co
 VIEWS.courses=()=>{
  if(!C(sel.course))sel.course=(COURSES[0]||{}).code;
  const c=C(sel.course);
- let h=pageHead("Curriculum","Course details","Courses, their level and length, and whether they appear on the Course Information Site.",`<button class="btn primary" data-act="newCourse">New course</button>`);
- h+=`<article class="card"><div class="table-wrap"><table><thead><tr><th>Code</th><th>Title</th><th>Department</th><th>Level</th><th class="r">Years</th><th>Course leader</th><th>On CIS</th><th class="r">Linked occurrences</th></tr></thead><tbody>
-  ${COURSES.map(x=>`<tr class="clickable${x.code===sel.course?" selected":""}" data-act="selCourse" data-code="${esc(x.code)}" tabindex="0"><td class="name-cell">${esc(x.code)}</td><td>${esc(x.title)}</td><td>${esc(gName(x.dept))}</td><td>${x.level}</td><td class="r">${x.years}</td><td>${esc(x.leader?nameOf(x.leader):"—")}</td><td>${x.cis?'<span class="tag">Shown</span>':'<span class="tag gray">Hidden</span>'}</td><td class="r">${linkedOccs(x.code)}</td></tr>`).join("")||`<tr><td colspan="8">${empty("No courses","")}</td></tr>`}
+ let h=pageHead("Curriculum","Course details","Courses, their level and length, and whether they appear on the Course Information Site. The order here is used in every course list and on the Course Information Site.",`<button class="btn primary" data-act="newCourse">New course</button>`);
+ h+=`<article class="card"><div class="table-wrap"><table><thead><tr><th style="width:120px">Order</th><th>Code</th><th>Title</th><th>Department</th><th>Level</th><th class="r">Years</th><th>Course leader</th><th>On CIS</th><th class="r">Linked occurrences</th></tr></thead><tbody>
+  ${COURSES.map((x,i)=>`<tr class="clickable${x.code===sel.course?" selected":""}" data-act="selCourse" data-code="${esc(x.code)}" tabindex="0">
+   <td style="white-space:nowrap"><input class="num pos-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="${i+1}" data-chg="coursePos" data-code="${esc(x.code)}" aria-label="Position of ${esc(x.title)} (1 to ${COURSES.length})">
+    <button class="icon-btn move-btn" data-act="courseMove" data-code="${esc(x.code)}" data-d="-1" aria-label="Move ${esc(x.title)} up"${i===0?" disabled":""}>↑</button><button class="icon-btn move-btn" data-act="courseMove" data-code="${esc(x.code)}" data-d="1" aria-label="Move ${esc(x.title)} down"${i===COURSES.length-1?" disabled":""}>↓</button></td>
+   <td class="name-cell">${esc(x.code)}</td><td>${esc(x.title)}</td><td>${esc(gName(x.dept))}</td><td>${x.level}</td><td class="r">${x.years}</td><td>${esc(x.leader?nameOf(x.leader):"—")}</td><td>${x.cis?'<span class="tag">Shown</span>':'<span class="tag gray">Hidden</span>'}</td><td class="r">${linkedOccs(x.code)}</td></tr>`).join("")||`<tr><td colspan="8">${empty("No courses","")}</td></tr>`}
  </tbody></table></div></article>`;
  if(c)h+=`<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.code)} ${esc(c.title)}</h2></div><button class="btn danger small" data-act="deleteCourse">Delete course</button></div>
   <div style="padding:18px"><div class="form-grid">
@@ -1710,6 +1715,9 @@ const ACT={
 
  /* ---- courses ---- */
  selCourse(el){sel.course=el.dataset.code;render();},
+ courseMove(el){if(!isOwner())return;const i=COURSES.findIndex(c=>c.code===el.dataset.code),j=i+(+el.dataset.d);if(i<0||j<0||j>=COURSES.length)return;
+  [COURSES[i],COURSES[j]]=[COURSES[j],COURSES[i]];sel.course=el.dataset.code;render();
+  const b=document.querySelector(`[data-act=courseMove][data-code="${el.dataset.code}"][data-d="${el.dataset.d}"]`);if(b&&!b.disabled)b.focus();},
  newCourse(){
   openModal({title:"New course",ok:"Create course",body:`<div class="form-grid">
    <label class="field">Code<input id="ncC" placeholder="e.g. MGT-FIN"></label><label class="field">Level${selectH('id="ncL"',[{v:"UG",l:"Undergraduate"},{v:"PG",l:"Postgraduate"}],"UG")}</label>
@@ -1764,6 +1772,8 @@ const CHG={
   sel.module=m.code;render();},
  selStaff(el){sel.staff=el.value;render();},
  selCourse(el){sel.course=el.value;sel.ctYear="";render();},
+ coursePos(el){if(!isOwner())return render();const i=COURSES.findIndex(c=>c.code===el.dataset.code);if(i<0)return render();
+  const n=Math.min(COURSES.length,Math.max(1,int(el.value)||i+1))-1;const [c]=COURSES.splice(i,1);COURSES.splice(n,0,c);sel.course=c.code;render();},
  selCtYear(el){sel.ctYear=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
@@ -1848,7 +1858,8 @@ const CHG={
 };
 
 const NAV_ACTS=["go","goto","signOut"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
-document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;const a=el.dataset.act,f=ACT[a];if(!f)return;e.preventDefault();
+document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;
+ if(el.tagName==="TR"&&e.target.closest("input,select,textarea"))return;const a=el.dataset.act,f=ACT[a];if(!f)return;e.preventDefault();
  if(NAV_ACTS.includes(a))return guardNav(()=>f(el,e));
  if(UNSTAGED_ACTS.includes(a))return f(el,e);
  staged(()=>f(el,e));});
