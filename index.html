@@ -285,7 +285,11 @@ tr.selected td{background:var(--t-cyan)}
 .ct-table{table-layout:fixed;min-width:820px}
 .ct-table td{vertical-align:top}
 .ct-line{min-height:20px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lead-table{table-layout:fixed;min-width:760px}
+.lead-table{table-layout:fixed;min-width:820px}
+.share-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.share-list{list-style:none;margin:6px 0 0;padding:0}
+.share-list li{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line-2);font-size:12px}
+.share-list li span:last-child{margin-left:auto;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted)}
 tr.addl-row td{background:var(--t-lime)}
 tr.addl-row:hover td{background:var(--t-lime)}
@@ -1178,14 +1182,23 @@ VIEWS.leaders=()=>{
  rows.sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));
  const title=c?c.title:sel.leadCourse==="__all"?"All modules":"Modules not linked to a course";
  const opts=[{v:"",l:"None"}].concat(staffOptions());
- const cell=(m,o,k)=>{const ids=Object.keys(o.slots[k].alloc);
-  return `${selectH(`data-chg="leader" data-module="${esc(m.code)}" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Module leader":"Moderator"}, ${esc(m.code)} occ ${o.occ}" style="width:100%;max-width:280px"`,opts,ids[0]||"",!ed)}${ids.length>1?` <span class="tag blue">+${ids.length-1} shared</span>`:""}
-   <span class="sub">${o.slots[k].total} credits budgeted</span>`;};
+ // The primary leader / moderator is whoever holds the most of those credits (ties: staff ID order).
+ const holders=(o,k)=>Object.entries(o.slots[k].alloc).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0],"en",{numeric:true}));
+ let leadSeq=0;
+ const cell=(m,o,k)=>{const h=holders(o,k);
+  return `${selectH(`data-chg="leader" data-module="${esc(m.code)}" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Primary module leader":"Primary moderator"}, ${esc(m.code)} occ ${o.occ}" style="width:100%;max-width:280px"`,opts,h.length?h[0][0]:"",!ed)}
+   <span class="sub">${h.length>1?`Shared by ${h.length} · see +`:`${o.slots[k].total} credits budgeted`}</span>`;};
+ // Expanded detail: everyone sharing leadership / moderation, primary first.
+ const sharedList=(o,k)=>{const h=holders(o,k);return h.length?`<ul class="share-list">${h.map(([id,cr],n)=>`<li><b>${esc(nameOf(id))}</b>${n===0?' <span class="tag plain blue">Primary</span>':""}<span>${cr} credits</span></li>`).join("")}</ul>`:'<span class="muted">None</span>';};
+ const moreCell=(m,o)=>{const shared=holders(o,"ML").length>1||holders(o,"MO").length>1;if(!shared)return {btn:"",row:""};const id=`ld${++leadSeq}`;
+  return {btn:`<button class="plus-btn" data-act="toggleRow" data-row="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Show everyone leading or moderating ${esc(m.code)} occurrence ${esc(o.occ)}">+</button>`,
+   row:`<tr class="detail-row" id="${id}" hidden><td colspan="5"><div class="share-grid"><div><h3>Module leaders</h3>${sharedList(o,"ML")}</div><div><h3>Moderators</h3>${sharedList(o,"MO")}</div></div>
+    ${["owner","head"].includes(me.role)?`<p class="hint">Credits are shared on Module allocation. <button class="linkish" data-act="goto" data-tab="alloc" data-set="module=${esc(m.code)}">Open ${esc(m.code)} on Module allocation</button></p>`:""}</td></tr>`};};
  const gaps=list=>{const l=list.filter(r=>!Object.keys(r.o.slots.ML.alloc).length).length,mo=list.filter(r=>!Object.keys(r.o.slots.MO.alloc).length).length;
   return (l?`<span class="tag amber">${l} without a leader</span>`:"")+(mo?`<span class="tag amber">${mo} without a moderator</span>`:"")+(list.length&&!l&&!mo?`<span class="tag">All led and moderated</span>`:"");};
- const table=list=>`<div class="table-wrap"><table class="lead-table"><thead><tr><th style="width:36%">Module</th><th style="width:6%">Occ.</th><th style="width:29%">Module leader</th><th style="width:29%">Moderator</th></tr></thead><tbody>
-  ${list.map(({m,o})=>`<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}<span class="sub">${esc(gName(m.dept))}${sel.leadCourse==="__all"&&o.courses.length?" · "+esc(o.courses.map(x=>(C(x)||{title:x}).title).join(", ")):""}</span></td>
-   <td><span class="occ">${esc(o.occ)}</span></td><td>${cell(m,o,"ML")}</td><td>${cell(m,o,"MO")}</td></tr>`).join("")}</tbody></table></div>`;
+ const table=list=>`<div class="table-wrap"><table class="lead-table"><thead><tr><th style="width:34%">Module</th><th style="width:6%">Occ.</th><th style="width:27%">Module leader</th><th style="width:27%">Moderator</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
+  ${list.map(({m,o})=>{const mc=moreCell(m,o);return `<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}<span class="sub">${esc(gName(m.dept))}${sel.leadCourse==="__all"&&o.courses.length?" · "+esc(o.courses.map(x=>(C(x)||{title:x}).title).join(", ")):""}</span></td>
+   <td><span class="occ">${esc(o.occ)}</span></td><td>${cell(m,o,"ML")}</td><td>${cell(m,o,"MO")}</td><td class="c">${mc.btn}</td></tr>${mc.row}`;}).join("")}</tbody></table></div>`;
  if(!rows.length)return h+`<article class="card"><div class="card-head"><h2>${esc(title)}</h2></div>${empty("No modules on this course yet",isOwner()?"Link module occurrences to it on Module details.":"")}</article>`;
  const hint=`<p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits; to share them, adjust them on Module allocation. A module's year is the first digit of its code: 0xxx Year 0 (foundation), 1xxx Year 1, 2xxx Year 2, 3xxx Year 3; on postgraduate courses 4xxx is Year 1. Placement years aren't counted.</p>`;
  if(!c)return h+`<article class="card"><div class="card-head"><div class="left"><h2>${esc(title)}</h2><span class="tag gray">${plural(rows.length,"module occurrence")}</span>${gaps(rows)}</div></div>${table(rows)}</article>`+hint;
@@ -1957,9 +1970,22 @@ const CHG={
  },
  leader(el){
   if(!guard("leaders"))return render();const m=M(el.dataset.module||sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.value,slot=o.slots[c];
-  const before=Object.keys(slot.alloc),oldNotes=slot.notes||{};slot.alloc=id?{[id]:slot.total}:{};slot.notes=id&&oldNotes[id]?{[id]:oldNotes[id]}:{};
-  touch(groupsOf(before.concat(id?[id]:[]),[m.dept]),`${m.code} occ ${o.occ}: ${c==="ML"?"module leader":"moderator"} ${id?"set to "+nameOf(id):"cleared"}`);
-  toast(c==="ML"?"Module leader updated":"Moderator updated",id?`${nameOf(id)} now holds ${m.code} occ ${o.occ}'s ${slot.total} ${CAT(c).label} credits.`:"Nobody holds this role now.");render();
+  const role=c==="ML"?"module leader":"moderator",before=Object.keys(slot.alloc);
+  const apply=()=>{const oldNotes=slot.notes||{};slot.alloc=id?{[id]:slot.total}:{};slot.notes=id&&oldNotes[id]?{[id]:oldNotes[id]}:{};
+   touch(groupsOf(before.concat(id?[id]:[]),[m.dept]),`${m.code} occ ${o.occ}: ${role} ${id?"set to "+nameOf(id):"cleared"}`);
+   toast(c==="ML"?"Module leader updated":"Moderator updated",id?`${nameOf(id)} now holds ${m.code} occ ${o.occ}'s ${slot.total} ${CAT(c).label} credits.`:"Nobody holds this role now.");};
+  // Changing a SHARED role would end the sharing, so check first.
+  if(before.length>1){
+   const losing=before.filter(x=>x!==id).map(nameOf);
+   render(); // put the box back until confirmed
+   openModal({title:`Replace the shared ${role}s?`,ok:id?`Give it all to ${nameOf(id)}`:`Clear all ${role}s`,danger:true,
+    body:`<p>${esc(m.code)} occ ${esc(o.occ)} currently has ${before.length} ${role}s sharing ${slot.total} ${esc(CAT(c).label)} credits.</p>
+     <p>${id?`<b>${esc(nameOf(id))}</b> would hold all ${slot.total} credits and`:"Everyone would be removed:"} ${esc(losing.join(", "))} would lose their share.</p>
+     <p>To change how the credits are shared instead, use Module allocation.</p>`,
+    onOk(){apply();}});
+   return;
+  }
+  apply();render();
  },
  allocNote(el){
   if(!guard("alloc"))return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.dataset.id,slot=o.slots[c];
