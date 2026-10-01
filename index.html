@@ -165,6 +165,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--line-2);font-size:12px;vertica
 tbody tr:hover{background:var(--hover)}
 tbody tr:last-child td{border-bottom:0}
 tr.sum td{background:var(--thead);font-weight:800}
+tr.subtotal td{background:var(--t-cyan);font-weight:700;font-style:italic}
 th.r,td.r{text-align:right}
 th.c,td.c{text-align:center}
 .name-cell{font-weight:800;color:var(--heading)}
@@ -477,7 +478,13 @@ const int=v=>Math.max(0,Math.round(parseFloat(v)||0));
 const sumV=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
 const plural=(n,w,p)=>`${n} ${n===1?w:(p||w+"s")}`;
 
-let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null;
+let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null,REPORT_TOTALS;
+// Role types with no display order (0 or empty) are not role types: they are total lines on the Activity breakdown
+// report. A name containing "non" totals non-teaching roles whose type does NOT start with "Management"; otherwise
+// a name containing "management" totals those whose type DOES start with "Management".
+const DEFAULT_REPORT_TOTALS=[{label:"Total Management",kind:"mgmt"},{label:"Total Non-Management",kind:"nonmgmt"}];
+const totalKind=name=>/non/i.test(name)?"nonmgmt":/manag/i.test(name)?"mgmt":"other";
+const isMgmtType=cat=>/^\s*management\b/i.test(String(cat||""));
 // Role types for non-teaching roles, in the order of the old role_type table.
 const DEFAULT_NT_CATS=["Management - General","Management - Programmes","Management - Recruitment & International","Management - Learning & Teaching",
  "Management - Research","Management - External Engagement","Programmes","Learning & Teaching","Research","External Engagement"];
@@ -507,7 +514,7 @@ function seed(){
   {code:"MGT-ENTM",title:"BA Enterprise Management",dept:"MGT",level:"UG",years:3,leader:"farh1",cis:true},
   {code:"MKT-BRND",title:"BA Brand & Promotion",dept:"MKT",level:"UG",years:3,leader:"doym1",cis:true},
   {code:"COMP-SWD",title:"BSc Software Development",dept:"COMP",level:"UG",years:3,leader:"odum1",cis:true}];
- NT_CATS=DEFAULT_NT_CATS.slice();
+ NT_CATS=DEFAULT_NT_CATS.slice();REPORT_TOTALS=DEFAULT_REPORT_TOTALS.map(t=>({...t}));
  STATUSES=["FT","PT","HPL","NEW","TBA"];IMPORT=null;
  const sy=(group,status,fte,target,room,publish=true)=>({group,status,fte,target,room,phone:"",publish});
  YEARS={"2026-27":{status:"current",
@@ -764,9 +771,9 @@ const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.ma
 const STAGED_TABS=["modules","alloc","sessions","leaders","nt","staff","courses"];
 let DRAFT=null,LAST_SAVED=null,SKIP_STAGE=false,PENDING_NAV=null,COMMITTED=false;
 const stagedHere=()=>!!me&&me.role!=="staff"&&STAGED_TABS.includes(tab)&&canEdit(tab)&&!!Y();
-const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,YEAR_ORDER});
+const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,YEAR_ORDER,REPORT_TOTALS});
 function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=p.theme);
- YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
+ YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;REPORT_TOTALS=o.REPORT_TOTALS;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
 // Run something that may change data; on an editing screen, the first real change starts an unsaved draft.
 function staged(fn){
  if(!stagedHere())return fn();
@@ -1378,9 +1385,14 @@ VIEWS.reports=()=>{
   const gs=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
   const rows=CATS.map(c=>({l:c.label,f:id=>breakdown(id)[c.id]})).concat(NT_CATS.map(cat=>({l:cat,f:id=>Y().nt.filter(r=>r.cat===cat).reduce((a,r)=>a+r.people.filter(p=>p.s===id).reduce((x,p)=>x+p.cr,0),0)})));
   const val=(r,g)=>inYear().filter(p=>SY(p.id).group===g.id).reduce((a,p)=>a+r.f(p.id),0);
-  body=`<div class="card-head"><h2>Activity breakdown</h2><span class="muted" style="font-size:11px">Allocated credits by the staff member's group</span></div><div class="table-wrap"><table><thead><tr><th>Activity</th>${gs.map(g=>`<th class="r">${g.id}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>
+  // total lines (role types with no display order): Total Management / Total Non-Management, by main department
+  const ntFor=(id,test)=>Y().nt.filter(r=>NT_CATS.includes(r.cat)&&test(r.cat)).reduce((a,r)=>a+r.people.filter(p=>p.s===id).reduce((x,p)=>x+p.cr,0),0);
+  const totals=(REPORT_TOTALS||[]).map(t=>({l:t.label,kind:t.kind,f:t.kind==="mgmt"?id=>ntFor(id,isMgmtType):t.kind==="nonmgmt"?id=>ntFor(id,c=>!isMgmtType(c)):null}));
+  body=`<div class="card-head"><h2>Activity breakdown</h2><span class="muted" style="font-size:11px">Allocated credits by each person's main department</span></div><div class="table-wrap"><table><thead><tr><th>Activity</th>${gs.map(g=>`<th class="r">${g.id}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>
    ${rows.map(r=>{const v=gs.map(g=>val(r,g));return `<tr><td>${esc(r.l)}</td>${v.map(x=>`<td class="r">${x}</td>`).join("")}<td class="r"><b>${v.reduce((a,b)=>a+b,0)}</b></td></tr>`;}).join("")}
-   <tr class="sum"><td>Total</td>${gs.map(g=>`<td class="r">${rows.reduce((a,r)=>a+val(r,g),0)}</td>`).join("")}<td class="r">${rows.reduce((a,r)=>a+gs.reduce((x,g)=>x+val(r,g),0),0)}</td></tr></tbody></table></div>`;
+   ${totals.map(t=>{const v=gs.map(g=>t.f?val(t,g):null);return `<tr class="subtotal"><td>${esc(t.l)}</td>${v.map(x=>`<td class="r">${x==null?"—":x}</td>`).join("")}<td class="r">${t.f?v.reduce((a,b)=>a+b,0):"—"}</td></tr>`;}).join("")}
+   <tr class="sum"><td>Total</td>${gs.map(g=>`<td class="r">${rows.reduce((a,r)=>a+val(r,g),0)}</td>`).join("")}<td class="r">${rows.reduce((a,r)=>a+gs.reduce((x,g)=>x+val(r,g),0),0)}</td></tr></tbody></table></div>
+   <p class="hint" style="padding:0 18px 14px">${totals.length?`${totals.map(t=>esc(t.l)).join(" and ")} are included for information and aren't added into the overall Total. `:""}Credits are shown under each person's main department.</p>`;
  }else if(sel.report==="target"){
   const rows=inYear().map(p=>({p,t:SY(p.id).target,a:breakdown(p.id).total})).sort((x,y)=>(y.t?y.a/y.t:0)-(x.t?x.a/x.t:0));
   body=`<div class="card-head"><h2>Staff against target</h2><span class="muted" style="font-size:11px">Highest percentage first</span></div><div class="bars">
@@ -1979,7 +1991,12 @@ function buildFromLegacy(T,dbName){
  if(!cats.some(c=>c.id==="ML")){cats.push({id:"ML",label:"Module Leader"});warn("noml","No Module Leader category was found in time_slot, so one was added (leaders come from each occurrence's leader_id)");}
  if(!cats.some(c=>c.id==="MO")){cats.push({id:"MO",label:"Moderation"});warn("nomo","No Moderation category was found in time_slot, so one was added (moderators come from each occurrence's moderator_id)");}
  // role types in their display order (as in the old Non Teaching Roles drop-down); codes matched case-insensitively
- const roleTypes=rows("role_type").slice().sort((a,b)=>num(a.display_order)-num(b.display_order)||str(a.type_code).localeCompare(str(b.type_code)));
+ const allRoleTypes=rows("role_type").slice().sort((a,b)=>num(a.display_order)-num(b.display_order)||str(a.type_code).localeCompare(str(b.type_code)));
+ // display_order 0 / empty: a total line for the Activity breakdown report, not a role type
+ const roleTypes=allRoleTypes.filter(r=>num(r.display_order)>0);
+ const reportTotals=allRoleTypes.filter(r=>!(num(r.display_order)>0)).sort((a,b)=>num(a.report_order)-num(b.report_order))
+  .map(r=>{const label=str(r.type_description)||str(r.type_code);return {label,kind:totalKind(label)};});
+ reportTotals.filter(t=>t.kind==="other").forEach(t=>{warn("tot","role types with no display order aren't recognisable totals (their name should include \"Management\" or \"Non-Management\") and show as blank on the Activity breakdown");eg("tot",t.label);});
  const roleType={};roleTypes.forEach(r=>roleType[str(r.type_code).toUpperCase()]=str(r.type_description)||str(r.type_code));
  const actType={};rows("activity").forEach(a=>actType[str(a.activity_no)]=str(a.type_code).toUpperCase());
  const blankSlots=()=>{const o={};cats.forEach(c=>o[c.id]={total:0,alloc:{},notes:{}});return o;};
@@ -2084,13 +2101,13 @@ function buildFromLegacy(T,dbName){
  const deptLeader=(groups.find(g=>g.dept&&staff[g.leader])||{}).leader;
  const teacher=byName.find(p=>modules.some(m=>m.occs.some(o=>cats.some(c=>c.tt&&p.id in o.slots[c.id].alloc))));
  const first=(byName[0]||{}).id;
- return {year,cats,groups,people,courses,ntCats,statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
+ return {year,cats,groups,people,courses,ntCats,reportTotals:allRoleTypes.length?reportTotals:DEFAULT_REPORT_TOTALS.map(t=>({...t})),statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
   yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{},overrides:{}},
   counts,warnings:Object.values(warns),defaults:{owner:first,head:deptLeader||first,pas:first,staff:(teacher||{}).id||first}};
 }
 
 function applyImport(res,db,tablesFound){
- CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();STATUSES=res.statuses.length?res.statuses:["FT","PT","HPL"];
+ CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();REPORT_TOTALS=res.reportTotals;STATUSES=res.statuses.length?res.statuses:["FT","PT","HPL"];
  YEARS={[res.year]:res.yearData};
  const ym=/^(\d{4})-/.exec(res.year);YEAR_ORDER=ym?[res.year,`${+ym[1]+1}-${String(+ym[1]+2).slice(2)}`]:[res.year];
  selYear=res.year;

@@ -1012,7 +1012,11 @@ INSERT INTO credit_category (code, name, applies_to, is_timetabled, semester, so
     ('MOD', 'Moderation',    'teaching', false, NULL, 50),
     ('MC',  'Major Changes', 'teaching', false, NULL, 60);
 
--- Non-teaching role types, in the order of the old role_type table. The Owner
+-- Non-teaching role types, in the order of the old role_type table.
+-- Old role_type rows with a display_order of 0 / NULL (e.g. 'Total Management',
+-- 'Total Non-Management') are NOT role types: they are total lines on the
+-- Activity breakdown report, worked out there (types starting 'Management' vs
+-- the rest, by each person's main department), so the migration doesn't create them. The Owner
 -- can add, rename and reorder these in the app (rows with applies_to =
 -- 'non_teaching'); the migration replaces them with the real role_type rows.
 INSERT INTO credit_category (code, name, applies_to, is_management, sort_order) VALUES
