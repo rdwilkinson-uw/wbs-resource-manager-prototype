@@ -286,8 +286,9 @@ tr.selected td{background:var(--t-cyan)}
 .ct-table td{vertical-align:top}
 .ct-line{min-height:20px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lead-table{table-layout:fixed;min-width:820px}
-.share-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-.share-list{list-style:none;margin:6px 0 0;padding:0}
+.detail-row.share-row td{vertical-align:top;padding:6px 10px 14px}
+.share-label{font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--heading)}
+.share-list{list-style:none;margin:0;padding:0;max-width:280px}
 .share-list li{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line-2);font-size:12px}
 .share-list li span:last-child{margin-left:auto;color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted)}
@@ -1192,8 +1193,10 @@ VIEWS.leaders=()=>{
  const sharedList=(o,k)=>{const h=holders(o,k);return h.length?`<ul class="share-list">${h.map(([id,cr],n)=>`<li><b>${esc(nameOf(id))}</b>${n===0?' <span class="tag plain blue">Primary</span>':""}<span>${cr} credits</span></li>`).join("")}</ul>`:'<span class="muted">None</span>';};
  const moreCell=(m,o)=>{const shared=holders(o,"ML").length>1||holders(o,"MO").length>1;if(!shared)return {btn:"",row:""};const id=`ld${++leadSeq}`;
   return {btn:`<button class="plus-btn" data-act="toggleRow" data-row="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Show everyone leading or moderating ${esc(m.code)} occurrence ${esc(o.occ)}">+</button>`,
-   row:`<tr class="detail-row" id="${id}" hidden><td colspan="5"><div class="share-grid"><div><h3>Module leaders</h3>${sharedList(o,"ML")}</div><div><h3>Moderators</h3>${sharedList(o,"MO")}</div></div>
-    ${["owner","head"].includes(me.role)?`<p class="hint">Credits are shared on Module allocation. <button class="linkish" data-act="goto" data-tab="alloc" data-set="module=${esc(m.code)}">Open ${esc(m.code)} on Module allocation</button></p>`:""}</td></tr>`};};
+   // laid out in the table's own columns, so each list sits directly under its primary box
+   row:`<tr class="detail-row share-row" id="${id}" hidden><td colspan="2"><span class="share-label">Everyone sharing these roles</span>
+    ${["owner","head"].includes(me.role)?`<span class="sub">Credits are shared on Module allocation.<br><button class="linkish" data-act="goto" data-tab="alloc" data-set="module=${esc(m.code)}">Open ${esc(m.code)} on Module allocation</button></span>`:""}</td>
+    <td>${sharedList(o,"ML")}</td><td>${sharedList(o,"MO")}</td><td></td></tr>`};};
  const gaps=list=>{const l=list.filter(r=>!Object.keys(r.o.slots.ML.alloc).length).length,mo=list.filter(r=>!Object.keys(r.o.slots.MO.alloc).length).length;
   return (l?`<span class="tag amber">${l} without a leader</span>`:"")+(mo?`<span class="tag amber">${mo} without a moderator</span>`:"")+(list.length&&!l&&!mo?`<span class="tag">All led and moderated</span>`:"");};
  const table=list=>`<div class="table-wrap"><table class="lead-table"><thead><tr><th style="width:34%">Module</th><th style="width:6%">Occ.</th><th style="width:27%">Module leader</th><th style="width:27%">Moderator</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
