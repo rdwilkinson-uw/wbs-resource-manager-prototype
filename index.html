@@ -171,6 +171,16 @@ tr.sum td{background:var(--thead);font-weight:800}
 .detail-head h3{margin:0}
 tr.focus-row td{background:var(--t-amber)}
 .card.focus-card{border-color:var(--amber);box-shadow:0 0 0 3px rgba(242,181,75,.3)}
+input[data-combo]{padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,var(--muted) 50%),linear-gradient(135deg,var(--muted) 50%,transparent 50%);background-position:calc(100% - 15px) 52%,calc(100% - 10px) 52%;background-size:5px 5px;background-repeat:no-repeat}
+label.field input[data-combo]{width:100%;min-width:0}
+.combo-pop{position:fixed;z-index:140;max-height:320px;overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:4px}
+.combo-pop[hidden]{display:none}
+.combo-opt{display:flex;align-items:baseline;gap:10px;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--ink)}
+.combo-opt small{color:var(--muted);font-size:11px;margin-left:auto;text-align:right}
+.combo-opt.active{background:var(--t-cyan)}
+.combo-opt.current b::after{content:" ✓";color:var(--teal-text)}
+.combo-opt.current{border-bottom:1px solid var(--line-2);margin-bottom:3px;border-radius:7px 7px 0 0}
+.combo-none{padding:10px;color:var(--muted);font-size:12px}
 tr.subtotal td{background:var(--t-cyan);font-weight:700;font-style:italic}
 th.r,td.r{text-align:right}
 th.c,td.c{text-align:center}
@@ -466,6 +476,7 @@ tr.addl-row:hover td{background:var(--t-lime)}
  <div class="modal-foot"><button class="btn" data-act="modalClose">Cancel</button><button class="btn primary" id="modalOk" data-act="modalOk">Save</button></div>
 </div></div>
 <div class="toast-stack" id="toasts" aria-live="polite"></div>
+<div class="combo-pop" id="comboPop" role="listbox" hidden></div>
 <script>
 "use strict";
 /* =====================================================================
@@ -751,11 +762,10 @@ const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(
 // suggestion list; either one selects the module and fills in the other.
 function modulePicker(m){
  const mods=[...Y().modules].sort((a,b)=>a.code.localeCompare(b.code));
- return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input list="modCodes" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
- <label class="field grow">Module title<input list="modTitles" value="${esc(m.title)}" data-chg="pickModule" data-by="title" autocomplete="off" aria-label="Module title: type, paste or choose"></label>
+ return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input data-combo="moduleCode" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
+ <label class="field grow">Module title<input data-combo="moduleTitle" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.title)}" data-chg="pickModule" data-by="title" autocomplete="off" aria-label="Module title: type, paste or choose"></label>
  <span class="tag blue" style="align-self:center;margin-bottom:8px">${esc(m.dept)}</span>
- <datalist id="modCodes">${mods.map(x=>`<option value="${esc(x.code)}" label="${esc(x.title)}">`).join("")}</datalist>
- <datalist id="modTitles">${[...mods].sort((a,b)=>a.title.localeCompare(b.title)).map(x=>`<option value="${esc(x.title)}" label="${esc(x.code)}">`).join("")}</datalist>`;
+`;
 }
 // Find a module from whatever was typed or pasted into either box: a code (also "CODE Title"), or a title.
 function findModule(v){
@@ -871,6 +881,7 @@ function render(anim=false){
  try{renderNow(anim);}finally{RENDERING=false;}
 }
 function renderNow(anim){
+ if(typeof comboClose==="function")comboClose(false);
  const main=$("#main"),scroll=main.scrollTop;
  const a=document.activeElement,fk=a&&main.contains(a)?[a.tagName,...Object.entries(a.dataset).map(e=>e.join("="))].join("|"):null;
  renderTop();
@@ -1129,16 +1140,15 @@ VIEWS.sessions=()=>{
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
  h+=`<div class="filterbar">${modulePicker(m)}</div>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","Sessions are added per occurrence once one exists.")}</article>`;
- const dl=`<datalist id="dayList">${DAYS.map(d=>`<option value="${DAY_NAME[d]}">`).join("")}</datalist>`;
  if(ed)h+=`<p class="hint" style="margin:-4px 0 14px">Type or paste days and times. Times like 9, 9:15, 0915 or 2pm all work, and an hour on its own becomes quarter past (9 → 09:15). You can paste a whole line such as <b>Mon 09:15-12:15</b> into the Day box.</p>`;
- return h+dl+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
+ return h+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
   ${ed&&m.occs.length>1?`<button class="btn small" data-act="copyOcc" data-occ="${o.occ}">Copy to other occurrences</button>`:""}</div>
   ${CATS.filter(c=>c.tt).map(c=>{
    const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).map(nameOf);
    return `<div class="sem-block"><div class="sem-head"><div><h3>${esc(c.label)}</h3><span class="sub">${who.length?"Taught by "+esc(who.join(", ")):"No staff allocated to this semester yet"}</span></div>
     ${ed?`<button class="btn small" data-act="addSess" data-key="${key}">Add session</button>`:""}</div>
     ${list.length?`<div class="session-row headrow"><span>Day</span><span>Start</span><span>End</span><span>Notes</span><span></span></div>`+list.map((s,i)=>`<div class="session-row">
-     <input value="${DAY_NAME[s.day]}" list="dayList" data-chg="sess" data-key="${key}" data-i="${i}" data-f="day" aria-label="Day" autocomplete="off"${ed?"":" disabled"}>
+     <input value="${DAY_NAME[s.day]}" data-combo="day" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" data-chg="sess" data-key="${key}" data-i="${i}" data-f="day" aria-label="Day" autocomplete="off"${ed?"":" disabled"}>
      <input value="${fmt(s.start)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="start" aria-label="Start time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
      <input value="${fmt(s.end)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="end" aria-label="End time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
      <input value="${esc(s.c)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="c" placeholder="e.g. Seminar group 1" aria-label="Notes"${ed?"":" disabled"}>
@@ -1963,6 +1973,61 @@ const CHG={
  ntField(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r&&r.people[+el.dataset.i];if(!p||!canEditNtEntry(p))return render();
   if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value;render();}
 };
+
+/* ---------------------------- Type-in dropdowns ----------------------------
+   Module code, Module title and session Day boxes. Click (or press Down) to see the FULL list with the current
+   choice at the top; type or paste to narrow it; Enter or click to choose; Esc to put back what was there. */
+const COMBO={el:null,orig:"",list:[],active:-1,typed:false};
+function comboSource(el){
+ const k=el.dataset.combo;
+ if(k==="moduleCode")return {cur:sel.module,opts:[...Y().modules].sort((a,b)=>a.code.localeCompare(b.code)).map(m=>({v:m.code,l:m.code,s:m.title,key:m.code}))};
+ if(k==="moduleTitle")return {cur:sel.module,opts:[...Y().modules].sort((a,b)=>a.title.localeCompare(b.title)).map(m=>({v:m.title,l:m.title,s:m.code,key:m.code}))};
+ if(k==="day")return {cur:COMBO.orig,opts:DAYS.map(d=>({v:DAY_NAME[d],l:DAY_NAME[d],s:"",key:DAY_NAME[d]}))};
+ return {cur:null,opts:[]};
+}
+function comboPlace(){const el=COMBO.el,pop=$("#comboPop");if(!el)return;const r=el.getBoundingClientRect(),below=window.innerHeight-r.bottom;
+ pop.style.left=r.left+"px";pop.style.minWidth=Math.max(r.width,280)+"px";pop.style.maxWidth=Math.max(r.width,520)+"px";
+ if(below<200&&r.top>below){pop.style.top="";pop.style.bottom=(window.innerHeight-r.top+4)+"px";}else{pop.style.bottom="";pop.style.top=(r.bottom+4)+"px";}}
+function comboDraw(){
+ const el=COMBO.el;if(!el||!document.body.contains(el))return comboClose(false);
+ const {cur,opts}=comboSource(el),q=el.value.trim().toLowerCase();
+ let list;
+ if(COMBO.typed&&q)list=opts.filter(o=>o.l.toLowerCase().includes(q)||o.s.toLowerCase().includes(q));
+ else{const c=opts.find(o=>o.key===cur);list=c?[c,...opts.filter(o=>o!==c)]:opts;}
+ COMBO.list=list;if(COMBO.active>=list.length)COMBO.active=list.length?0:-1;
+ const pop=$("#comboPop");
+ pop.innerHTML=list.length?list.map((o,i)=>`<div class="combo-opt${i===COMBO.active?" active":""}${o.key===cur&&!(COMBO.typed&&q)?" current":""}" role="option" id="co-${i}" data-i="${i}" aria-selected="${i===COMBO.active}"><b>${esc(o.l)}</b>${o.s?`<small>${esc(o.s)}</small>`:""}</div>`).join("")
+  :`<div class="combo-none">Nothing matches “${esc(el.value.trim())}”.</div>`;
+ pop.setAttribute("aria-label",el.getAttribute("aria-label")||"Options");
+ pop.hidden=false;el.setAttribute("aria-expanded","true");
+ if(COMBO.active>=0){el.setAttribute("aria-activedescendant","co-"+COMBO.active);const a=document.getElementById("co-"+COMBO.active);if(a)a.scrollIntoView({block:"nearest"});}else el.removeAttribute("aria-activedescendant");
+ comboPlace();
+}
+function comboOpen(el){if(el.disabled)return;if(COMBO.el!==el){COMBO.el=el;COMBO.orig=el.value;COMBO.typed=false;COMBO.active=0;}comboDraw();}
+function comboClose(restore){const el=COMBO.el,pop=$("#comboPop");if(pop){pop.hidden=true;pop.innerHTML="";}if(!el)return;
+ if(restore)el.value=COMBO.orig;el.setAttribute("aria-expanded","false");el.removeAttribute("aria-activedescendant");COMBO.el=null;}
+function comboChoose(i){const o=COMBO.list[i],el=COMBO.el;if(!o||!el)return;el.value=o.v;comboClose(false);el.dispatchEvent(new Event("change",{bubbles:true}));}
+document.addEventListener("mousedown",e=>{
+ const opt=e.target.closest("#comboPop .combo-opt");
+ if(opt){e.preventDefault();comboChoose(+opt.dataset.i);return;}
+ if(e.target.closest("#comboPop")){e.preventDefault();return;}
+ const box=e.target.closest("input[data-combo]");
+ if(COMBO.el&&box!==COMBO.el)comboClose(false);
+});
+document.addEventListener("click",e=>{const box=e.target.closest("input[data-combo]");if(box&&!box.disabled&&COMBO.el!==box)comboOpen(box);});
+document.addEventListener("input",e=>{const box=e.target.closest&&e.target.closest("input[data-combo]");if(!box)return;
+ if(COMBO.el!==box){COMBO.el=box;COMBO.orig=box.defaultValue;}COMBO.typed=true;COMBO.active=0;comboDraw();},true);
+document.addEventListener("keydown",e=>{const box=e.target.closest&&e.target.closest("input[data-combo]");if(!box)return;
+ const open=COMBO.el===box;
+ if(e.key==="ArrowDown"){e.preventDefault();if(!open)return comboOpen(box);COMBO.active=Math.min(COMBO.list.length-1,COMBO.active+1);comboDraw();}
+ else if(e.key==="ArrowUp"&&open){e.preventDefault();COMBO.active=Math.max(0,COMBO.active-1);comboDraw();}
+ else if(e.key==="Enter"&&open&&COMBO.active>=0&&COMBO.list.length){e.preventDefault();e.stopPropagation();comboChoose(COMBO.active);}
+ else if(e.key==="Escape"&&open){e.preventDefault();e.stopPropagation();comboClose(true);}
+ else if(e.key==="Tab"&&open)comboClose(false);
+},true);
+document.addEventListener("focusout",e=>{if(COMBO.el&&e.target===COMBO.el)comboClose(false);});
+window.addEventListener("resize",()=>{if(COMBO.el)comboPlace();});
+document.addEventListener("scroll",()=>{if(COMBO.el)comboPlace();},true);
 
 const NAV_ACTS=["go","goto","signOut","allocFrom","ntFrom","goBack"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
 document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;
