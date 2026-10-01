@@ -511,6 +511,9 @@ CREATE TABLE activity_allocation (
     academic_year_id  integer NOT NULL,
     credits           numeric(7,2) NOT NULL DEFAULT 0 CHECK (credits >= 0),
     note              text,                            -- e.g. '0.34 FTE', 'Shared'
+    added_by_user_id  integer REFERENCES user_account (id) ON DELETE SET NULL,
+                      -- who added the entry: a Head may change or remove only non-teaching role
+                      -- entries they added themselves; the Owner can change any
     created_at        timestamptz NOT NULL DEFAULT now(),
     updated_at        timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (activity_id, staff_id),

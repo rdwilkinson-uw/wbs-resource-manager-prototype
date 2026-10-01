@@ -165,6 +165,10 @@ td{padding:9px 10px;border-bottom:1px solid var(--line-2);font-size:12px;vertica
 tbody tr:hover{background:var(--hover)}
 tbody tr:last-child td{border-bottom:0}
 tr.sum td{background:var(--thead);font-weight:800}
+.detail-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+.detail-head h3{margin:0}
+tr.focus-row td{background:var(--t-amber)}
+.card.focus-card{border-color:var(--amber);box-shadow:0 0 0 3px rgba(242,181,75,.3)}
 tr.subtotal td{background:var(--t-cyan);font-weight:700;font-style:italic}
 th.r,td.r{text-align:right}
 th.c,td.c{text-align:center}
@@ -611,7 +615,12 @@ const TABS=[["overview","Overview","OV"],["modules","Module details","MD"],["all
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
  ["courses","Course details","CO"],["coursett","Course timetables","CT"],["reports","View reports","RP"],["adhoc","Ad hoc queries","QY"],["publish","Publish","PB"]];
 const ROLE_TABS={owner:TABS.map(t=>t[0]),head:["staff","alloc","sessions","leaders","tt","coursett","publish"],pas:["sessions","leaders","tt","coursett","publish"],staff:[]};
-const EDIT={owner:"all",head:["alloc","leaders","publish"],pas:["sessions"],staff:[]};
+const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"],staff:[]};
+// Screens a role can open (from buttons elsewhere) without having them in their menu.
+const HIDDEN_TABS={head:["nt"]};
+// Non-teaching role entries: the Owner can change any; a Head only the ones they added themselves.
+const canEditNtEntry=p=>!!me&&(me.role==="owner"||(me.role==="head"&&p.addedBy===me.id));
+const canOpen=t=>ROLE_TABS[me.role].includes(t)||(HIDDEN_TABS[me.role]||[]).includes(t);
 const canEdit=(t=tab)=>EDIT[me.role]==="all"||EDIT[me.role].includes(t);
 const isOwner=()=>me.role==="owner";
 
@@ -670,7 +679,7 @@ function staffBreakdown(id,yd=Y()){
   if(rows.length)sections.push({label:c.label,kind:"teach",rows});
  });
  const nt=[];
- NT_CATS.forEach(cat=>yd.nt.filter(r=>r.cat===cat).forEach(r=>r.people.filter(p=>p.s===id).forEach(p=>nt.push({title:r.title,type:cat,credits:p.cr,comment:p.note||"",
+ NT_CATS.forEach(cat=>yd.nt.filter(r=>r.cat===cat).forEach(r=>r.people.filter(p=>p.s===id).forEach(p=>nt.push({rid:r.id,title:r.title,type:cat,credits:p.cr,comment:p.note||"",
   team:r.people.map(q=>{const s=yd.staff[q.s]||{};return {id:q.s,name:nameOf(q.s),hidden:s.publish===false,hpl:s.status==="HPL",roles:[`${q.cr}`]};}).sort(byStaffId)}))));
  if(nt.length)sections.push({label:"Non-Teaching Roles",kind:"nt",rows:nt});
  const s=yd.staff[id]||{};
@@ -865,12 +874,13 @@ function renderNow(anim){
  if(me.role==="staff"){$("#app").classList.add("solo");$("#nav").innerHTML="";$("#sideFoot").innerHTML="";html=viewMine();}
  else{
   $("#app").classList.remove("solo");
-  if(!ROLE_TABS[me.role].includes(tab))tab=ROLE_TABS[me.role][0];
+  if(!canOpen(tab))tab=ROLE_TABS[me.role][0];
   renderNav();
   html=Y()?VIEWS[tab]():viewNoYear();
  }
  main.innerHTML=`<div class="page${anim?" enter":""}">${yearBanner()}${html}${me.role!=="staff"&&Y()?saveBarHTML():""}</div>`;
  if(anim)main.scrollTop=0;else main.scrollTop=scroll;
+ if(anim&&tab==="nt"&&sel.ntFocus){const f=document.getElementById("role-"+sel.ntFocus);if(f)f.scrollIntoView({block:"center"});}
  if(fk&&!anim){const t=[...main.querySelectorAll(a.tagName)].find(e=>[e.tagName,...Object.entries(e.dataset).map(x=>x.join("="))].join("|")===fk);if(t)t.focus();}
 }
 
@@ -1071,7 +1081,7 @@ function catStatus(m,c){
 VIEWS.alloc=()=>{
  const m=ensureModule(),ed=canEdit("alloc");
  let h=pageHead("Workload","Module allocation",me.role==="head"?"Every module is listed, whichever department owns it, because staff from any department can teach on it. Budgets are set by the Owner.":"Divide each category's budget between named staff, per occurrence.",
-  (isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+`<button class="btn" data-act="goto" data-tab="sessions">${canEdit("sessions")?"Edit sessions":"View sessions"}</button>`);
+  backBtn()+(isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+`<button class="btn" data-act="goto" data-tab="sessions">${canEdit("sessions")?"Edit sessions":"View sessions"}</button>`);
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
  h+=`<div class="filterbar">${modulePicker(m)}
   <span class="muted" style="font-size:12px;align-self:center">Leader: <b>${m.occs.length?m.occs.map(o=>`${o.occ}: ${Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"none"}`).join("; "):"—"}</b></span></div>`;
@@ -1086,7 +1096,7 @@ VIEWS.alloc=()=>{
   const ids=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[c.id].alloc)))];
   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.label)}</h2>${st.tag}</div><span class="muted" style="font-size:11px">${st.a} of ${st.t} credits</span></div>
   <div class="table-wrap"><table><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th>`).join("")}<th></th></tr></thead><tbody>
-   ${ids.map(id=>`<tr><td><span class="name-cell">${esc(nameOf(id))}</span><span class="sub">${esc(gName((SY(id)||{}).group))}</span></td>
+   ${ids.map(id=>`<tr${sel.back&&sel.back.staff===id?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(id))}</span><span class="sub">${esc(gName((SY(id)||{}).group))}</span></td>
     ${m.occs.map(o=>{const has=id in o.slots[c.id].alloc,note=(o.slots[c.id].notes||{})[id]||"";
      return `<td class="r">${has||ed?`<input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:"—"}
      ${has&&(ed||note)?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="50" data-chg="allocNote" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:""}</td>`;}).join("")}
@@ -1181,19 +1191,21 @@ VIEWS.nt=()=>{
  const withRoles=NT_CATS.filter(c=>count(c));
  if(mode==="edit"&&sel.nt==="__all")sel.nt=withRoles[0]||NT_CATS[0];
  if(sel.nt!=="__all"&&!NT_CATS.includes(sel.nt))sel.nt=withRoles[0]||NT_CATS[0];
- let h=pageHead("Workload","Non-teaching roles",mode==="summary"?"A read-only summary of every role in a role type: who holds it, their credits and comments.":"Create and edit roles, and set who holds them.",
-  `<button class="btn" data-act="ntTypeNew">New role type</button>`+(mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:""));
+ const owner=isOwner();
+ let h=pageHead("Workload","Non-teaching roles",mode==="summary"?"A read-only summary of every role in a role type: who holds it, their credits and comments."
+   :owner?"Create and edit roles, and set who holds them.":"Add staff to an existing role, and correct or remove the entries you added. Roles, role types and everyone else's entries are managed by the Owner.",
+  backBtn()+(owner?`<button class="btn" data-act="ntTypeNew">New role type</button>`+(mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:""):""));
  const untyped=yd.nt.filter(r=>!NT_CATS.includes(r.cat));
  if(untyped.length)h+=`<article class="card" style="border-color:var(--b-amber)"><div class="card-head" style="background:var(--t-amber)"><div class="left"><h2>${plural(untyped.length,"role needs","roles need")} a role type</h2></div></div>
   <div class="table-wrap"><table><thead><tr><th>Role</th><th>Held by</th><th>Role type</th></tr></thead><tbody>
   ${untyped.map(r=>`<tr><td class="name-cell">${esc(r.title)}</td><td>${esc(r.people.map(p=>p.s).join(", ")||"Nobody")}</td>
-   <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"")}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
+   <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"",!owner)}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
  // Role type drop-down: only types that have roles, in the standard order, with the one being viewed at the top.
  // (The type being viewed stays listed even if it has no roles yet, e.g. one just created.)
  const allOpt=mode==="summary"?[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}]:[];
  const rest=withRoles.filter(c=>c!==sel.nt).map(c=>({v:c,l:`${c} (${count(c)})`}));
  const typeOpts=sel.nt==="__all"?allOpt.concat(rest):[{v:sel.nt,l:`${sel.nt} (${count(sel.nt)})`}].concat(rest,allOpt);
- h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
+ h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"&&owner?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
 
  if(mode==="summary"){
   const cats=sel.nt==="__all"?NT_CATS.filter(c=>count(c)):[sel.nt];
@@ -1213,13 +1225,13 @@ VIEWS.nt=()=>{
 
  const roles=yd.nt.filter(r=>r.cat===sel.nt).sort(byTitle);
  if(!roles.length)return h+`<article class="card">${empty("No roles of this type yet","Create one with New role.")}</article>`;
- return h+roles.map(r=>`<article class="card"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
-  <div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div></div>
+ return h+roles.map(r=>`<article class="card${sel.ntFocus===r.id?" focus-card":""}" id="role-${esc(r.id)}"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
+  ${owner?`<div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div>`:""}</div>
   <div class="table-wrap"><table><thead><tr><th>Staff</th><th class="r">Credits</th><th>Comments</th><th></th></tr></thead><tbody>
-  ${r.people.map((p,i)=>`<tr><td><span class="name-cell">${esc(nameOf(p.s))}</span><span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
-   <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"></td>
-   <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"></td>
-   <td class="r"><button class="icon-btn" data-act="ntRm" data-r="${r.id}" data-i="${i}" aria-label="Remove ${esc(nameOf(p.s))}">✕</button></td></tr>`).join("")||`<tr><td colspan="4" class="muted">No one holds this role yet.</td></tr>`}
+  ${r.people.map((p,i)=>{const ed=canEditNtEntry(p);return `<tr${sel.back&&sel.back.staff===p.s?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(p.s))}</span>${!owner&&ed?' <span class="tag plain blue">Added by you</span>':""}<span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
+   <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"${ed?"":" disabled"}></td>
+   <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"${ed?"":" disabled"}></td>
+   <td class="r">${ed?`<button class="icon-btn" data-act="ntRm" data-r="${r.id}" data-i="${i}" aria-label="Remove ${esc(nameOf(p.s))}">✕</button>`:""}</td></tr>`;}).join("")||`<tr><td colspan="4" class="muted">No one holds this role yet.</td></tr>`}
   </tbody></table></div>
   <div class="card-foot"><span class="lbl">Add</span>${selectH(`id="nt-${r.id}-s" aria-label="Staff"`,[{v:"",l:"Choose staff…"}].concat(staffOptions()),"")}
    <input id="nt-${r.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><input id="nt-${r.id}-c" maxlength="50" placeholder="Comment" aria-label="Comment">
@@ -1259,6 +1271,14 @@ function teamName(t,viewer){
  return t.hidden?(t.hpl?"HPL":"TBC"):t.name;
 }
 let rowSeq=0;
+// "Allocate" from a staff timetable: Owner and Heads only (staff viewing their own timetable never see it).
+function allocBtn(r,nt){
+ if(!me||!["owner","head"].includes(me.role)||!sel.staff)return "";
+ return nt?`<button class="btn small primary" data-act="ntFrom" data-r="${esc(r.rid)}">Allocate</button>`
+  :`<button class="btn small primary" data-act="allocFrom" data-module="${esc(r.code)}">Allocate</button>`;
+}
+// "Back to X's timetable" when a page was opened from a staff timetable.
+function backBtn(){return sel.back?`<button class="btn" data-act="goBack">← Back to ${esc(nameOf(sel.back.staff))}'s timetable</button>`:"";}
 function breakdownHTML(bd,viewer){
  if(!bd||!bd.sections.length)return `<article class="card">${empty("Nothing allocated yet","No module or non-teaching credits are recorded for this year.")}</article>`;
  const sess=r=>r.sessions==null?'<span class="muted">–</span>':r.sessions.length?r.sessions.map(s=>`${s.day} ${fmt(s.start)}–${fmt(s.end)}`).join("<br>"):'<span class="muted">Not timetabled</span>';
@@ -1271,8 +1291,8 @@ function breakdownHTML(bd,viewer){
   ${sec.rows.map(r=>{const id="bd"+(++rowSeq),label=nt?r.title:`${r.code} occurrence ${r.occ}`;
    return `<tr>${nt?`<td><span class="name-cell">${esc(r.title)}</span><span class="sub">${esc(r.type)}</span></td>`
      :`<td><span class="name-cell">${esc(r.code)}</span> ${esc(r.title)}</td><td><span class="occ">${esc(r.occ)}</span></td><td style="white-space:nowrap">${sess(r)}</td><td>${r.mgt?`<span class="tag ${r.mgt==="LEAD"?"blue":"plain gray"}">${r.mgt}</span>`:""}</td>`}
-    <td class="r"><b>${r.credits}</b></td><td>${esc(r.comment)}</td><td class="c">${more(id,label)}</td></tr>
-    <tr class="detail-row" id="${id}" hidden><td colspan="${cols}"><h3>${nt?"Everyone holding this role":"Everyone on this occurrence"}</h3>${team(r.team)}</td></tr>`;}).join("")}
+    <td class="r"><b>${r.credits}</b></td><td>${esc(r.comment)}</td><td class="c">${nt&&viewer!=null?"":more(id,label)}</td></tr>
+    ${nt&&viewer!=null?"":`<tr class="detail-row" id="${id}" hidden><td colspan="${cols}"><div class="detail-head"><h3>${nt?"Everyone holding this role":"Everyone on this occurrence"}</h3>${allocBtn(r,nt)}</div>${team(r.team)}</td></tr>`}`;}).join("")}
   </tbody></table></div></article>`;}).join("");
  const rem=bd.target-bd.total;
  return html+`<div class="bd-total"><span>Target <b>${bd.target||"—"}</b></span><span>Total <b>${bd.total}</b></span><span>${bd.target?(rem>=0?`<b>${rem}</b> credits remaining`:`<b class="over">${-rem}</b> credits over target`):"No target set"}</span></div>`;
@@ -1485,8 +1505,12 @@ const ACT={
   onOk(){seed();renderLogin();selYear="2026-27";DRAFT=null;LAST_SAVED=null;SKIP_STAGE=true;
    if(!P(me.id))me={role:me.role,id:ROLE_CARDS.find(r=>r.role===me.role).id}; // was previewing imported data: switch to the sample person for this role
   Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
- go(el){tab=el.dataset.tab;sel.query=null;render(true);},
- goto(el){(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
+ go(el){tab=el.dataset.tab;sel.query=null;sel.back=null;sel.ntFocus=null;render(true);},
+ allocFrom(el){if(!["owner","head"].includes(me.role))return;sel.back={tab:"tt",staff:sel.staff,view:sel.ttView};sel.module=el.dataset.module;tab="alloc";render(true);},
+ ntFrom(el){if(!["owner","head"].includes(me.role))return;const r=Y().nt.find(x=>x.id===el.dataset.r);if(!r)return;
+  sel.back={tab:"tt",staff:sel.staff,view:sel.ttView};sel.nt=r.cat;sel.ntMode="edit";sel.ntFocus=r.id;tab="nt";render(true);},
+ goBack(){const b=sel.back;if(!b)return;sel.staff=b.staff;sel.ttView=b.view||"module";sel.back=null;sel.ntFocus=null;tab=b.tab;render(true);},
+ goto(el){sel.back=null;sel.ntFocus=null;(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
  modalClose(){closeModal();},
  modalOk(){const cb=modalCb,r=cb?staged(()=>cb()):undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
  toggleRow(el){const r=document.getElementById(el.dataset.row);if(!r)return;const open=r.hidden;r.hidden=!open;el.setAttribute("aria-expanded",open);el.textContent=open?"−":"+";},
@@ -1711,19 +1735,20 @@ const ACT={
    onOk(){NT_CATS=NT_CATS.filter(c=>c!==t);sel.nt=NT_CATS[0];toast("Role type deleted",t);}});
  },
  ntNew(){
+  if(!isOwner())return;
   openModal({title:"New non-teaching role",ok:"Create role",body:`<div class="form-grid"><label class="field wide">Role title<input id="nrT" placeholder="e.g. Admissions Tutor"></label>
    <label class="field wide">Role type${selectH('id="nrC"',NT_CATS.map(c=>({v:c,l:c})),NT_CATS.includes(sel.nt)?sel.nt:NT_CATS[0])}</label></div>`,
    onOk(){const t=mval("nrT");if(!t)return "Give the role a title.";const cat=mval("nrC");
     if(Y().nt.some(r=>r.cat===cat&&r.title.toLowerCase()===t.toLowerCase()))return "A role with that title already exists in this role type.";
     Y().nt.push({id:"nt"+Math.random().toString(36).slice(2,8),title:t,cat,people:[]});sel.nt=cat;toast("Role created",t);}});
  },
- ntDelete(el){const r=Y().nt.find(x=>x.id===el.dataset.r);
+ ntDelete(el){if(!isOwner())return;const r=Y().nt.find(x=>x.id===el.dataset.r);
   openModal({title:`Delete ${r.title}?`,ok:"Delete role",danger:true,body:`<p>${r.people.length?`${plural(r.people.length,"person loses","people lose")} the credits for this role.`:"Nobody holds this role."}</p>`,
    onOk(){Y().nt=Y().nt.filter(x=>x!==r);touch(groupsOf(r.people.map(p=>p.s)),`Deleted role ${r.title}`);toast("Role deleted",r.title);}});},
- ntRm(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r.people.splice(+el.dataset.i,1)[0];touch(groupsOf([p.s]),`Removed ${nameOf(p.s)} from ${r.title}`);render();},
- ntAdd(el){const r=Y().nt.find(x=>x.id===el.dataset.r),id=mval(`nt-${r.id}-s`);if(!id)return toast("Choose a member of staff","",true);
+ ntRm(el){const r=Y().nt.find(x=>x.id===el.dataset.r);if(!r||!canEditNtEntry(r.people[+el.dataset.i]||{}))return;const p=r.people.splice(+el.dataset.i,1)[0];touch(groupsOf([p.s]),`Removed ${nameOf(p.s)} from ${r.title}`);render();},
+ ntAdd(el){if(!["owner","head"].includes(me.role))return;const r=Y().nt.find(x=>x.id===el.dataset.r),id=mval(`nt-${r.id}-s`);if(!id)return toast("Choose a member of staff","",true);
   if(r.people.some(p=>p.s===id))return toast(`${nameOf(id)} already holds this role`,"Change their credits in the table instead.",true);
-  r.people.push({s:id,cr:int(mval(`nt-${r.id}-n`)),note:mval(`nt-${r.id}-c`)});touch(groupsOf([id]),`${nameOf(id)} added to ${r.title}`);render();},
+  r.people.push({s:id,cr:int(mval(`nt-${r.id}-n`)),note:mval(`nt-${r.id}-c`),addedBy:me.id});touch(groupsOf([id]),`${nameOf(id)} added to ${r.title}`);render();},
 
  /* ---- courses ---- */
  selCourse(el){sel.course=el.dataset.code;render();},
@@ -1865,11 +1890,11 @@ const CHG={
   if(!n||CATS.some(x=>x!==c&&x.label.toLowerCase()===n.toLowerCase())){el.value=c.label;$("#modalErr").textContent=n?"Another time slot already has that name.":"A time slot needs a name.";return;}
   $("#modalErr").textContent="";c.label=n;toast("Time slot renamed",n);
  },
- ntField(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r.people[+el.dataset.i];
+ ntField(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r&&r.people[+el.dataset.i];if(!p||!canEditNtEntry(p))return render();
   if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value;render();}
 };
 
-const NAV_ACTS=["go","goto","signOut"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
+const NAV_ACTS=["go","goto","signOut","allocFrom","ntFrom","goBack"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
 document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;
  if(el.tagName==="TR"&&e.target.closest("input,select,textarea"))return;const a=el.dataset.act,f=ACT[a];if(!f)return;e.preventDefault();
  if(NAV_ACTS.includes(a))return guardNav(()=>f(el,e));
