@@ -539,22 +539,22 @@ function seed(){
    okon1:sy("MGT","FT",1,550,"BB210"),farh1:sy("MGT","FT",1,850,"BB105"),doym1:sy("MGT","FT",1,550,"BB105"),
    shap1:sy("MKT","FT",1,550,"MK020"),caso1:sy("MKT","HPL",0,0,"",false)},
   modules:[
-   {code:"MGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,occs:[
+   {code:"BMGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,occs:[
     {occ:"A",groups:3,courses:["MGT-ENTM"],slots:slots({S1:[140,{andf1:60,farh1:70},{andf1:"Reduced to 2 groups"}],SV:[20,{farh1:20},{farh1:"4 Cr / Project"}],ML:[16,{farh1:16}],MO:[12,{okon1:12}],MC:[18,{farh1:9,okon1:9}]})},
     {occ:"C",groups:2,courses:["MKT-BRND"],slots:slots({S1:[118,{shap1:59,doym1:59}],ML:[12,{doym1:12}],MO:[7,{shap1:7}],MC:[18,{shap1:9,doym1:9}]})}]},
-   {code:"CPX2205",title:"Applied Software Design",dept:"COMP",credit:15,occs:[
+   {code:"COMX2205",title:"Applied Software Design",dept:"COMP",credit:15,occs:[
     {occ:"A",groups:2,courses:["COMP-SWD"],slots:slots({S1:[70,{odum1:40,andf1:30}],S2:[30,{andf1:30}],SV:[15,{odum1:15},{odum1:"7.5 Cr / Student"}],ML:[10,{odum1:10}],MO:[6,{andf1:6}]})}]},
-   {code:"MKX1010",title:"Principles of Marketing",dept:"MKT",credit:15,occs:[
+   {code:"BMKX1010",title:"Principles of Marketing",dept:"MKT",credit:15,occs:[
     {occ:"A",groups:2,courses:["MKT-BRND","MGT-ENTM"],slots:slots({S2:[90,{shap1:45,caso1:45}],ML:[10,{shap1:10}],MO:[6,{doym1:6}]})}]},
-   {code:"CPX3310",title:"Secure Systems Engineering",dept:"COMP",credit:15,occs:[
+   {code:"COMX3310",title:"Secure Systems Engineering",dept:"COMP",credit:15,occs:[
     {occ:"A",groups:1,courses:["COMP-SWD"],slots:slots({S2:[60,{pemg1:30}],ML:[8,{}],MO:[5,{}]})}]}],
   sessions:{
-   "MGX2140|A|S1":[{day:"Mon",start:9.25,end:11.25,c:"Seminar group 1"},{day:"Mon",start:12.25,end:13.25,c:"Lecture"},{day:"Tue",start:13.75,end:15.75,c:"Seminar group 2"}],
-   "MGX2140|C|S1":[{day:"Mon",start:9.25,end:12.25,c:"Lecture and workshop"}],
-   "CPX2205|A|S1":[{day:"Mon",start:10.25,end:12.25,c:"Lab"},{day:"Thu",start:9.25,end:12.25,c:"Lecture"}],
-   "CPX2205|A|S2":[{day:"Fri",start:9.25,end:11.25,c:"Project clinic"}],
-   "MKX1010|A|S2":[{day:"Tue",start:10.25,end:12.25,c:"Lecture"},{day:"Thu",start:14.25,end:16.25,c:"Seminar"}],
-   "CPX3310|A|S2":[{day:"Wed",start:13.25,end:15.25,c:"Lab"}]},
+   "BMGX2140|A|S1":[{day:"Mon",start:9.25,end:11.25,c:"Seminar group 1"},{day:"Mon",start:12.25,end:13.25,c:"Lecture"},{day:"Tue",start:13.75,end:15.75,c:"Seminar group 2"}],
+   "BMGX2140|C|S1":[{day:"Mon",start:9.25,end:12.25,c:"Lecture and workshop"}],
+   "COMX2205|A|S1":[{day:"Mon",start:10.25,end:12.25,c:"Lab"},{day:"Thu",start:9.25,end:12.25,c:"Lecture"}],
+   "COMX2205|A|S2":[{day:"Fri",start:9.25,end:11.25,c:"Project clinic"}],
+   "BMKX1010|A|S2":[{day:"Tue",start:10.25,end:12.25,c:"Lecture"},{day:"Thu",start:14.25,end:16.25,c:"Seminar"}],
+   "COMX3310|A|S2":[{day:"Wed",start:13.25,end:15.25,c:"Lab"}]},
   nt:[
    {id:"nt1",title:"Course Leader - BSc Software Development",cat:"Management - Programmes",people:[{s:"odum1",cr:289,note:"0.34 FTE"}]},
    {id:"nt2",title:"Course Leader - BA Enterprise Management",cat:"Management - Programmes",people:[{s:"okon1",cr:183,note:"0.215 FTE, shared"},{s:"farh1",cr:69,note:"Pro-rata"}]},
@@ -572,7 +572,7 @@ function seed(){
 
 /* ------------------------------ state ------------------------------ */
 let me=null, tab="overview", selYear="2026-27";
-const sel={module:"MGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",leadCourse:"",report:"activity",query:null,
+const sel={module:"BMGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",leadCourse:"",report:"activity",query:null,
  ttView:"chart",ctView:"module",myView:"chart",staffMode:"list"};
 
 const Y=()=>YEARS[selYear];
@@ -599,6 +599,10 @@ function suggestStaffId(f,s){
  return "";
 }
 const skey=(m,o,c)=>`${m}|${o}|${c}`;
+// Module codes: exactly 4 letters then 4 numbers, e.g. BMGT1234. Pasted text is cut to its first 8 characters.
+const MODULE_CODE_RE=/^[A-Z]{4}[0-9]{4}$/;
+const cleanCode=v=>String(v||"").trim().slice(0,8).toUpperCase();
+const CODE_RULE="Module codes are 4 letters followed by 4 numbers, for example BMGT1234.";
 // Module credit values allowed (academic credits, not workload).
 const MODULE_CREDITS=[0,5,10,15,20,25,30,35,40,45,60,120,240]; // 0 = a module with no credit weighting
 const creditOptions=cur=>(MODULE_CREDITS.includes(+cur)||cur==null?[]:[{v:cur,l:`${cur} (not a standard value)`}]).concat(MODULE_CREDITS.map(v=>({v,l:String(v)})));
@@ -762,7 +766,7 @@ const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(
 // suggestion list; either one selects the module and fills in the other.
 function modulePicker(m){
  const mods=[...Y().modules].sort((a,b)=>a.code.localeCompare(b.code));
- return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input data-combo="moduleCode" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
+ return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input data-combo="moduleCode" data-code="1" maxlength="8" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
  <label class="field grow">Module title<input data-combo="moduleTitle" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.title)}" data-chg="pickModule" data-by="title" autocomplete="off" aria-label="Module title: type, paste or choose"></label>
  <span class="tag blue" style="align-self:center;margin-bottom:8px">${esc(m.dept)}</span>
 `;
@@ -770,7 +774,7 @@ function modulePicker(m){
 // Find a module from whatever was typed or pasted into either box: a code (also "CODE Title"), or a title.
 function findModule(v){
  const t=String(v||"").trim();if(!t)return null;const mods=Y().modules,lc=t.toLowerCase(),tok=t.split(/\s+/)[0].toUpperCase();
- return mods.find(m=>m.code.toUpperCase()===t.toUpperCase())||mods.find(m=>m.code.toUpperCase()===tok)||mods.find(m=>m.title.toLowerCase()===lc)
+ return mods.find(m=>m.code===cleanCode(t))||mods.find(m=>m.code.toUpperCase()===t.toUpperCase())||mods.find(m=>m.code.toUpperCase()===tok)||mods.find(m=>m.title.toLowerCase()===lc)
   ||(()=>{const hits=mods.filter(m=>m.title.toLowerCase().includes(lc)||m.code.toLowerCase().startsWith(lc));return hits.length===1?hits[0]:null;})();
 }
 // Year of study for a module on a course comes straight from the first digit of the module code:
@@ -1577,7 +1581,7 @@ const ACT={
  resetDemo(){openModal({title:"Reset the demo?",body:"<p>Every change you've made, in every year, is discarded and the sample data is restored.</p>",ok:"Reset demo",danger:true,
   onOk(){seed();renderLogin();selYear="2026-27";DRAFT=null;LAST_SAVED=null;SKIP_STAGE=true;
    if(!P(me.id))me={role:me.role,id:ROLE_CARDS.find(r=>r.role===me.role).id}; // was previewing imported data: switch to the sample person for this role
-  Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
+  Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"BMGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
  go(el){tab=el.dataset.tab;sel.query=null;sel.back=null;sel.ntFocus=null;render(true);},
  allocFrom(el){if(!["owner","head"].includes(me.role))return;sel.back={tab:"tt",staff:sel.staff,view:sel.ttView};sel.module=el.dataset.module;tab="alloc";render(true);},
  ntFrom(el){if(!["owner","head"].includes(me.role))return;const r=Y().nt.find(x=>x.id===el.dataset.r);if(!r)return;
@@ -1706,12 +1710,12 @@ const ACT={
  newModule(){
   if(!isOwner())return;
   openModal({title:"New module",ok:"Create module",body:`<div class="form-grid">
-   <label class="field">Code<input id="nmC" placeholder="e.g. MGX3100"></label><label class="field">Credits (academic)${selectH('id="nmK"',creditOptions(15),15)}</label>
+   <label class="field">Code<input id="nmC" data-code="1" maxlength="8" autocomplete="off" spellcheck="false" placeholder="e.g. BMGT1234"></label><label class="field">Credits (academic)${selectH('id="nmK"',creditOptions(15),15)}</label>
    <label class="field wide">Title<input id="nmT"></label>
    <label class="field wide">Owning department${selectH('id="nmD"',depts().map(d=>({v:d.id,l:d.name})),depts()[0].id)}</label></div>
-   <p style="margin-top:12px">A new module has no occurrences. Add one, set its budgets, then allocate staff.</p>`,
+   <p class="hint" style="margin:6px 0 0">${CODE_RULE}</p><p style="margin-top:12px">A new module has no occurrences. Add one, set its budgets, then allocate staff.</p>`,
    onOk(){const code=mval("nmC").toUpperCase(),t=mval("nmT");
-    if(!/^[A-Z0-9]{3,10}$/.test(code))return "Use 3 to 10 letters or digits for the code, with no spaces.";
+    if(!MODULE_CODE_RE.test(code))return CODE_RULE;
     if(M(code))return `${code} already exists in ${selYear}.`;if(!t)return "Give the module a title.";
     Y().modules.push({code,title:t,dept:mval("nmD"),credit:int(mval("nmK")),occs:[]});sel.module=code;
     touch([mval("nmD")],`Created module ${code} ${t}`);toast("Module created",`${code} ${t}`);}});
@@ -2046,7 +2050,11 @@ document.addEventListener("keydown",e=>{
 document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");if(!el||!me)return;const f=CHG[el.dataset.chg];if(!f)return;
  if(el.dataset.chg==="year"){const v=el.value;return guardNav(()=>f({value:v}));}
  staged(()=>f(el));});
+// Module code boxes: capitals as you type; pasting keeps only the first 8 characters (e.g. BMGT1234A -> BMGT1234).
+document.addEventListener("paste",e=>{const el=e.target.closest&&e.target.closest("input[data-code]");if(!el)return;
+ e.preventDefault();el.value=cleanCode((e.clipboardData||window.clipboardData).getData("text"));el.dispatchEvent(new Event("input",{bubbles:true}));},true);
 document.addEventListener("input",e=>{
+ if(e.target.matches&&e.target.matches("input[data-code]")){const v=e.target.value,u=v.toUpperCase().slice(0,8);if(v!==u){const p=e.target.selectionStart;e.target.value=u;try{e.target.setSelectionRange(p,p);}catch(x){}}}
  // picking from the suggestion list (or typing/pasting an exact code or title) selects straight away
  if(e.target.dataset&&e.target.dataset.chg==="pickModule"){const v=e.target.value.trim(),mods=Y()?Y().modules:[];
   const exact=mods.find(m=>m.code.toUpperCase()===v.toUpperCase()||m.title.toLowerCase()===v.toLowerCase());
@@ -2165,6 +2173,7 @@ function buildFromLegacy(T,dbName){
  const modules=[],modBy={};
  rows("module").forEach(r=>{const code=str(r.module_code);if(!code||modBy[code])return;
   const d=str(r.staff_group_id);if(d)ensureGroup(d);
+  if(!MODULE_CODE_RE.test(code)){warn("code","module codes aren't 4 letters followed by 4 numbers (the new system only accepts that format, e.g. BMGT1234)");eg("code",code);}
   const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of the standard values (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 120 or 240)");eg("credits",`${code}: ${cr}`);}
   const m={code,title:str(r.module_title)||code,dept:d,credit:cr,occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
   modules.push(m);modBy[code]=m;});

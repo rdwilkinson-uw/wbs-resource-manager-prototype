@@ -386,7 +386,8 @@ CREATE TABLE course (
 -- Identity of a module. Staff from ANY department can be allocated to it.
 CREATE TABLE module (
     id                     integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    code                   text NOT NULL UNIQUE,
+    code                   text NOT NULL UNIQUE CHECK (code ~ '^[A-Z]{4}[0-9]{4}$'),  -- e.g. BMGT1234: 4 letters, 4 numbers;
+                                                       -- the first number gives the year of study
     title                  text NOT NULL,
     owning_staff_group_id  integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
     academic_credits       smallint CHECK (academic_credits IN (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 120, 240)),  -- not workload; 0 = no credit weighting
