@@ -123,6 +123,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 
 select:disabled,input:disabled{opacity:.7;cursor:not-allowed}
 input.num{width:76px;text-align:right}
 input.num.sm{width:64px}
+input.occ-in{width:52px;text-align:center;font-weight:900;text-transform:uppercase}
 input.note-in{display:block;width:140px;margin:4px 0 0 auto;min-height:28px;font-size:11px;padding:4px 7px;text-align:left}
 .spacer{flex:1}
 .segmented{display:inline-flex;background:var(--filter);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
@@ -220,7 +221,7 @@ tr.selected td{background:var(--t-cyan)}
 .sem-block{padding:14px 18px;border-bottom:1px solid var(--line-2)}
 .sem-block:last-child{border-bottom:0}
 .sem-block .sem-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;flex-wrap:wrap}
-.session-row{display:grid;grid-template-columns:110px 110px 110px minmax(0,1fr) 34px;gap:9px;align-items:center;margin-top:8px}
+.session-row{display:grid;grid-template-columns:140px 96px 96px minmax(0,1fr) 34px;gap:9px;align-items:center;margin-top:8px}
 .session-row select,.session-row input{width:100%;min-width:0}
 .session-row.headrow{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800;margin-top:4px}
 .session-row.clash select,.session-row.clash input{border-color:var(--red)}
@@ -282,6 +283,11 @@ tr.addl-row:hover td{background:var(--t-lime)}
 .bd-total{display:flex;justify-content:flex-end;gap:26px;flex-wrap:wrap;margin-top:14px;padding:12px 18px;background:var(--filter);border:1px solid var(--line);border-radius:12px;font-size:12px}
 .bd-total b{font-size:14px;color:var(--heading)}
 .bd-total b.over{color:var(--t-red-ink)}
+.save-bar{position:sticky;bottom:0;z-index:6;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:20px;padding:12px 16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 -6px 18px rgba(16,42,59,.08);font-size:13px}
+.save-bar.dirty{border-color:var(--b-amber);background:var(--t-amber)}
+.save-bar .sb-state{display:flex;align-items:center;gap:8px}
+.save-bar .sb-dot{width:10px;height:10px;border-radius:50%;background:var(--amber);box-shadow:0 0 0 4px rgba(242,181,75,.25)}
+.save-bar .sb-tick{width:20px;height:20px;border-radius:50%;background:var(--badge);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:900}
 /* ---------- reports, publish ---------- */
 .report-grid{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start}
 .report-menu{padding:8px}
@@ -557,6 +563,28 @@ function suggestStaffId(f,s){
  return "";
 }
 const skey=(m,o,c)=>`${m}|${o}|${c}`;
+// Module credit values allowed (academic credits, not workload).
+const MODULE_CREDITS=[10,15,20,30,45,60,120];
+const creditOptions=cur=>(MODULE_CREDITS.includes(+cur)||cur==null?[]:[{v:cur,l:`${cur} (not a standard value)`}]).concat(MODULE_CREDITS.map(v=>({v,l:String(v)})));
+// Occurrence letters are typed (e.g. A Business, C Computing, D Accounting & Finance, H Health): 1 to 3 letters or digits.
+const cleanOcc=v=>String(v||"").trim().toUpperCase();
+const validOcc=v=>/^[A-Z0-9]{1,3}$/.test(v);
+// Typed session times: "9", "9:15", "9.15", "0915", "915", "2pm". An hour on its own means quarter past (the usual start),
+// and 1 to 7 without am/pm means afternoon or evening. Returns decimal hours, or null if not understood.
+function parseTime(v){
+ let s=String(v||"").trim().toLowerCase().replace(/\s+/g,"");if(!s)return null;
+ const pm=/pm$/.test(s),am=/am$/.test(s);s=s.replace(/(am|pm)$/,"");
+ let h,m,r;
+ if((r=/^(\d{1,2})[:.h](\d{2})$/.exec(s))){h=+r[1];m=+r[2];}
+ else if((r=/^(\d{3,4})$/.exec(s))){const t=r[1].padStart(4,"0");h=+t.slice(0,2);m=+t.slice(2);}
+ else if((r=/^(\d{1,2})$/.exec(s))){h=+r[1];m=15;}
+ else return null;
+ if(pm&&h<12)h+=12;if(am&&h===12)h=0;if(!pm&&!am&&h>=1&&h<=7)h+=12;
+ if(h>23||m>59)return null;
+ return +(h+m/60).toFixed(4);
+}
+// Typed days: "Mon", "tues", "Thursday"... Monday to Friday only.
+function parseDay(v){const s=String(v||"").trim().toLowerCase();if(s.length<2)return null;return {mo:"Mon",tu:"Tue",we:"Wed",th:"Thu",fr:"Fri"}[s.slice(0,2)]||null;}
 const ROLE_LABEL={owner:"Owner",head:"Head",pas:"PAS Admin",staff:"Academic staff"};
 const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
 
@@ -654,12 +682,14 @@ function publishGroup(gid){
 let modalCb=null;
 function openModal({title,body,ok="Save",danger=false,onOk}){
  $("#modalTitle").textContent=title;$("#modalBody").innerHTML=body;$("#modalErr").textContent="";
- const b=$("#modalOk");b.textContent=ok;b.className="btn "+(danger?"danger":"primary");modalCb=onOk;
+ const b=$("#modalOk");b.textContent=ok;b.className="btn "+(danger?"danger":"primary");modalCb=onOk;b.previousElementSibling.textContent="Cancel";
  $("#modalBg").classList.add("open");
  // focus the first field straight away (never later, which could steal focus from a field already being typed in)
  const f=$("#modalBody input:not([disabled]),#modalBody select:not([disabled])");(f||b).focus();
 }
-function closeModal(){$("#modalBg").classList.remove("open");modalCb=null;}
+function closeModal(){$("#modalBg").classList.remove("open");modalCb=null;
+ if(PENDING_NAV){PENDING_NAV=null;if(me)renderTop();} // chose to stay: put the year selector back
+}
 function toast(title,detail="",err=false){
  const n=document.createElement("div");n.className="toast"+(err?" err":"");
  n.innerHTML=`<b>${esc(title)}</b>${detail?`<span>${esc(detail)}</span>`:""}`;
@@ -684,6 +714,44 @@ const moduleOptions=()=>Y().modules.map(m=>({v:m.code,l:`${m.code}  ${m.title} (
 const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${p.id}  ${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
 function ensureModule(){if(!M(sel.module))sel.module=(Y().modules[0]||{}).code||"";return M(sel.module);}
 const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.map(([k,l])=>`<button class="${cur===k?"active":""}" data-act="${act}" data-v="${k}" aria-pressed="${cur===k}">${l}</button>`).join("")}</div>`;
+
+/* ----------------------- Save / Discard (unsaved changes) -----------------------
+   On editing screens, changes are held as "unsaved" until Save is pressed. The first change records a
+   restore point; Discard returns to it. Leaving the screen with unsaved changes asks what to do. */
+const STAGED_TABS=["modules","alloc","sessions","leaders","nt","staff","courses"];
+let DRAFT=null,LAST_SAVED=null,SKIP_STAGE=false,PENDING_NAV=null;
+const stagedHere=()=>!!me&&me.role!=="staff"&&STAGED_TABS.includes(tab)&&canEdit(tab)&&!!Y();
+const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,YEAR_ORDER});
+function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=p.theme);
+ YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
+// Run something that may change data; on an editing screen, the first real change starts an unsaved draft.
+function staged(fn){
+ if(!stagedHere())return fn();
+ const had=!!DRAFT,before=had?null:stateJSON();
+ const r=fn();
+ if(SKIP_STAGE){SKIP_STAGE=false;DRAFT=null;}
+ else if(!had&&!DRAFT&&before!==stateJSON())DRAFT={before}; // only a change made by THIS action starts a new draft
+ paintSaveBar();return r;
+}
+function commitDraft(quiet){const had=!!DRAFT;DRAFT=null;LAST_SAVED=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});paintSaveBar();if(!quiet)toast(had?"Changes saved":"Everything is already saved",had?`Saved at ${LAST_SAVED}.`:"");}
+function saveBarHTML(){
+ if(!stagedHere())return "";
+ return `<div class="save-bar${DRAFT?" dirty":""}" id="saveBar" role="status" aria-live="polite">${saveBarInner()}</div>`;
+}
+function saveBarInner(){
+ return DRAFT?`<span class="sb-state"><span class="sb-dot" aria-hidden="true"></span><b>Unsaved changes</b> on this screen</span><span class="spacer"></span><button class="btn" data-act="discardDraft">Discard</button><button class="btn primary" data-act="saveDraft">Save changes</button>`
+  :`<span class="sb-state"><span class="sb-tick" aria-hidden="true">✓</span><b>All changes saved</b>${LAST_SAVED?` <span class="muted">· last saved ${LAST_SAVED}</span>`:""}</span><span class="spacer"></span><button class="btn primary" data-act="saveDraft" disabled>Save changes</button>`;
+}
+function paintSaveBar(){const b=document.getElementById("saveBar");if(!b)return;b.className="save-bar"+(DRAFT?" dirty":"");b.innerHTML=saveBarInner();}
+// Before navigating away: if there are unsaved changes, ask first.
+function guardNav(go){
+ if(!DRAFT){go();return;}
+ PENDING_NAV=go;const where=(TABS.find(t=>t[0]===tab)||[,"this screen"])[1];
+ openModal({title:"Save your changes?",ok:"Save and continue",body:`<p>You have unsaved changes on <b>${esc(where)}</b>.</p>
+  <p><button class="btn danger small" data-act="discardAndGo">Discard changes and continue</button></p>`,
+  onOk(){commitDraft();const g=PENDING_NAV;PENDING_NAV=null;if(g)g();}});
+ $("#modalOk").previousElementSibling.textContent="Stay on this page";
+}
 
 /* ------------------------------ shell ------------------------------ */
 const ROLE_CARDS=[
@@ -741,7 +809,7 @@ function render(anim=false){
   renderNav();
   html=Y()?VIEWS[tab]():viewNoYear();
  }
- main.innerHTML=`<div class="page${anim?" enter":""}">${yearBanner()}${html}</div>`;
+ main.innerHTML=`<div class="page${anim?" enter":""}">${yearBanner()}${html}${me.role!=="staff"&&Y()?saveBarHTML():""}</div>`;
  if(anim)main.scrollTop=0;else main.scrollTop=scroll;
  if(fk&&!anim){const t=[...main.querySelectorAll(a.tagName)].find(e=>[e.tagName,...Object.entries(e.dataset).map(x=>x.join("="))].join("|")===fk);if(t)t.focus();}
 }
@@ -910,7 +978,7 @@ VIEWS.modules=()=>{
   <div style="padding:18px"><div class="form-grid">
    <label class="field">Code<input value="${m.code}" disabled></label>
    <label class="field wide">Title<input id="mTitle" value="${esc(m.title)}"></label>
-   <label class="field">Credits (academic)<input id="mCredit" type="number" min="0" value="${m.credit}"></label>
+   <label class="field">Credits (academic)${selectH('id="mCredit"',creditOptions(m.credit),m.credit)}</label>
    <label class="field wide">Owning department${selectH('id="mDept"',depts().map(d=>({v:d.id,l:d.name})),m.dept)}</label>
   </div></div>
   <div class="card-foot"><button class="btn primary small" data-act="saveModule">Save changes</button><span class="muted" style="font-size:11px">The code can't change once the module exists: allocations, sessions and course links all depend on it.</span></div>
@@ -918,7 +986,7 @@ VIEWS.modules=()=>{
  <article class="card"><div class="card-head"><div class="left"><h2>Occurrences and credit budgets</h2><span class="tag gray">${plural(m.occs.length,"occurrence")}</span></div>
   <div class="actions"><button class="btn small" data-act="newOcc">New occurrence</button>${m.occs.length?`<button class="btn danger small" data-act="deleteAllOcc">Delete all occurrences</button>`:""}</div></div>
  ${m.occs.length?`<div class="table-wrap"><table><thead><tr><th>Occ.</th><th class="r">Groups</th><th>Courses</th><th>Leader</th><th>Moderator</th>${CATS.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th></th></tr></thead><tbody>
-  ${m.occs.map(o=>`<tr><td><span class="occ">${o.occ}</span></td>
+  ${m.occs.map(o=>`<tr><td><input class="occ-in" value="${esc(o.occ)}" maxlength="3" data-chg="occLetter" data-occ="${esc(o.occ)}" aria-label="Occurrence letter (currently ${esc(o.occ)})"></td>
    <td class="r"><input class="num sm" type="number" min="1" value="${o.groups}" data-chg="occGroups" data-occ="${o.occ}" aria-label="Groups for occurrence ${o.occ}"></td>
    <td style="min-width:190px">${o.courses.map(c=>`<span class="tag plain" style="margin:2px">${esc(c)}<button class="x" data-act="rmCourse" data-occ="${o.occ}" data-course="${esc(c)}" aria-label="Unlink ${esc(c)}">×</button></span>`).join("")}
     ${COURSES.some(c=>!o.courses.includes(c.code))?selectH(`data-chg="addCourse" data-occ="${o.occ}" aria-label="Link a course" style="min-height:28px;padding:3px 6px;font-size:11px;margin-top:3px;width:150px"`,[{v:"",l:"Link course…"}].concat(COURSES.filter(c=>!o.courses.includes(c.code)).map(c=>({v:c.code,l:c.code+" "+c.title}))),""):""}</td>
@@ -948,7 +1016,11 @@ VIEWS.alloc=()=>{
   <span class="muted" style="font-size:12px;align-self:center">Leader: <b>${m.occs.length?m.occs.map(o=>`${o.occ}: ${Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"none"}`).join("; "):"—"}</b></span></div>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences",isOwner()?"Add one on Module details before allocating credits.":"The Owner needs to add an occurrence first.")}</article>`;
  const everyone=inYear();
- const cards=CATS.map(c=>{
+ // Only time slots this module has a budget for (or that someone has credits in, so over-allocation can't hide).
+ const shown=CATS.filter(c=>{const st=catStatus(m,c);return st.t>0||st.a>0||m.occs.some(o=>Object.keys(o.slots[c.id].alloc).length);});
+ const hidden=CATS.length-shown.length;
+ if(!shown.length)return h+`<article class="card">${empty("No budget set for this module yet",isOwner()?"Set its credit budgets on Module details first.":"The Owner sets each module's credit budgets on Module details.")}</article>`;
+ const cards=shown.map(c=>{
   const st=catStatus(m,c);
   const ids=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[c.id].alloc)))];
   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.label)}</h2>${st.tag}</div><span class="muted" style="font-size:11px">${st.a} of ${st.t} credits</span></div>
@@ -966,11 +1038,11 @@ VIEWS.alloc=()=>{
    ${selectH(`id="add-${c.id}-o" aria-label="Occurrence"`,m.occs.map(o=>({v:o.occ,l:"Occ "+o.occ})),m.occs[0].occ)}
    <input id="add-${c.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><button class="btn small primary" data-act="addAlloc" data-cat="${c.id}">Add</button></div>`:""}
   </article>`;}).join("");
- const all=CATS.map(c=>catStatus(m,c)),T=all.reduce((a,s)=>a+s.t,0),A=all.reduce((a,s)=>a+s.a,0);
+ const all=shown.map(c=>catStatus(m,c)),T=all.reduce((a,s)=>a+s.t,0),A=all.reduce((a,s)=>a+s.a,0);
  const ledger=`<aside class="card ledger"><div class="eyebrow">${m.code}</div><h3>Allocated of budget</h3><div class="total">${A} <span style="font-size:18px;color:var(--muted)">/ ${T}</span></div>
-  <dl>${CATS.map((c,i)=>`<div><dt>${esc(c.label)}</dt><dd>${all[i].a} / ${all[i].t}</dd></div>`).join("")}</dl>
+  <dl>${shown.map((c,i)=>`<div><dt>${esc(c.label)}</dt><dd>${all[i].a} / ${all[i].t}</dd></div>`).join("")}</dl>
   <div class="balance${A>T?" over":""}">${A>T?`<b>Over-allocated by ${A-T}</b> credits across this module.`:A<T?`<b>${T-A}</b> credits still to allocate.`:"<b>Fully allocated.</b>"}</div></aside>`;
- return h+`<div class="allocation-layout"><div>${cards}</div>${ledger}</div>`;
+ return h+`<div class="allocation-layout"><div>${cards}${hidden?`<p class="hint">${plural(hidden,"time slot")} with no budget on ${m.code} ${hidden===1?"is":"are"} hidden${isOwner()?". Set budgets on Module details to show more.":"."}</p>`:""}</div>${ledger}</div>`;
 };
 
 /* ---------------------------- Module sessions ---------------------------- */
@@ -982,17 +1054,18 @@ VIEWS.sessions=()=>{
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
  h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label></div>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","Sessions are added per occurrence once one exists.")}</article>`;
- const starts=TIMES.slice(0,-1),ends=TIMES.slice(1);
- return h+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
+ const dl=`<datalist id="dayList">${DAYS.map(d=>`<option value="${DAY_NAME[d]}">`).join("")}</datalist>`;
+ if(ed)h+=`<p class="hint" style="margin:-4px 0 14px">Type or paste days and times. Times like 9, 9:15, 0915 or 2pm all work, and an hour on its own becomes quarter past (9 → 09:15). You can paste a whole line such as <b>Mon 09:15-12:15</b> into the Day box.</p>`;
+ return h+dl+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
   ${ed&&m.occs.length>1?`<button class="btn small" data-act="copyOcc" data-occ="${o.occ}">Copy to other occurrences</button>`:""}</div>
   ${CATS.filter(c=>c.tt).map(c=>{
    const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).map(nameOf);
    return `<div class="sem-block"><div class="sem-head"><div><h3>${esc(c.label)}</h3><span class="sub">${who.length?"Taught by "+esc(who.join(", ")):"No staff allocated to this semester yet"}</span></div>
     ${ed?`<button class="btn small" data-act="addSess" data-key="${key}">Add session</button>`:""}</div>
     ${list.length?`<div class="session-row headrow"><span>Day</span><span>Start</span><span>End</span><span>Notes</span><span></span></div>`+list.map((s,i)=>`<div class="session-row">
-     ${selectH(`data-chg="sess" data-key="${key}" data-i="${i}" data-f="day" aria-label="Day"`,DAYS.map(d=>({v:d,l:DAY_NAME[d]})),s.day,!ed)}
-     ${selectH(`data-chg="sess" data-key="${key}" data-i="${i}" data-f="start" aria-label="Start"`,starts.map(t=>({v:t,l:fmt(t)})),s.start,!ed)}
-     ${selectH(`data-chg="sess" data-key="${key}" data-i="${i}" data-f="end" aria-label="End"`,ends.map(t=>({v:t,l:fmt(t)})),s.end,!ed)}
+     <input value="${DAY_NAME[s.day]}" list="dayList" data-chg="sess" data-key="${key}" data-i="${i}" data-f="day" aria-label="Day" autocomplete="off"${ed?"":" disabled"}>
+     <input value="${fmt(s.start)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="start" aria-label="Start time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
+     <input value="${fmt(s.end)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="end" aria-label="End time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
      <input value="${esc(s.c)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="c" placeholder="e.g. Seminar group 1" aria-label="Notes"${ed?"":" disabled"}>
      ${ed?`<button class="icon-btn" data-act="rmSess" data-key="${key}" data-i="${i}" aria-label="Delete session">✕</button>`:"<span></span>"}</div>`).join("")
     :`<p class="muted" style="font-size:12px;margin:6px 0 0">No sessions yet.</p>`}</div>`;}).join("")}
@@ -1301,13 +1374,13 @@ const ACT={
   $("#login").classList.add("hidden");render(true);toast(`Signed in as ${nameOf(me.id)}`,ROLE_LABEL[me.role]);},
  signOut(){me=null;applyTheme(null);closeModal();$("#login").classList.remove("hidden");},
  resetDemo(){openModal({title:"Reset the demo?",body:"<p>Every change you've made, in every year, is discarded and the sample data is restored.</p>",ok:"Reset demo",danger:true,
-  onOk(){seed();renderLogin();selYear="2026-27";
+  onOk(){seed();renderLogin();selYear="2026-27";DRAFT=null;LAST_SAVED=null;SKIP_STAGE=true;
    if(!P(me.id))me={role:me.role,id:ROLE_CARDS.find(r=>r.role===me.role).id}; // was previewing imported data: switch to the sample person for this role
   Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"MGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
  go(el){tab=el.dataset.tab;sel.query=null;render(true);},
  goto(el){(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
  modalClose(){closeModal();},
- modalOk(){const r=modalCb?modalCb():undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
+ modalOk(){const cb=modalCb,r=cb?staged(()=>cb()):undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
  toggleRow(el){const r=document.getElementById(el.dataset.row);if(!r)return;const open=r.hidden;r.hidden=!open;el.setAttribute("aria-expanded",open);el.textContent=open?"−":"+";},
  override(el){
   if(!isOwner())return;const i=ISSUE_INDEX[el.dataset.key];if(!i)return;
@@ -1317,6 +1390,11 @@ const ACT={
  },
  unoverride(el){if(!isOwner())return;const i=ISSUE_INDEX[el.dataset.key];delete (Y().overrides||{})[el.dataset.key];toast("Override removed",i?i.label:"");render();},
  toggleOverridden(){sel.showOverridden=!sel.showOverridden;render();},
+ saveDraft(){commitDraft();},
+ discardDraft(){if(!DRAFT)return;openModal({title:"Discard unsaved changes?",ok:"Discard changes",danger:true,
+  body:"<p>Everything changed on this screen since it was last saved goes back to how it was.</p>",
+  onOk(){restoreState(DRAFT.before);DRAFT=null;SKIP_STAGE=true;toast("Changes discarded","Back to the last saved version.");}});},
+ discardAndGo(){if(DRAFT){restoreState(DRAFT.before);DRAFT=null;}const g=PENDING_NAV;PENDING_NAV=null;closeModal();toast("Changes discarded","");if(g)g();else render();},
  toggle(el){const b=el.closest(".module-block");b.classList.toggle("open");el.setAttribute("aria-expanded",b.classList.contains("open"));},
  staffMode(el){sel.staffMode=el.dataset.v;render();},
  ntMode(el){sel.ntMode=el.dataset.v;render();},
@@ -1418,7 +1496,7 @@ const ACT={
  newModule(){
   if(!isOwner())return;
   openModal({title:"New module",ok:"Create module",body:`<div class="form-grid">
-   <label class="field">Code<input id="nmC" placeholder="e.g. MGX3100"></label><label class="field">Credits (academic)<input id="nmK" type="number" value="15" min="0"></label>
+   <label class="field">Code<input id="nmC" placeholder="e.g. MGX3100"></label><label class="field">Credits (academic)${selectH('id="nmK"',creditOptions(15),15)}</label>
    <label class="field wide">Title<input id="nmT"></label>
    <label class="field wide">Owning department${selectH('id="nmD"',depts().map(d=>({v:d.id,l:d.name})),depts()[0].id)}</label></div>
    <p style="margin-top:12px">A new module has no occurrences. Add one, set its budgets, then allocate staff.</p>`,
@@ -1431,7 +1509,7 @@ const ACT={
  saveModule(){
   const m=M(sel.module),t=mval("mTitle");if(!t)return toast("The title can't be empty","",true);
   const oldDept=m.dept;m.title=t;m.dept=mval("mDept");m.credit=int(mval("mCredit"));
-  touch(groupsOf(m.occs.flatMap(o=>staffOnOcc(o)),[oldDept,m.dept]),`Updated module ${m.code} details`);toast("Changes saved",`${m.code} ${m.title}`);render();
+  touch(groupsOf(m.occs.flatMap(o=>staffOnOcc(o)),[oldDept,m.dept]),`Updated module ${m.code} details`);render();commitDraft();
  },
  deleteModule(){
   const m=M(sel.module);
@@ -1440,8 +1518,15 @@ const ACT={
    onOk(){Y().modules=Y().modules.filter(x=>x!==m);sel.module=(Y().modules[0]||{}).code;touch([m.dept],`Deleted module ${m.code}`);toast("Module deleted",m.code);}});
  },
  newOcc(){
-  const m=M(sel.module),used=m.occs.map(o=>o.occ);let l=[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].find(c=>!used.includes(c))||"Z"+m.occs.length;
-  m.occs.push({occ:l,groups:1,courses:[],slots:slots({})});touch([m.dept],`Added occurrence ${l} to ${m.code}`);toast("Occurrence added",`${m.code} occ ${l}. Set its budgets below.`);render();
+  const m=M(sel.module);
+  openModal({title:`New occurrence of ${m.code}`,ok:"Add occurrence",body:`<p>Type the occurrence letter, for example A for Business, C for Computing, D for Accounting & Finance or H for Health.</p>
+   <label class="field">Occurrence<input id="noL" maxlength="3" style="text-transform:uppercase;width:120px" placeholder="e.g. C"></label>
+   ${m.occs.length?`<p class="hint">Already used on this module: ${m.occs.map(o=>esc(o.occ)).join(", ")}</p>`:""}`,
+   onOk(){const l=cleanOcc(mval("noL"));
+    if(!validOcc(l))return "Use 1 to 3 letters or numbers, for example C.";
+    if(m.occs.some(o=>o.occ===l))return `${m.code} already has an occurrence ${l}.`;
+    m.occs.push({occ:l,groups:1,courses:[],slots:slots({})});m.occs.sort((a,b)=>a.occ.localeCompare(b.occ));
+    touch([m.dept],`Added occurrence ${l} to ${m.code}`);toast("Occurrence added",`${m.code} occ ${l}. Set its budgets below.`);}});
  },
  deleteOcc(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);delOccs(m,[o]);},
  deleteAllOcc(){const m=M(sel.module);delOccs(m,[...m.occs]);},
@@ -1546,7 +1631,7 @@ const ACT={
  },
  saveCourse(){const c=C(sel.course),t=mval("cTitle");if(!t)return toast("The title can't be empty","",true);
   Object.assign(c,{title:t,dept:mval("cDept"),level:mval("cLevel"),years:Math.min(7,Math.max(1,int(mval("cYears")))),leader:mval("cLeader"),cis:mval("cCis")==="1"});
-  toast("Changes saved",c.title);render();},
+  render();commitDraft();},
  deleteCourse(){const c=C(sel.course);
   const n=Object.values(YEARS).reduce((a,yd)=>a+linkedOccs(c.code,yd),0);
   if(n)return toast(`Can't delete ${c.code}`,`It's linked to ${plural(n,"module occurrence")}. Unlink them on Module details first.`,true);
@@ -1560,7 +1645,7 @@ const ACT={
  publishAll(){if(!isOwner())return;const gs=[...new Set(Y().changes.flatMap(c=>c.groups))];
   openModal({title:"Publish all departments?",ok:"Publish all",body:`<p>${plural(Y().changes.length,"change")} across ${plural(gs.length,"group")} become visible to staff.</p>`,
    onOk(){gs.forEach(publishGroup);toast("Published",`${plural(gs.length,"group")} updated.`);}});},
- createYear(el){if(!isOwner())return;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
+ createYear(el){if(!isOwner())return;SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
   Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{}});YEARS[selYear]=copy;
   const [a]=selYear.split("-").map(Number),next=`${a+1}-${String(a+2).slice(2)}`;if(!YEAR_ORDER.includes(next))YEAR_ORDER.push(next);
@@ -1607,6 +1692,15 @@ const CHG={
    toast("Can't remove the last Owner","Make someone else an Owner first, or nobody could manage roles.",true);return render();}
   p.role=next;toast("Sign-in role changed",`${nameOf(p.id)} is now ${ROLE_LABEL[next]}. ${p.id===me.id?"This takes effect next time you sign in.":"An email tells them what changed."}`);render();
  },
+ occLetter(el){
+  if(!isOwner())return render();const m=M(sel.module),old=el.dataset.occ,o=m.occs.find(x=>x.occ===old),l=cleanOcc(el.value);
+  if(l===old)return render();
+  if(!validOcc(l)){toast("Occurrence not changed","Use 1 to 3 letters or numbers, for example C.",true);return render();}
+  if(m.occs.some(x=>x.occ===l)){toast("Occurrence not changed",`${m.code} already has an occurrence ${l}.`,true);return render();}
+  CATS.forEach(c=>{const k=skey(m.code,old,c.id),s=Y().sessions[k];if(s){Y().sessions[skey(m.code,l,c.id)]=s;delete Y().sessions[k];}});
+  o.occ=l;m.occs.sort((a,b)=>a.occ.localeCompare(b.occ));
+  touch(groupsOf(staffOnOcc(o),[m.dept]),`${m.code}: occurrence ${old} renamed ${l}`);toast("Occurrence renamed",`${m.code} occ ${old} is now occ ${l}; its allocations, sessions and course links moved with it.`);render();
+ },
  occGroups(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.groups=Math.max(1,int(el.value));touch([m.dept],`${m.code} occ ${o.occ}: groups set to ${o.groups}`);render();},
  addCourse(el){if(!el.value)return;const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses.push(el.value);
   touch([m.dept,(C(el.value)||{}).dept],`Linked ${el.value} to ${m.code} occ ${o.occ}`);render();},
@@ -1618,9 +1712,21 @@ const CHG={
   o.slots[c].alloc[id]=v;touch(groupsOf([id],[m.dept]),`${nameOf(id)}: ${v} ${CAT(c).label} credits on ${m.code} occ ${o.occ}`);render();
  },
  sess(el){
-  if(!guard("sessions"))return render();const key=el.dataset.key,s=Y().sessions[key][+el.dataset.i],f=el.dataset.f;
-  if(f==="start"||f==="end")s[f]=parseFloat(el.value);else s[f]=el.value;
-  if(s.end<=s.start){if(f==="start")s.end=Math.min(21.25,s.start+1);else s.start=Math.max(9.25,s.end-1);toast("Times adjusted","A session has to end after it starts.");}
+  if(!guard("sessions"))return render();const key=el.dataset.key,s=Y().sessions[key][+el.dataset.i],f=el.dataset.f,v=el.value;
+  if(f==="day"){
+   // a whole pasted line, e.g. "Mon 09:15-12:15" or "Tuesday 2pm to 4pm"
+   const line=/^\s*([a-z]+)[\s,]+([\d:.]+\s*(?:am|pm)?)\s*(?:-|–|—|to)\s*([\d:.]+\s*(?:am|pm)?)\s*$/i.exec(v);
+   if(line){const d=parseDay(line[1]),a=parseTime(line[2]),b=parseTime(line[3]);
+    if(d&&a!=null&&b!=null&&b>a){s.day=d;s.start=a;s.end=b;sessTouch(key,"Changed a session");toast("Session filled in",`${DAY_NAME[d]} ${fmt(a)}–${fmt(b)}`);return render();}}
+   const d=parseDay(v);
+   if(!d){toast("Day not recognised","Use Monday to Friday, for example Mon or Tuesday.",true);return render();}
+   s.day=d;
+  }else if(f==="start"||f==="end"){
+   const t=parseTime(v);
+   if(t==null||t<8||t>22){toast("Time not recognised","Type a time between 08:00 and 22:00, such as 9, 9:15, 0915 or 2pm. An hour on its own becomes quarter past.",true);return render();}
+   s[f]=t;
+  }else s[f]=v;
+  if(s.end<=s.start){if(f==="start")s.end=Math.min(22,s.start+1);else s.start=Math.max(8,s.end-1);toast("Times adjusted","A session has to end after it starts.");}
   sessTouch(key,"Changed a session");render();
  },
  leader(el){
@@ -1646,7 +1752,12 @@ const CHG={
   if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value;render();}
 };
 
-document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;const f=ACT[el.dataset.act];if(f){e.preventDefault();f(el,e);}});
+const NAV_ACTS=["go","goto","signOut"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
+document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;const a=el.dataset.act,f=ACT[a];if(!f)return;e.preventDefault();
+ if(NAV_ACTS.includes(a))return guardNav(()=>f(el,e));
+ if(UNSTAGED_ACTS.includes(a))return f(el,e);
+ staged(()=>f(el,e));});
+window.addEventListener("beforeunload",e=>{if(DRAFT){e.preventDefault();e.returnValue="";}});
 document.addEventListener("keydown",e=>{
  if(e.key==="Escape"&&$("#modalBg").classList.contains("open"))closeModal();
  if(e.key==="Enter"&&e.target.id==="tsN"){e.preventDefault();ACT.slotAdd();return;}
@@ -1654,7 +1765,9 @@ document.addEventListener("keydown",e=>{
  if(e.key==="Enter"&&$("#modalBg").classList.contains("open")&&e.target.matches("#modalBody input")){e.preventDefault();ACT.modalOk();}
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("tr[data-act]")){e.preventDefault();ACT[e.target.dataset.act](e.target);}
 });
-document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");if(!el||!me)return;const f=CHG[el.dataset.chg];if(f)f(el);});
+document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");if(!el||!me)return;const f=CHG[el.dataset.chg];if(!f)return;
+ if(el.dataset.chg==="year"){const v=el.value;return guardNav(()=>f({value:v}));}
+ staged(()=>f(el));});
 document.addEventListener("input",e=>{
  if(e.target.id==="nsId")e.target.dataset.touched="1";
  if(e.target.id==="atgSearch"){const q=e.target.value.trim().toLowerCase();document.querySelectorAll("#modalBody .check-row").forEach(r=>r.style.display=!q||r.dataset.name.includes(q)?"":"none");}
@@ -1765,7 +1878,8 @@ function buildFromLegacy(T,dbName){
  const modules=[],modBy={};
  rows("module").forEach(r=>{const code=str(r.module_code);if(!code||modBy[code])return;
   const d=str(r.staff_group_id);if(d)ensureGroup(d);
-  const m={code,title:str(r.module_title)||code,dept:d,credit:Math.round(num(r.credits)),occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
+  const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of 10, 15, 20, 30, 45, 60 or 120");eg("credits",`${code}: ${cr}`);}
+  const m={code,title:str(r.module_title)||code,dept:d,credit:cr,occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
   modules.push(m);modBy[code]=m;});
  const occBy={};
  rows("occurrence").forEach(r=>{const code=str(r.module_code),occ=str(r.occurrence).toUpperCase();if(!code||!occ)return;

@@ -388,7 +388,7 @@ CREATE TABLE module (
     code                   text NOT NULL UNIQUE,
     title                  text NOT NULL,
     owning_staff_group_id  integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
-    academic_credits       smallint CHECK (academic_credits > 0),  -- e.g. 15 / 30 (not workload)
+    academic_credits       smallint CHECK (academic_credits IN (10, 15, 20, 30, 45, 60, 120)),  -- not workload
     subject                text,                                    -- old module.subject
     level                  smallint CHECK (level BETWEEN 3 AND 8),
     is_active              boolean NOT NULL DEFAULT true,
@@ -402,7 +402,8 @@ CREATE TABLE occurrence (
     id                integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     module_id         integer NOT NULL REFERENCES module (id) ON DELETE RESTRICT,
     academic_year_id  integer NOT NULL REFERENCES academic_year (id) ON DELETE CASCADE,
-    occ_code          text NOT NULL CHECK (occ_code ~ '^[A-Z0-9]{1,3}$'),
+    occ_code          text NOT NULL CHECK (occ_code ~ '^[A-Z0-9]{1,3}$'),  -- typed, e.g. A Business, C Computing,
+                                                                          -- D Accounting & Finance, H Health
     description       text,                           -- campus, mode, cohort...
     no_of_groups      numeric(5,2) NOT NULL DEFAULT 1 CHECK (no_of_groups > 0),  -- old occurrence.no_of_groups
     created_at        timestamptz NOT NULL DEFAULT now(),
