@@ -521,7 +521,7 @@ function seed(){
    {id:"nt5",title:"Admissions Tutor - Computing",cat:"Management - Recruitment & International",people:[{s:"andf1",cr:45,note:"UG COMP"}]},
    {id:"nt6",title:"Scholarship",cat:"Research",people:[{s:"andf1",cr:60,note:""},{s:"farh1",cr:60,note:""}]},
    {id:"nt7",title:"Personal Academic Tutors - Computing",cat:"Learning & Teaching",people:[{s:"andf1",cr:20,note:"L4 Software 26-27"},{s:"odum1",cr:20,note:""}]}],
-  changes:[],published:{},lastPublished:{}}};
+  changes:[],published:{},lastPublished:{},overrides:{}}};
  YEAR_ORDER=["2026-27","2027-28"];
  // Start with everything published, as the live system would be.
  const yd=YEARS["2026-27"];
@@ -750,20 +750,56 @@ function render(anim=false){
 const VIEWS={};
 
 /* ------------------------------ Overview ------------------------------ */
+// Every item that needs attention has a stable KEY (what it is) and a FINGERPRINT (the numbers behind it).
+// Overriding saves the fingerprint; the item stays hidden until a change alters that fingerprint.
+let ISSUE_INDEX={};
+function collectIssues(yd=Y()){
+ const out=[],staff=inYear(yd);
+ const btn=(tab,set,label)=>`<button class="btn small" data-act="goto" data-tab="${tab}" data-set="${set}">${label}</button>`;
+ staff.forEach(p=>{const s=yd.staff[p.id],t=breakdown(p.id,yd).total;
+  if(s.target>0&&t>s.target)out.push({key:`over:${p.id}`,fp:`${t}/${s.target}`,sev:1,tag:`<span class="tag red">Over target</span>`,
+   label:`${nameOf(p.id)} over target`,text:`${esc(nameOf(p.id))}: ${t} of ${s.target} credits`,act:btn("staff",`group=${s.group};staffMode=totals`,"Show totals")});});
+ yd.modules.forEach(m=>{
+  const under=[];
+  m.occs.forEach(o=>{
+   CATS.forEach(c=>{const x=o.slots[c.id],a=sumV(x.alloc);
+    if(a>x.total)out.push({key:`overalloc:${m.code}|${o.occ}|${c.id}`,fp:`${a}/${x.total}`,sev:1,tag:`<span class="tag red">Over-allocated</span>`,
+     label:`${m.code} occ ${o.occ} ${c.label} over-allocated`,text:`${m.code} occ ${o.occ}, ${esc(c.label)}: ${a} of ${x.total} credits`,act:btn("alloc",`module=${m.code}`,"Open allocation")});
+    else if(a<x.total)under.push({occ:o.occ,c,gap:x.total-a});});
+   [["ML","No module leader"],["MO","No moderator"]].forEach(([k,l])=>{if(!Object.keys(o.slots[k].alloc).length)out.push({key:`no${k}:${m.code}|${o.occ}`,fp:`${o.slots[k].total}`,sev:2,
+    tag:`<span class="tag amber">${l}</span>`,label:`${m.code} occ ${o.occ}: ${l.toLowerCase()}`,text:`${m.code} ${esc(m.title)}, occ ${o.occ}`,act:btn("leaders",`leadCourse=${o.courses[0]||"__none"}`,"Set leaders")});});
+  });
+  if(under.length){const gap=under.reduce((a,u)=>a+u.gap,0),budget=m.occs.reduce((a,o)=>a+CATS.reduce((x,c)=>x+o.slots[c.id].total,0),0);
+   out.push({key:`under:${m.code}`,fp:m.occs.map(o=>CATS.map(c=>`${o.slots[c.id].total}:${sumV(o.slots[c.id].alloc)}`).join(",")).join(";"),sev:2,
+    tag:`<span class="tag amber">Under-allocated</span>`,label:`${m.code} under-allocated`,
+    text:`${m.code} ${esc(m.title)}: ${gap} of ${budget} credits unallocated <span class="sub">${under.slice(0,3).map(u=>`occ ${u.occ} ${esc(u.c.label)} ${u.gap}`).join(", ")}${under.length>3?`, +${under.length-3} more`:""}</span>`,
+    act:btn("alloc",`module=${m.code}`,"Open allocation")});}
+ });
+ // A clash's identity is the person plus the two teaching activities involved; the session days/times are its fingerprint,
+ // so moving a session re-shows an overridden clash (with its earlier reason) rather than treating it as new.
+ staff.forEach(p=>{const seen={};clashPairs(staffItems(p.id,yd)).forEach(([x,y])=>{
+  const who=[x,y].map(e=>`${e.module}-${e.occ}-${e.cat}`).sort().join("|"),n=seen[who]=(seen[who]||0)+1;
+  const sig=[x,y].map(e=>`${e.module}-${e.occ}-${e.cat}@${e.day}${fmt(e.start)}-${fmt(e.end)}`).sort().join("|");
+  out.push({key:`clash:${p.id}|${who}${n>1?"#"+n:""}`,fp:sig,sev:1,tag:`<span class="tag red">Clash</span>`,label:`${nameOf(p.id)} timetable clash`,
+   text:`${esc(nameOf(p.id))}: ${DAY_NAME[x.day]}, ${x.module}-${x.occ} ${fmt(x.start)}–${fmt(x.end)} overlaps ${y.module}-${y.occ} ${fmt(y.start)}–${fmt(y.end)}`,
+   act:btn("tt",`staff=${p.id};ttView=chart`,"View timetable")});});});
+ out.sort((a,b)=>a.sev-b.sev);
+ const ov=yd.overrides=yd.overrides||{},active=[],overridden=[];
+ out.forEach(i=>{const o=ov[i.key];if(o&&o.fp===i.fp)overridden.push({...i,ov:o});else active.push({...i,prev:o||null});});
+ return {active,overridden};
+}
 VIEWS.overview=()=>{
  const yd=Y(),staff=inYear(),b=yearBudget();
  const nOcc=yd.modules.reduce((a,m)=>a+m.occs.length,0);
- const issues=[];
- staff.forEach(p=>{const s=SY(p.id),t=breakdown(p.id).total;
-  if(s.target>0&&t>s.target)issues.push({tag:`<span class="tag red">Over target</span>`,text:`${esc(nameOf(p.id))}: ${t} of ${s.target} credits`,act:`<button class="btn small" data-act="goto" data-tab="staff" data-set="group=${s.group};staffMode=totals">Show totals</button>`});});
- yd.modules.forEach(m=>m.occs.forEach(o=>{
-  CATS.forEach(c=>{const a=sumV(o.slots[c.id].alloc);if(a>o.slots[c.id].total)issues.push({tag:`<span class="tag red">Over-allocated</span>`,text:`${m.code} occ ${o.occ}, ${c.label}: ${a} of ${o.slots[c.id].total} credits`,act:`<button class="btn small" data-act="goto" data-tab="alloc" data-set="module=${m.code}">Open allocation</button>`});});
-  [["ML","No module leader"],["MO","No moderator"]].forEach(([k,l])=>{if(!Object.keys(o.slots[k].alloc).length)issues.push({tag:`<span class="tag amber">${l}</span>`,text:`${m.code} ${esc(m.title)}, occ ${o.occ}`,act:`<button class="btn small" data-act="goto" data-tab="leaders" data-set="leadCourse=${o.courses[0]||"__none"}">Set leaders</button>`});});
- }));
- let clashStaff=0;
- staff.forEach(p=>{const cl=clashPairs(staffItems(p.id));if(!cl.length)return;clashStaff++;const [x,y]=cl[0];
-  issues.push({tag:`<span class="tag red">Clash</span>`,text:`${esc(nameOf(p.id))}: ${DAY_NAME[x.day]} ${fmt(x.start)}, ${x.module}-${x.occ} overlaps ${y.module}-${y.occ}${cl.length>1?` (+${cl.length-1} more)`:""}`,act:`<button class="btn small" data-act="goto" data-tab="tt" data-set="staff=${p.id};ttView=chart">View timetable</button>`});});
+ const {active,overridden}=collectIssues(yd);
+ ISSUE_INDEX={};active.concat(overridden).forEach(i=>ISSUE_INDEX[i.key]=i);
+ const clashes=active.filter(i=>i.key.startsWith("clash:")).length;
  const pending=yd.changes.length;
+ const row=i=>`<tr><td>${i.tag}${i.prev?`<span class="sub"><span class="tag plain amber" style="margin-top:4px">Changed since override</span></span>`:""}</td>
+  <td>${i.text}${i.prev?`<span class="sub">Overridden by ${esc(i.prev.by)}, ${esc(i.prev.when)}${i.prev.note?`: “${esc(i.prev.note)}”`:""}. Something about it has changed since.</span>`:""}</td>
+  <td class="r" style="white-space:nowrap">${i.act} <button class="btn small" data-act="override" data-key="${esc(i.key)}">Override</button></td></tr>`;
+ const orow=i=>`<tr><td>${i.tag}</td><td>${i.text}<span class="sub">Overridden by ${esc(i.ov.by)}, ${esc(i.ov.when)}${i.ov.note?`: “${esc(i.ov.note)}”`:""}</span></td>
+  <td class="r"><button class="btn small" data-act="unoverride" data-key="${esc(i.key)}">Undo override</button></td></tr>`;
  return `<div class="hero">
   <article class="card hero-main"><div class="bignum" aria-hidden="true">${selYear.replace("20","").replace("-","/")}</div>
    <div class="eyebrow">${selYear} · ${yd.status==="current"?"current year":"planning"}</div>
@@ -772,19 +808,20 @@ VIEWS.overview=()=>{
    <div class="actions"><button class="btn accent" data-act="go" data-tab="alloc">Open module allocation</button><button class="btn" data-act="go" data-tab="publish">Review unpublished changes</button></div>
   </article>
   <div class="hero-side">
-   <article class="card brief"><div class="eyebrow">Attention</div><b>${plural(issues.length,"item")} to check</b><p>Staff over target, over-allocated budgets, missing leaders or moderators, and timetable clashes.</p></article>
+   <article class="card brief"><div class="eyebrow">Attention</div><b>${plural(active.length,"item")} to check</b><p>${overridden.length?`${overridden.length} more overridden as acceptable. `:""}Staff over target, over- or under-allocated modules, missing leaders or moderators, and clashes.</p></article>
    <article class="card brief"><div class="eyebrow">Publishing</div><b>${plural(pending,"unpublished change")}</b><p>Staff keep seeing their last published timetable until their department is published.</p></article>
   </div></div>
  <div class="grid cols-4">
   ${metric("Staff this year",staff.length,`${GROUPS.filter(g=>g.dept).length} departments plus other groups`)}
   ${metric("Modules",yd.modules.length,`${plural(nOcc,"occurrence")} this year`,"var(--lime)")}
   ${metric("Unallocated",b.unalloc.toLocaleString(),`of ${b.budget.toLocaleString()} budgeted credits`,"var(--amber)")}
-  ${metric("Timetable clashes",clashStaff,clashStaff===1?"member of staff affected":"staff affected","var(--red)")}
+  ${metric("Timetable clashes",clashes,`needing attention${overridden.some(i=>i.key.startsWith("clash:"))?`, ${overridden.filter(i=>i.key.startsWith("clash:")).length} overridden`:""}`,"var(--red)")}
  </div>
- <div class="section-title"><h2>Needs attention</h2><span>Worked out from this year's live data</span></div>
- <article class="card">${issues.length?`<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail</th><th class="r"></th></tr></thead><tbody>
-  ${issues.map(i=>`<tr><td>${i.tag}</td><td>${i.text}</td><td class="r">${i.act}</td></tr>`).join("")}</tbody></table></div>`
-  :empty("Nothing needs attention","Every budget is within limits, every occurrence has a leader and moderator, and there are no clashes.")}</article>`;
+ <div class="section-title"><h2>Needs attention</h2><span>Override anything that's acceptable; it comes back only if something about that item changes</span></div>
+ <article class="card">${active.length?`<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail</th><th class="r"></th></tr></thead><tbody>${active.map(row).join("")}</tbody></table></div>`
+  :empty("Nothing needs attention",overridden.length?"Everything outstanding has been overridden as acceptable.":"Every budget is fully allocated and within limits, every occurrence has a leader and moderator, and there are no clashes.")}</article>
+ ${overridden.length?`<div class="section-title"><h2>Overridden</h2><button class="btn small" data-act="toggleOverridden" aria-expanded="${!!sel.showOverridden}">${sel.showOverridden?"Hide":"Show"} ${overridden.length}</button></div>
+  ${sel.showOverridden?`<article class="card"><div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail and reason</th><th class="r"></th></tr></thead><tbody>${overridden.map(orow).join("")}</tbody></table></div></article>`:""}`:""}`;
 };
 
 /* ---------------------------- Staff details ---------------------------- */
@@ -1272,6 +1309,14 @@ const ACT={
  modalClose(){closeModal();},
  modalOk(){const r=modalCb?modalCb():undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
  toggleRow(el){const r=document.getElementById(el.dataset.row);if(!r)return;const open=r.hidden;r.hidden=!open;el.setAttribute("aria-expanded",open);el.textContent=open?"−":"+";},
+ override(el){
+  if(!isOwner())return;const i=ISSUE_INDEX[el.dataset.key];if(!i)return;
+  openModal({title:"Override this item?",ok:"Override",body:`<p><b>${esc(i.label)}</b></p><p>It moves to the Overridden list and stays there until something about it changes. Then it comes back here so you can look again.</p>
+   <label class="field">Reason (optional, shown to anyone viewing the overview)<input id="ovNote" maxlength="200" placeholder="e.g. Clash covered within the teaching team"></label>`,
+   onOk(){const y=Y();y.overrides=y.overrides||{};y.overrides[i.key]={fp:i.fp,by:nameOf(me.id),when:stamp(),note:mval("ovNote")};toast("Overridden",i.label);}});
+ },
+ unoverride(el){if(!isOwner())return;const i=ISSUE_INDEX[el.dataset.key];delete (Y().overrides||{})[el.dataset.key];toast("Override removed",i?i.label:"");render();},
+ toggleOverridden(){sel.showOverridden=!sel.showOverridden;render();},
  toggle(el){const b=el.closest(".module-block");b.classList.toggle("open");el.setAttribute("aria-expanded",b.classList.contains("open"));},
  staffMode(el){sel.staffMode=el.dataset.v;render();},
  ntMode(el){sel.ntMode=el.dataset.v;render();},
@@ -1516,7 +1561,8 @@ const ACT={
   openModal({title:"Publish all departments?",ok:"Publish all",body:`<p>${plural(Y().changes.length,"change")} across ${plural(gs.length,"group")} become visible to staff.</p>`,
    onOk(){gs.forEach(publishGroup);toast("Published",`${plural(gs.length,"group")} updated.`);}});},
  createYear(el){if(!isOwner())return;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
-  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{}});YEARS[selYear]=copy;
+  // overrides on the Overview are decisions about one year only, so a new year starts without them
+  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{}});YEARS[selYear]=copy;
   const [a]=selYear.split("-").map(Number),next=`${a+1}-${String(a+2).slice(2)}`;if(!YEAR_ORDER.includes(next))YEAR_ORDER.push(next);
   tab="overview";toast(`${selYear} created`,`Copied from ${src}. Changes here don't affect ${src}.`);render(true);}
 };
@@ -1815,7 +1861,7 @@ function buildFromLegacy(T,dbName){
  const teacher=byName.find(p=>modules.some(m=>m.occs.some(o=>cats.some(c=>c.tt&&p.id in o.slots[c.id].alloc))));
  const first=(byName[0]||{}).id;
  return {year,cats,groups,people,courses,ntCats,statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
-  yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{}},
+  yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{},overrides:{}},
   counts,warnings:Object.values(warns),defaults:{owner:first,head:deptLeader||first,pas:first,staff:(teacher||{}).id||first}};
 }
 

@@ -681,6 +681,23 @@ CREATE TABLE published_course_timetable (
 );
 
 
+-- Overview "needs attention" overrides. Each item the app flags (staff over
+-- target, over/under-allocated module, missing leader or moderator, timetable
+-- clash) has a stable issue_key, e.g. 'over:<staff>' or
+-- 'clash:<staff>|<activity>|<activity>', and a fingerprint of the numbers behind
+-- it (totals, budgets, session times). An override hides the item only while the
+-- current fingerprint still matches the saved one; any change to that item
+-- brings it back. Overrides belong to one academic year and aren't copied forward.
+CREATE TABLE issue_override (
+    academic_year_id    integer NOT NULL REFERENCES academic_year (id) ON DELETE CASCADE,
+    issue_key           text NOT NULL,
+    fingerprint         text NOT NULL,
+    note                text CHECK (char_length(note) <= 200),
+    overridden_by_user_id integer REFERENCES user_account (id) ON DELETE SET NULL,
+    overridden_at       timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (academic_year_id, issue_key)
+);
+
 -- =============================================================================
 -- 9. AUDIT TRAIL
 -- =============================================================================
