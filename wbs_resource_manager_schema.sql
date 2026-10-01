@@ -388,7 +388,7 @@ CREATE TABLE module (
     code                   text NOT NULL UNIQUE,
     title                  text NOT NULL,
     owning_staff_group_id  integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
-    academic_credits       smallint CHECK (academic_credits IN (10, 15, 20, 30, 45, 60, 120)),  -- not workload
+    academic_credits       smallint CHECK (academic_credits IN (0, 10, 15, 20, 30, 45, 60, 120)),  -- not workload; 0 = no credit weighting
     subject                text,                                    -- old module.subject
     level                  smallint CHECK (level BETWEEN 3 AND 8),
     is_active              boolean NOT NULL DEFAULT true,

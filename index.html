@@ -564,7 +564,7 @@ function suggestStaffId(f,s){
 }
 const skey=(m,o,c)=>`${m}|${o}|${c}`;
 // Module credit values allowed (academic credits, not workload).
-const MODULE_CREDITS=[10,15,20,30,45,60,120];
+const MODULE_CREDITS=[0,10,15,20,30,45,60,120]; // 0 = a module with no credit weighting
 const creditOptions=cur=>(MODULE_CREDITS.includes(+cur)||cur==null?[]:[{v:cur,l:`${cur} (not a standard value)`}]).concat(MODULE_CREDITS.map(v=>({v,l:String(v)})));
 // Occurrence letters are typed (e.g. A Business, C Computing, D Accounting & Finance, H Health): 1 to 3 letters or digits.
 const cleanOcc=v=>String(v||"").trim().toUpperCase();
@@ -719,7 +719,7 @@ const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.ma
    On editing screens, changes are held as "unsaved" until Save is pressed. The first change records a
    restore point; Discard returns to it. Leaving the screen with unsaved changes asks what to do. */
 const STAGED_TABS=["modules","alloc","sessions","leaders","nt","staff","courses"];
-let DRAFT=null,LAST_SAVED=null,SKIP_STAGE=false,PENDING_NAV=null;
+let DRAFT=null,LAST_SAVED=null,SKIP_STAGE=false,PENDING_NAV=null,COMMITTED=false;
 const stagedHere=()=>!!me&&me.role!=="staff"&&STAGED_TABS.includes(tab)&&canEdit(tab)&&!!Y();
 const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,YEAR_ORDER});
 function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=p.theme);
@@ -728,12 +728,14 @@ function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=
 function staged(fn){
  if(!stagedHere())return fn();
  const had=!!DRAFT,before=had?null:stateJSON();
+ COMMITTED=false;
  const r=fn();
- if(SKIP_STAGE){SKIP_STAGE=false;DRAFT=null;}
+ if(SKIP_STAGE||COMMITTED){SKIP_STAGE=false;COMMITTED=false;DRAFT=null;} // the action saved or reset: nothing is left unsaved
  else if(!had&&!DRAFT&&before!==stateJSON())DRAFT={before}; // only a change made by THIS action starts a new draft
  paintSaveBar();return r;
 }
-function commitDraft(quiet){const had=!!DRAFT;DRAFT=null;LAST_SAVED=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});paintSaveBar();if(!quiet)toast(had?"Changes saved":"Everything is already saved",had?`Saved at ${LAST_SAVED}.`:"");}
+function commitDraft(quiet){const had=!!DRAFT;DRAFT=null;COMMITTED=true; // a save inside an action: that action's changes are saved too
+ LAST_SAVED=new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit"});paintSaveBar();if(!quiet)toast(had?"Changes saved":"Everything is already saved",had?`Saved at ${LAST_SAVED}.`:"");}
 function saveBarHTML(){
  if(!stagedHere())return "";
  return `<div class="save-bar${DRAFT?" dirty":""}" id="saveBar" role="status" aria-live="polite">${saveBarInner()}</div>`;
@@ -1878,7 +1880,7 @@ function buildFromLegacy(T,dbName){
  const modules=[],modBy={};
  rows("module").forEach(r=>{const code=str(r.module_code);if(!code||modBy[code])return;
   const d=str(r.staff_group_id);if(d)ensureGroup(d);
-  const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of 10, 15, 20, 30, 45, 60 or 120");eg("credits",`${code}: ${cr}`);}
+  const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of 0, 10, 15, 20, 30, 45, 60 or 120");eg("credits",`${code}: ${cr}`);}
   const m={code,title:str(r.module_title)||code,dept:d,credit:cr,occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
   modules.push(m);modBy[code]=m;});
  const occBy={};
