@@ -717,7 +717,8 @@ function capacity(total,target){
 }
 const readOnlyNote=()=>notice("i","Read-only for your role",`You can view this screen but not change it.${me.role==="pas"?" Session times can be edited on Module sessions.":me.role==="head"?" Staff are allocated and credits apportioned on Module allocation.":""}`,"amber");
 const moduleOptions=()=>Y().modules.map(m=>({v:m.code,l:`${m.code}  ${m.title} (${m.dept})`}));
-const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${p.id}  ${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
+// Staff dropdowns show name and group only: staff IDs are kept out of dropdowns for data privacy.
+const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
 // Module picker: separate Module code and Module title boxes. Each can be typed, pasted or picked from its own
 // suggestion list; either one selects the module and fills in the other.
 function modulePicker(m){
@@ -792,7 +793,7 @@ function renderLogin(){
  if(IMPORT){ // real data: choose which real person to preview each role as
   const yd=YEARS[IMPORT.year],ppl=[...PEOPLE].sort(byStaffId);
   $("#roleCards").innerHTML=ROLE_CARDS.map(r=>`<div class="role-card pick"><span class="role-letter">${r.letter}</span><b>${r.title}</b><small>${esc(r.text)}</small>
-   <select id="who-${r.role}" aria-label="Person to preview as ${r.title}">${ppl.map(p=>opt(p.id,`${p.id}  ${p.surname}, ${p.forename} (${(yd.staff[p.id]||{}).group||"no group"})`,IMPORT.defaults[r.role])).join("")}</select>
+   <select id="who-${r.role}" aria-label="Person to preview as ${r.title}">${ppl.map(p=>opt(p.id,`${p.surname}, ${p.forename} (${(yd.staff[p.id]||{}).group||"no group"})`,IMPORT.defaults[r.role])).join("")}</select>
    <button class="btn primary small" data-act="signIn" data-role="${r.role}">Preview as ${r.title}</button></div>`).join("");
   $("#importStatus").textContent=`Loaded ${IMPORT.db}. Choose another file to replace it.`;
   return;
@@ -1180,11 +1181,11 @@ VIEWS.nt=()=>{
    const roles=yd.nt.filter(r=>r.cat===cat).sort(byTitle),tot=roles.reduce((a,r)=>a+r.people.reduce((x,p)=>x+p.cr,0),0);grand+=tot;
    const body=roles.map(r=>{const ps=[...r.people].sort((a,b)=>a.s.localeCompare(b.s,"en",{numeric:true})),rt=ps.reduce((a,p)=>a+p.cr,0);
     const roleCell=`<td rowspan="${Math.max(1,ps.length)}" class="role-cell"><span class="name-cell">${esc(r.title)}</span>${ps.length>1?`<span class="sub">${ps.length} people, ${rt} credits</span>`:""}</td>`;
-    if(!ps.length)return `<tr>${roleCell}<td colspan="5" class="muted">No one holds this role yet.</td></tr>`;
-    return ps.map((p,i)=>`<tr>${i===0?roleCell:""}<td class="name-cell">${esc(p.s)}</td><td>${esc(nameOf(p.s))}</td><td>${esc((SY(p.s)||{}).group||"—")}</td><td class="r"><b>${p.cr}</b></td><td>${esc(p.note)}</td></tr>`).join("");}).join("");
+    if(!ps.length)return `<tr>${roleCell}<td colspan="4" class="muted">No one holds this role yet.</td></tr>`;
+    return ps.map((p,i)=>`<tr>${i===0?roleCell:""}<td>${esc(nameOf(p.s))}</td><td>${esc((SY(p.s)||{}).group||"—")}</td><td class="r"><b>${p.cr}</b></td><td>${esc(p.note)}</td></tr>`).join("");}).join("");
    return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(cat)}</h2><span class="tag gray">${plural(roles.length,"role")}</span><span class="tag">${tot} credits</span></div></div>
-    ${roles.length?`<div class="table-wrap"><table class="nt-summary"><thead><tr><th style="width:30%">Role</th><th style="width:9%">Staff ID</th><th style="width:20%">Staff member</th><th style="width:9%">Group</th><th class="r" style="width:8%">Credits</th><th style="width:24%">Comments</th></tr></thead><tbody>${body}
-    <tr class="sum"><td colspan="4">Total for ${esc(cat)}</td><td class="r">${tot}</td><td></td></tr></tbody></table></div>`:empty("No roles of this type yet","Add one from Edit roles.")}</article>`;}).join("");
+    ${roles.length?`<div class="table-wrap"><table class="nt-summary"><thead><tr><th style="width:32%">Role</th><th style="width:24%">Staff member</th><th style="width:10%">Group</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th></tr></thead><tbody>${body}
+    <tr class="sum"><td colspan="3">Total for ${esc(cat)}</td><td class="r">${tot}</td><td></td></tr></tbody></table></div>`:empty("No roles of this type yet","Add one from Edit roles.")}</article>`;}).join("");
   return h+(cards||`<article class="card">${empty("No non-teaching roles yet","Add one from Edit roles.")}</article>`)
    +(sel.nt==="__all"&&cats.length>1?`<div class="bd-total"><span>All role types <b>${grand}</b> credits</span></div>`:"");
  }
@@ -1194,7 +1195,7 @@ VIEWS.nt=()=>{
  return h+roles.map(r=>`<article class="card"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
   <div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div></div>
   <div class="table-wrap"><table><thead><tr><th>Staff</th><th class="r">Credits</th><th>Comments</th><th></th></tr></thead><tbody>
-  ${r.people.map((p,i)=>`<tr><td><span class="name-cell">${esc(p.s)}  ${esc(nameOf(p.s))}</span><span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
+  ${r.people.map((p,i)=>`<tr><td><span class="name-cell">${esc(nameOf(p.s))}</span><span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
    <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"></td>
    <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"></td>
    <td class="r"><button class="icon-btn" data-act="ntRm" data-r="${r.id}" data-i="${i}" aria-label="Remove ${esc(nameOf(p.s))}">✕</button></td></tr>`).join("")||`<tr><td colspan="4" class="muted">No one holds this role yet.</td></tr>`}
@@ -1263,7 +1264,7 @@ VIEWS.tt=()=>{
  let h=pageHead("Timetables","Staff timetable",hg?"Any member of staff's timetable, grouped by department with yours first.":"Any member of staff's timetable and module involvement.");
  if(!sel.staff)return h+`<article class="card">${empty("No staff","")}</article>`;
  const items=staffItems(sel.staff),cl=clashPairs(items),s=SY(sel.staff),last=Y().lastPublished[s.group];
- h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>inGroup(p.id,g.id));return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,`${p.id}  ${nameOf(p.id)}`,sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
+ h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>inGroup(p.id,g.id));return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,nameOf(p.id),sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
  h+=notice("i","Live view",`This includes changes that haven't been published yet. ${esc(P(sel.staff).forename)} sees the version published ${last?`on ${last}`:"when their department is first published"}.`);
  if(cl.length)h+=notice("!",plural(cl.length,"timetable clash","timetable clashes"),cl.map(([a,b])=>`${DAY_NAME[a.day]} semester ${a.sem}: ${a.module}-${a.occ} ${fmt(a.start)}–${fmt(a.end)} overlaps ${b.module}-${b.occ} ${fmt(b.start)}–${fmt(b.end)}`).join(". ")+".","red");
  if(sel.ttView==="module")return h+breakdownHTML(staffBreakdown(sel.staff),null);
