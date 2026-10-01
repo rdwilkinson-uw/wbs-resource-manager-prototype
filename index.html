@@ -128,7 +128,9 @@ select.mini{min-height:26px;padding:2px 4px;font-size:11px;width:auto}
 input.pos-in{width:52px;text-align:center;margin-right:4px}
 .move-btn{color:var(--heading);width:26px;height:26px;margin-left:2px}
 input.occ-in{width:52px;text-align:center;font-weight:900;text-transform:uppercase}
-input.note-in{display:block;width:140px;margin:4px 0 0 auto;min-height:28px;font-size:11px;padding:4px 7px;text-align:left}
+input.note-in{display:block;width:100%;min-width:150px;font-size:12px;text-align:left}
+.alloc-table td{vertical-align:middle}
+.alloc-table .cmt-col{min-width:170px}
 .spacer{flex:1}
 .segmented{display:inline-flex;background:var(--filter);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
 .segmented button{border:0;background:transparent;padding:7px 11px;border-radius:6px;font-size:11px;font-weight:800;color:var(--muted)}
@@ -1097,19 +1099,19 @@ VIEWS.alloc=()=>{
   const st=catStatus(m,c);
   const ids=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[c.id].alloc)))];
   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.label)}</h2>${st.tag}</div><span class="muted" style="font-size:11px">${st.a} of ${st.t} credits</span></div>
-  <div class="table-wrap"><table><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th>`).join("")}<th></th></tr></thead><tbody>
+  <div class="table-wrap"><table class="alloc-table"><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th><th class="cmt-col">Comments</th>`).join("")}<th></th></tr></thead><tbody>
    ${ids.map(id=>`<tr${sel.back&&sel.back.staff===id?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(id))}</span><span class="sub">${esc(gName((SY(id)||{}).group))}</span></td>
     ${m.occs.map(o=>{const has=id in o.slots[c.id].alloc,note=(o.slots[c.id].notes||{})[id]||"";
-     return `<td class="r">${has||ed?`<input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:"—"}
-     ${has&&(ed||note)?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="50" data-chg="allocNote" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:""}</td>`;}).join("")}
+     return `<td class="r">${has||ed?`<input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:"—"}</td>
+     <td class="cmt-col">${has&&(ed||note)?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="50" data-chg="allocNote" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:""}</td>`;}).join("")}
     <td class="r">${ed?`<button class="icon-btn" data-act="rmAlloc" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)}">✕</button>`:""}</td></tr>`).join("")
-    ||`<tr><td colspan="${m.occs.length+2}" class="muted">No one allocated yet.</td></tr>`}
-   <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td>`).join("")}<td></td></tr>
-   <tr class="sum"><td>Unallocated</td>${m.occs.map(o=>{const d=o.slots[c.id].total-sumV(o.slots[c.id].alloc);return `<td class="r">${d<0?`<span class="tag red">${d}</span>`:d}</td>`;}).join("")}<td></td></tr>
+    ||`<tr><td colspan="${m.occs.length*2+2}" class="muted">No one allocated yet.</td></tr>`}
+   <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td><td></td>`).join("")}<td></td></tr>
+   <tr class="sum"><td>Unallocated</td>${m.occs.map(o=>{const d=o.slots[c.id].total-sumV(o.slots[c.id].alloc);return `<td class="r">${d<0?`<span class="tag red">${d}</span>`:d}</td><td></td>`;}).join("")}<td></td></tr>
   </tbody></table></div>
   ${ed?`<div class="card-foot"><span class="lbl">Add</span>${selectH(`id="add-${c.id}-s" aria-label="Staff to add to ${esc(c.label)}"`,[{v:"",l:"Choose staff…"}].concat(staffOptions(everyone)),"")}
    ${selectH(`id="add-${c.id}-o" aria-label="Occurrence"`,m.occs.map(o=>({v:o.occ,l:"Occ "+o.occ})),m.occs[0].occ)}
-   <input id="add-${c.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><button class="btn small primary" data-act="addAlloc" data-cat="${c.id}">Add</button></div>`:""}
+   <input id="add-${c.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><input id="add-${c.id}-c" maxlength="50" placeholder="Comment (optional)" aria-label="Comment" style="width:190px"><button class="btn small primary" data-act="addAlloc" data-cat="${c.id}">Add</button></div>`:""}
   </article>`;}).join("");
  const all=shown.map(c=>catStatus(m,c)),T=all.reduce((a,s)=>a+s.t,0),A=all.reduce((a,s)=>a+s.a,0);
  const ledger=`<aside class="card ledger"><div class="eyebrow">${m.code}</div><h3>Allocated of budget</h3><div class="total">${A} <span style="font-size:18px;color:var(--muted)">/ ${T}</span></div>
@@ -1755,6 +1757,7 @@ const ACT={
   if(!guard("alloc"))return;const c=el.dataset.cat,id=mval(`add-${c}-s`),occ=mval(`add-${c}-o`),n=int(mval(`add-${c}-n`));
   if(!id)return toast("Choose a member of staff","",true);
   const m=M(sel.module),o=m.occs.find(x=>x.occ===occ);o.slots[c].alloc[id]=(o.slots[c].alloc[id]||0)+n;
+  const cm=mval(`add-${c}-c`).slice(0,50);if(cm){o.slots[c].notes=o.slots[c].notes||{};o.slots[c].notes[id]=cm;}
   touch(groupsOf([id],[m.dept]),`${nameOf(id)}: ${o.slots[c].alloc[id]} ${CAT(c).label} credits on ${m.code} occ ${occ}`);render();
  },
  rmAlloc(el){
