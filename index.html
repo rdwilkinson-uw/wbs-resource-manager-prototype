@@ -1428,25 +1428,84 @@ VIEWS.reports=()=>{
 };
 
 /* ---------------------------- Ad hoc queries ---------------------------- */
+/* ---------------------------- Ad hoc queries ----------------------------
+   Saved, read-only reports replacing the old free-text SQL. Parameters are plain values that are
+   matched in code (in the real system: bound parameters), never run as SQL. No query can change data. */
+const nameAndGroup=id=>[nameOf(id),(SY(id)||{}).group||"—"];
+const semestersOf=(m,o)=>CATS.filter(k=>k.tt&&(o.slots[k.id].total||(Y().sessions[skey(m.code,o.occ,k.id)]||[]).length)).map(k=>k.label).join(", ");
+const ntHolders=filter=>{const out=[];NT_CATS.forEach(cat=>Y().nt.filter(r=>r.cat===cat&&filter(r)).sort((a,b)=>a.title.localeCompare(b.title)).forEach(r=>
+ r.people.slice().sort((a,b)=>byStaffId({id:a.s},{id:b.s})).forEach(p=>out.push([r.title,...nameAndGroup(p.s),p.cr,p.note||""]))));return out;};
 const QUERIES=[
- {id:"totals",name:"Credit totals",desc:"Every non-sessional member of staff: total credits against target.",
-  run:()=>({cols:["Staff","Group","Total","Target","Remaining"],rows:inYear().filter(p=>SY(p.id).status!=="HPL").map(p=>{const t=breakdown(p.id).total,s=SY(p.id);return [nameOf(p.id),s.group,t,s.target,s.target-t];})})},
- {id:"hpl",name:"Sessional (HPL) staff",desc:"All HPL staff this year and the credits they hold.",
-  run:()=>({cols:["Staff","Group","Credits"],rows:inYear().filter(p=>SY(p.id).status==="HPL").map(p=>[nameOf(p.id),gName(SY(p.id).group),breakdown(p.id).total])})},
- {id:"noleader",name:"Occurrences missing a leader or moderator",desc:"Occurrences with nobody allocated to Module Leader or Moderation.",
-  run:()=>({cols:["Module","Occ.","Missing"],rows:Y().modules.flatMap(m=>m.occs.map(o=>[m.code,o.occ,[["ML","Leader"],["MO","Moderator"]].filter(([k])=>!Object.keys(o.slots[k].alloc).length).map(x=>x[1]).join(", ")]).filter(r=>r[2]))})},
- {id:"clash",name:"Timetable clashes",desc:"Staff with overlapping sessions in the same semester.",
-  run:()=>({cols:["Staff","Semester","Day","Sessions"],rows:inYear().flatMap(p=>clashPairs(staffItems(p.id)).map(([a,b])=>[nameOf(p.id),a.sem,DAY_NAME[a.day],`${a.module}-${a.occ} ${fmt(a.start)}–${fmt(a.end)} and ${b.module}-${b.occ} ${fmt(b.start)}–${fmt(b.end)}`]))})},
- {id:"delete",name:"Delete all sessions (old annual rollover)",desc:"The old system's saved query that wiped every session with no undo.",blocked:true}];
+ {id:"01",name:"Module details",desc:"Every module occurrence with its leader, department, credits and courses. Occurrences without a leader are included.",
+  run:()=>({cols:["Module","Title","Occ.","Department","Credits","Leader","Courses"],num:[4],
+   rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.map(o=>[m.code,m.title,o.occ,m.dept,m.credit,Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"(none)",o.courses.map(c=>(C(c)||{title:c}).title).join("; ")]))})},
+ {id:"02",name:"Modules by code",desc:"Modules whose code starts with what you type, for example BMGT42 (replaces the old \"New EMBA\" query).",
+  params:[{id:"prefix",label:"Code starts with",type:"text",def:"BMGT42",check:v=>/^[A-Za-z0-9]{1,8}$/.test(v)||"Use 1 to 8 letters or numbers, for example BMGT42."}],
+  run:p=>({cols:["Module","Title","Credits","Department","Occurrences"],num:[2],
+   rows:Y().modules.filter(m=>m.code.toUpperCase().startsWith(p.prefix.toUpperCase())).sort((a,b)=>a.code.localeCompare(b.code)).map(m=>[m.code,m.title,m.credit,m.dept,m.occs.map(o=>o.occ).join(", ")])})},
+ {id:"03",name:"Sessional (HPL) staff",desc:"Sessional staff this year, with the credits they hold and what they teach.",
+  run:()=>({cols:["Staff","Main group","Credits","Teaching"],num:[2],
+   rows:inYear().filter(x=>SY(x.id).status==="HPL").map(x=>[...nameAndGroup(x.id),breakdown(x.id).total,
+    Y().modules.flatMap(m=>m.occs.filter(o=>CATS.some(k=>x.id in o.slots[k.id].alloc)).map(o=>`${m.code}-${o.occ}`)).join(", ")])})},
+ {id:"04",name:"Role holders by role type",desc:"Everyone holding a non-teaching role of the type you choose (replaces the old \"RASA\" query, which used fixed type codes).",
+  params:[{id:"type",label:"Role type",type:"select",opts:()=>NT_CATS,def:()=>{const used=NT_CATS.filter(c=>Y().nt.some(r=>r.cat===c&&r.people.length));return used.find(c=>/research/i.test(c))||used[0]||NT_CATS[0];}}],
+  run:p=>({cols:["Role","Staff","Main group","Credits","Comments"],num:[3],rows:ntHolders(r=>r.cat===p.type)})},
+ {id:"05",name:"Non-teaching role totals",desc:"Each non-teaching role with its role type, number of holders and total credits, including roles nobody holds yet.",
+  params:[{id:"which",label:"Show",type:"select",opts:()=>["All role types","Management only","Non-management only"],def:"All role types"}],
+  run:p=>{const keep=c=>p.which==="Management only"?isMgmtType(c):p.which==="Non-management only"?!isMgmtType(c):true;
+   return {cols:["Role type","Role","Holders","Total credits"],num:[2,3],rows:NT_CATS.filter(keep).flatMap(cat=>Y().nt.filter(r=>r.cat===cat).sort((a,b)=>a.title.localeCompare(b.title)).map(r=>[cat,r.title,r.people.length,r.people.reduce((a,x)=>a+x.cr,0)]))};}},
+ {id:"06",name:"Leaders and moderators",desc:"Every occurrence with the semesters it's taught in, its leader and its moderator (replaces the old queries 06 and 07). Gaps are shown, not dropped.",
+  run:()=>({cols:["Module","Title","Occ.","Credits","Taught in","Leader","Moderator"],num:[3],
+   rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.map(o=>[m.code,m.title,o.occ,m.credit,semestersOf(m,o)||"(not timetabled)",
+    Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"(none)",Object.keys(o.slots.MO.alloc).map(nameOf).join(", ")||"(none)"]))})},
+ {id:"08",name:"Data checks",desc:"Things worth tidying: roles nobody holds, staff without an email, occurrences with no budget, modules with no occurrence, courses with no modules (replaces \"Non w/o acty\").",
+  run:()=>{const r=[];
+   Y().nt.forEach(x=>{if(!x.people.length)r.push(["Role nobody holds",x.title,x.cat||"(no role type)"]);if(!NT_CATS.includes(x.cat))r.push(["Role without a role type",x.title,""]);});
+   inYear().forEach(x=>{if(!x.email)r.push(["Staff without an email (can't sign in)",nameOf(x.id),(SY(x.id)||{}).group||""]);});
+   Y().modules.forEach(m=>{if(!m.occs.length)r.push(["Module with no occurrence",`${m.code} ${m.title}`,m.dept]);
+    m.occs.forEach(o=>{if(!CATS.some(k=>o.slots[k.id].total))r.push(["Occurrence with no budget",`${m.code}-${o.occ} ${m.title}`,m.dept]);});});
+   COURSES.forEach(c=>{if(!Y().modules.some(m=>m.occs.some(o=>o.courses.includes(c.code))))r.push(["Course with no modules",c.title,c.dept]);});
+   return {cols:["Check","Item","Detail"],rows:r};}},
+ {id:"09",name:"Role holders by title",desc:"Everyone in non-teaching roles whose title contains what you type, for example Personal Academic Tutor (replaces \"List of PAT\").",
+  params:[{id:"text",label:"Role title contains",type:"text",def:"Personal Academic Tutor",check:v=>v.trim().length>0&&v.length<=60||"Type 1 to 60 characters."}],
+  run:p=>({cols:["Role","Staff","Main group","Credits","Comments"],num:[3],rows:ntHolders(r=>r.title.toLowerCase().includes(p.text.trim().toLowerCase()))})},
+ {id:"10",name:"Non-teaching roles with staff",desc:"Every non-teaching role with its role type, holders, credits and comments, in role type order.",
+  run:()=>({cols:["Role type","Role","Staff","Main group","Credits","Comments"],num:[4],rows:NT_CATS.flatMap(cat=>ntHolders(r=>r.cat===cat).map(x=>[cat,...x]))})},
+ {id:"11",name:"Credit totals",desc:"Each member of staff's total credits against their target. Unlike the old query, people with no allocations yet are included.",
+  params:[{id:"hpl",label:"Sessional (HPL) staff",type:"select",opts:()=>["Leave out","Include"],def:"Leave out"}],
+  run:p=>({cols:["Staff","Main group","Contract","Target","Total","Remaining"],num:[3,4,5],
+   rows:inYear().filter(x=>p.hpl==="Include"||SY(x.id).status!=="HPL").map(x=>{const s=SY(x.id),t=breakdown(x.id).total;return [...nameAndGroup(x.id),s.status,s.target,t,s.target-t];})})},
+ {id:"12",name:"Tutors by module",desc:"Everyone teaching on each module occurrence, with their credits in each category.",
+  params:[{id:"dept",label:"Owning department",type:"select",opts:()=>["All departments"].concat(GROUPS.filter(g=>g.dept).map(g=>g.id)),def:"All departments"}],
+  run:p=>({cols:["Module","Title","Occ.","Staff","Credits"],
+   rows:Y().modules.filter(m=>p.dept==="All departments"||m.dept===p.dept).sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.flatMap(o=>
+    staffOnOcc(o).sort((a,b)=>a.localeCompare(b)).map(id=>[m.code,m.title,o.occ,nameOf(id),CATS.filter(k=>id in o.slots[k.id].alloc).map(k=>`${k.label} ${o.slots[k.id].alloc[id]}`).join(", ")]))) })},
+];
+const qParams=q=>{sel.qp=sel.qp||{};const v=sel.qp[q.id]=sel.qp[q.id]||{};(q.params||[]).forEach(p=>{if(v[p.id]==null)v[p.id]=typeof p.def==="function"?p.def():p.def;});return v;};
+// CSV for the user's own computer. Cells that could start a spreadsheet formula are made safe.
+function toCSV(r){const cell=v=>{let t=String(v??"");if(/^[=+\-@\t\r]/.test(t))t="'"+t;return /[",\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t;};
+ return [r.cols].concat(r.rows).map(row=>row.map(cell).join(",")).join("\r\n");}
 VIEWS.adhoc=()=>{
- let h=pageHead("Analysis","Ad hoc queries","Saved, read-only queries. Nothing here can change data, and there's no free-text SQL.");
+ let h=pageHead("Analysis","Ad hoc queries","Saved, read-only queries. They can't change data, nobody can type SQL, and exports go to your own computer.");
  const q=QUERIES.find(x=>x.id===sel.query);
- if(q&&!q.blocked){const r=q.run();
-  return h+`<article class="card"><div class="card-head"><div class="left"><button class="btn small" data-act="query" data-v="">Back to queries</button><h2>${esc(q.name)}</h2></div><span class="tag gray">${plural(r.rows.length,"row")}</span></div>
-  ${r.rows.length?`<div class="table-wrap"><table><thead><tr>${r.cols.map(c=>`<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${r.rows.map(row=>`<tr>${row.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:empty("No results","Nothing matches this query right now.")}</article>`;}
- return h+`<article class="card"><div class="table-wrap"><table><thead><tr><th>Query</th><th>What it returns</th><th class="r"></th></tr></thead><tbody>
-  ${QUERIES.map(x=>`<tr><td class="name-cell">${esc(x.name)}</td><td>${esc(x.desc)}${x.blocked?`<span class="sub">Removed: a new year is now created by copying the current one, so sessions never need wiping.</span>`:""}</td>
-   <td class="r">${x.blocked?`<span class="tag red">Removed</span>`:`<button class="btn small primary" data-act="query" data-v="${x.id}">Run</button>`}</td></tr>`).join("")}</tbody></table></div></article>`;
+ if(q){const pv=qParams(q);let err="";
+  (q.params||[]).forEach(p=>{if(p.check){const ok=p.check(String(pv[p.id]));if(ok!==true)err=ok;}});
+  const r=err?null:q.run(pv);
+  const form=(q.params||[]).map(p=>`<label class="field${p.type==="text"?" grow":""}">${esc(p.label)}${p.type==="select"
+    ?selectH(`data-chg="qParam" data-q="${q.id}" data-p="${p.id}"`,p.opts().map(o=>({v:o,l:o})),pv[p.id])
+    :`<input value="${esc(pv[p.id])}" maxlength="60" data-chg="qParam" data-q="${q.id}" data-p="${p.id}" autocomplete="off">`}</label>`).join("");
+  return h+`<article class="card"><div class="card-head"><div class="left"><button class="btn small" data-act="query" data-v="">← All queries</button><h2>${q.id} · ${esc(q.name)}</h2>${r?`<span class="tag gray">${plural(r.rows.length,"row")}</span>`:""}</div>
+   ${r&&r.rows.length?`<button class="btn small primary" data-act="exportQuery">Export CSV</button>`:""}</div>
+   <p class="muted" style="margin:0;padding:12px 18px 0;font-size:12px">${esc(q.desc)}</p>
+   ${form?`<div class="filterbar" style="margin:12px 18px 0">${form}</div>`:""}
+   ${err?notice("!","Check the value",esc(err),"amber").replace('class="notice amber"','class="notice amber" style="margin:12px 18px"')
+    :r.rows.length?`<div class="table-wrap" style="margin-top:12px"><table><thead><tr>${r.cols.map((c,i)=>`<th${(r.num||[]).includes(i)?' class="r"':""}>${esc(c)}</th>`).join("")}</tr></thead><tbody>
+     ${r.rows.map(row=>`<tr>${row.map((v,i)=>`<td${(r.num||[]).includes(i)?' class="r"':""}>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+    :empty("No results","Nothing matches right now.")}</article>`;}
+ return h+`<article class="card"><div class="table-wrap"><table><thead><tr><th style="width:60px">No.</th><th style="width:26%">Query</th><th>What it returns</th><th class="r"></th></tr></thead><tbody>
+  ${QUERIES.map(x=>`<tr><td class="name-cell">${x.id}</td><td class="name-cell">${esc(x.name)}</td><td>${esc(x.desc)}${x.params?`<span class="sub">You choose: ${x.params.map(p=>p.label.toLowerCase()).join(", ")}</span>`:""}</td>
+   <td class="r"><button class="btn small primary" data-act="query" data-v="${x.id}">Run</button></td></tr>`).join("")}</tbody></table></div></article>
+  <p class="hint">Numbers match the old system's queries. 07 (Moderators) is now part of 06, and 99 (delete all sessions) has been removed: a new year is created by copying the current one, so sessions never need wiping.</p>`;
 };
 
 /* ------------------------------- Publish ------------------------------- */
@@ -1536,7 +1595,12 @@ const ACT={
  myView(el){sel.myView=el.dataset.v;render();},
  ctView(el){sel.ctView=el.dataset.v;render();},
  report(el){sel.report=el.dataset.v;render();},
- query(el){sel.query=el.dataset.v||null;render();},
+ query(el){sel.query=el.dataset.v||null;render(true);},
+ exportQuery(){const q=QUERIES.find(x=>x.id===sel.query);if(!q)return;const r=q.run(qParams(q)),csv=toCSV(r);
+  openModal({title:`Export: ${q.id} ${q.name}`,ok:"Done",body:`<p>${plural(r.rows.length,"row")} as CSV. In the live system this downloads straight to your computer; nothing is saved on the server. Here, copy it below (it's already selected) or try the download.</p>
+   <textarea id="csvOut" readonly style="width:100%;height:220px;font:12px/1.4 monospace">${esc(csv)}</textarea>
+   <p style="margin-top:10px"><a class="btn small" id="csvDl" download="${esc(`query-${q.id}-${q.name.toLowerCase().replace(/[^a-z0-9]+/g,"-")}.csv`)}" href="data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+csv)}">Download CSV</a></p>`,onOk(){}});
+  $("#modalOk").previousElementSibling.style.display="none";const t=$("#csvOut");t.focus();t.select();},
 
  /* ---- staff ---- */
  newStaff(){
@@ -1813,6 +1877,7 @@ const CHG={
  selCourse(el){sel.course=el.value;sel.ctYear="";render();},
  coursePos(el){if(!isOwner())return render();const i=COURSES.findIndex(c=>c.code===el.dataset.code);if(i<0)return render();
   const n=Math.min(COURSES.length,Math.max(1,int(el.value)||i+1))-1;const [c]=COURSES.splice(i,1);COURSES.splice(n,0,c);sel.course=c.code;render();},
+ qParam(el){const q=QUERIES.find(x=>x.id===el.dataset.q);qParams(q)[el.dataset.p]=el.value;render();},
  selCtYear(el){sel.ctYear=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
