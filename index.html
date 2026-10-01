@@ -123,6 +123,8 @@ select:focus,input:focus,textarea:focus{border-color:var(--cyan);box-shadow:0 0 
 select:disabled,input:disabled{opacity:.7;cursor:not-allowed}
 input.num{width:76px;text-align:right}
 input.num.sm{width:64px}
+select.mini{min-height:26px;padding:2px 4px;font-size:11px;width:auto}
+.course-link{display:inline-flex;align-items:center;gap:4px;margin:2px 6px 2px 0}
 input.occ-in{width:52px;text-align:center;font-weight:900;text-transform:uppercase}
 input.note-in{display:block;width:140px;margin:4px 0 0 auto;min-height:28px;font-size:11px;padding:4px 7px;text-align:left}
 .spacer{flex:1}
@@ -257,6 +259,10 @@ tr.selected td{background:var(--t-cyan)}
 .person-card.me{border-color:var(--cyan)}
 
 .bd-card+.bd-card{margin-top:14px}
+.course-banner{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:4px 0 14px}
+.course-banner h2{font-size:22px}
+.year-card+.year-card{margin-top:14px}
+.lead-table{table-layout:fixed;min-width:760px}
 .chips{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:4px;font-size:11px;color:var(--muted)}
 tr.addl-row td{background:var(--t-lime)}
 tr.addl-row:hover td{background:var(--t-lime)}
@@ -712,6 +718,27 @@ function capacity(total,target){
 const readOnlyNote=()=>notice("i","Read-only for your role",`You can view this screen but not change it.${me.role==="pas"?" Session times can be edited on Module sessions.":me.role==="head"?" Staff are allocated and credits apportioned on Module allocation.":""}`,"amber");
 const moduleOptions=()=>Y().modules.map(m=>({v:m.code,l:`${m.code}  ${m.title} (${m.dept})`}));
 const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${p.id}  ${nameOf(p.id)} (${(SY(p.id)||{}).group||"—"})`}));
+// Module picker: separate Module code and Module title boxes. Each can be typed, pasted or picked from its own
+// suggestion list; either one selects the module and fills in the other.
+function modulePicker(m){
+ const mods=[...Y().modules].sort((a,b)=>a.code.localeCompare(b.code));
+ return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input list="modCodes" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
+ <label class="field grow">Module title<input list="modTitles" value="${esc(m.title)}" data-chg="pickModule" data-by="title" autocomplete="off" aria-label="Module title: type, paste or choose"></label>
+ <span class="tag blue" style="align-self:center;margin-bottom:8px">${esc(m.dept)}</span>
+ <datalist id="modCodes">${mods.map(x=>`<option value="${esc(x.code)}" label="${esc(x.title)}">`).join("")}</datalist>
+ <datalist id="modTitles">${[...mods].sort((a,b)=>a.title.localeCompare(b.title)).map(x=>`<option value="${esc(x.title)}" label="${esc(x.code)}">`).join("")}</datalist>`;
+}
+// Find a module from whatever was typed or pasted into either box: a code (also "CODE Title"), or a title.
+function findModule(v){
+ const t=String(v||"").trim();if(!t)return null;const mods=Y().modules,lc=t.toLowerCase(),tok=t.split(/\s+/)[0].toUpperCase();
+ return mods.find(m=>m.code.toUpperCase()===t.toUpperCase())||mods.find(m=>m.code.toUpperCase()===tok)||mods.find(m=>m.title.toLowerCase()===lc)
+  ||(()=>{const hits=mods.filter(m=>m.title.toLowerCase().includes(lc)||m.code.toLowerCase().startsWith(lc));return hits.length===1?hits[0]:null;})();
+}
+// Year of study for a module on a course. Worked out from the module code's level digit (COMP1457 → Year 1,
+// COMP2421 → Year 2; for postgraduate courses level 7, e.g. COMP4030, is Year 1) unless the Owner has set it.
+function levelDigit(code){const m=/^[A-Za-z]+\s*(\d)/.exec(String(code||""));return m?+m[1]:null;}
+function defaultYear(modCode,course){const d=levelDigit(modCode);if(d==null||!course)return null;const y=course.level==="PG"?d-3:d;return y>=1&&y<=course.years?y:null;}
+function linkYear(o,modCode,course){const set=(o.courseYears||{})[course.code];return set!=null?set:defaultYear(modCode,course);}
 function ensureModule(){if(!M(sel.module))sel.module=(Y().modules[0]||{}).code||"";return M(sel.module);}
 const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.map(([k,l])=>`<button class="${cur===k?"active":""}" data-act="${act}" data-v="${k}" aria-pressed="${cur===k}">${l}</button>`).join("")}</div>`;
 
@@ -799,7 +826,15 @@ function yearBanner(){
  if(!yd||yd.status!=="planning"||me.role==="staff")return imp;
  return imp+notice("!","Next academic year",`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||"the current year"}.`,"amber");
 }
+// A redraw can make the focused box lose focus, which fires its change event; that must not start a second
+// redraw while the first is still replacing the page (the outer redraw already shows the latest state).
+let RENDERING=false;
 function render(anim=false){
+ if(RENDERING)return;
+ RENDERING=true;
+ try{renderNow(anim);}finally{RENDERING=false;}
+}
+function renderNow(anim){
  const main=$("#main"),scroll=main.scrollTop;
  const a=document.activeElement,fk=a&&main.contains(a)?[a.tagName,...Object.entries(a.dataset).map(e=>e.join("="))].join("|"):null;
  renderTop();
@@ -973,7 +1008,7 @@ VIEWS.modules=()=>{
  let h=pageHead("Curriculum","Module details","Module records, their occurrences, linked courses and the credit budget for each category.",
   `<button class="btn" data-act="timeSlots">Time slots</button><button class="btn primary" data-act="newModule">New module</button>`);
  if(!m)return h+`<article class="card">${empty("No modules yet","Create the first one with New module.")}</article>`;
- h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label>
+ h+=`<div class="filterbar">${modulePicker(m)}
   <button class="btn" data-act="goto" data-tab="alloc">Allocate staff</button><button class="btn" data-act="goto" data-tab="sessions">Edit sessions</button></div>
  <article class="card"><div class="card-head"><div class="left"><h2>${m.code} ${esc(m.title)}</h2><span class="tag blue">${esc(gName(m.dept))}</span></div>
   <button class="btn danger small" data-act="deleteModule">Delete module</button></div>
@@ -990,7 +1025,9 @@ VIEWS.modules=()=>{
  ${m.occs.length?`<div class="table-wrap"><table><thead><tr><th>Occ.</th><th class="r">Groups</th><th>Courses</th><th>Leader</th><th>Moderator</th>${CATS.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th></th></tr></thead><tbody>
   ${m.occs.map(o=>`<tr><td><input class="occ-in" value="${esc(o.occ)}" maxlength="3" data-chg="occLetter" data-occ="${esc(o.occ)}" aria-label="Occurrence letter (currently ${esc(o.occ)})"></td>
    <td class="r"><input class="num sm" type="number" min="1" value="${o.groups}" data-chg="occGroups" data-occ="${o.occ}" aria-label="Groups for occurrence ${o.occ}"></td>
-   <td style="min-width:190px">${o.courses.map(c=>`<span class="tag plain" style="margin:2px">${esc(c)}<button class="x" data-act="rmCourse" data-occ="${o.occ}" data-course="${esc(c)}" aria-label="Unlink ${esc(c)}">×</button></span>`).join("")}
+   <td style="min-width:230px">${o.courses.map(c=>{const co=C(c),y=co?linkYear(o,m.code,co):null;
+     return `<span class="course-link"><span class="tag plain">${esc(c)}<button class="x" data-act="rmCourse" data-occ="${o.occ}" data-course="${esc(c)}" aria-label="Unlink ${esc(c)}">×</button></span>
+     ${co?selectH(`data-chg="linkYear" data-occ="${o.occ}" data-course="${esc(c)}" aria-label="Year of ${esc(co.title)}" class="mini"`,(y==null?[{v:"",l:"Year?"}]:[]).concat(Array.from({length:co.years},(_,i)=>({v:i+1,l:"Year "+(i+1)}))),y==null?"":y):""}</span>`;}).join("")}
     ${COURSES.some(c=>!o.courses.includes(c.code))?selectH(`data-chg="addCourse" data-occ="${o.occ}" aria-label="Link a course" style="min-height:28px;padding:3px 6px;font-size:11px;margin-top:3px;width:150px"`,[{v:"",l:"Link course…"}].concat(COURSES.filter(c=>!o.courses.includes(c.code)).map(c=>({v:c.code,l:c.code+" "+c.title}))),""):""}</td>
    <td>${namesOrNone(o,"ML","None")}</td><td>${namesOrNone(o,"MO","None")}</td>
    ${CATS.map(c=>`<td class="r"><input class="num sm" type="number" min="0" value="${o.slots[c.id].total}" data-chg="budget" data-occ="${o.occ}" data-cat="${c.id}" aria-label="${esc(c.label)} budget, occurrence ${o.occ}"></td>`).join("")}
@@ -1014,7 +1051,7 @@ VIEWS.alloc=()=>{
  let h=pageHead("Workload","Module allocation",me.role==="head"?"Every module is listed, whichever department owns it, because staff from any department can teach on it. Budgets are set by the Owner.":"Divide each category's budget between named staff, per occurrence.",
   (isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+`<button class="btn" data-act="goto" data-tab="sessions">${canEdit("sessions")?"Edit sessions":"View sessions"}</button>`);
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
- h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label>
+ h+=`<div class="filterbar">${modulePicker(m)}
   <span class="muted" style="font-size:12px;align-self:center">Leader: <b>${m.occs.length?m.occs.map(o=>`${o.occ}: ${Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"none"}`).join("; "):"—"}</b></span></div>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences",isOwner()?"Add one on Module details before allocating credits.":"The Owner needs to add an occurrence first.")}</article>`;
  const everyone=inYear();
@@ -1054,7 +1091,7 @@ VIEWS.sessions=()=>{
   (isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit module</button>`:"")+(ROLE_TABS[me.role].includes("alloc")?`<button class="btn" data-act="goto" data-tab="alloc">Allocate staff</button>`:""));
  if(!ed)h+=readOnlyNote();
  if(!m)return h+`<article class="card">${empty("No modules","")}</article>`;
- h+=`<div class="filterbar"><label class="field grow">Module${selectH('data-chg="selModule"',moduleOptions(),m.code)}</label></div>`;
+ h+=`<div class="filterbar">${modulePicker(m)}</div>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","Sessions are added per occurrence once one exists.")}</article>`;
  const dl=`<datalist id="dayList">${DAYS.map(d=>`<option value="${DAY_NAME[d]}">`).join("")}</datalist>`;
  if(ed)h+=`<p class="hint" style="margin:-4px 0 14px">Type or paste days and times. Times like 9, 9:15, 0915 or 2pm all work, and an hour on its own becomes quarter past (9 → 09:15). You can paste a whole line such as <b>Mon 09:15-12:15</b> into the Day box.</p>`;
@@ -1077,32 +1114,41 @@ VIEWS.sessions=()=>{
 /* ---------------------------- Module leaders ---------------------------- */
 VIEWS.leaders=()=>{
  const yd=Y(),ed=canEdit("leaders");
- // Choose a course, then see every module occurrence on it with its leader and moderator.
+ // Choose a course (listed by name), then see every module on it, laid out Year 1, Year 2, Year 3…
  const unlinked=[];yd.modules.forEach(m=>m.occs.forEach(o=>{if(!o.courses.length)unlinked.push({m,o});}));
- const courseOpts=[...COURSES].sort((a,b)=>a.code.localeCompare(b.code)).map(c=>({v:c.code,l:`${c.code}  ${c.title}`}))
+ const courseOpts=[...COURSES].sort((a,b)=>a.title.localeCompare(b.title)).map(c=>({v:c.code,l:c.title}))
   .concat([{v:"__all",l:"All modules"}]).concat(unlinked.length?[{v:"__none",l:`Modules not linked to a course (${unlinked.length})`}]:[]);
  if(!courseOpts.some(o=>o.v===sel.leadCourse))sel.leadCourse=(courseOpts[0]||{}).v;
- let h=pageHead("Curriculum","Module leaders and moderators","Choose a course to see every module on it, with its leader and moderator.");
+ let h=pageHead("Curriculum","Module leaders and moderators","Choose a course to see every module on it, year by year, with its leader and moderator.");
  if(!ed)h+=readOnlyNote();
  h+=`<div class="filterbar"><label class="field grow">Course${selectH('data-chg="selLeadCourse"',courseOpts,sel.leadCourse)}</label></div>`;
- const rows=[];
+ const c=C(sel.leadCourse),rows=[];
  yd.modules.forEach(m=>m.occs.forEach(o=>{
-  if(sel.leadCourse==="__all"||(sel.leadCourse==="__none"?!o.courses.length:o.courses.includes(sel.leadCourse)))rows.push({m,o});}));
+  if(sel.leadCourse==="__all"||(sel.leadCourse==="__none"?!o.courses.length:o.courses.includes(sel.leadCourse)))rows.push({m,o,y:c?linkYear(o,m.code,c):null});}));
  rows.sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));
- const c=C(sel.leadCourse),title=c?`${c.code} ${c.title}`:sel.leadCourse==="__all"?"All modules":"Modules not linked to a course";
- if(!rows.length)return h+`<article class="card"><div class="card-head"><h2>${esc(title)}</h2></div>${empty("No modules on this course yet",isOwner()?"Link module occurrences to it on Module details.":"")}</article>`;
- const noL=rows.filter(r=>!Object.keys(r.o.slots.ML.alloc).length).length,noM=rows.filter(r=>!Object.keys(r.o.slots.MO.alloc).length).length;
+ const title=c?c.title:sel.leadCourse==="__all"?"All modules":"Modules not linked to a course";
  const opts=[{v:"",l:"None"}].concat(staffOptions());
  const cell=(m,o,k)=>{const ids=Object.keys(o.slots[k].alloc);
   return `${selectH(`data-chg="leader" data-module="${esc(m.code)}" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Module leader":"Moderator"}, ${esc(m.code)} occ ${o.occ}" style="width:100%;max-width:280px"`,opts,ids[0]||"",!ed)}${ids.length>1?` <span class="tag blue">+${ids.length-1} shared</span>`:""}
    <span class="sub">${o.slots[k].total} credits budgeted</span>`;};
- return h+`<article class="card"><div class="card-head"><div class="left"><h2>${esc(title)}</h2><span class="tag gray">${plural(rows.length,"module occurrence")}</span>
-   ${noL?`<span class="tag amber">${noL} without a leader</span>`:""}${noM?`<span class="tag amber">${noM} without a moderator</span>`:""}${!noL&&!noM?`<span class="tag">All led and moderated</span>`:""}</div></div>
-  <div class="table-wrap"><table><thead><tr><th style="width:34%">Module</th><th>Occ.</th><th style="width:28%">Module leader</th><th style="width:28%">Moderator</th></tr></thead><tbody>
-  ${rows.map(({m,o})=>`<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}<span class="sub">${esc(gName(m.dept))}${sel.leadCourse==="__all"&&o.courses.length?" · "+esc(o.courses.join(", ")):""}</span></td>
-   <td><span class="occ">${esc(o.occ)}</span></td><td>${cell(m,o,"ML")}</td><td>${cell(m,o,"MO")}</td></tr>`).join("")}
- </tbody></table></div></article>
- <p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits. To share the credits between people, adjust them on Module allocation. A module on several courses appears under each of them.</p>`;
+ const gaps=list=>{const l=list.filter(r=>!Object.keys(r.o.slots.ML.alloc).length).length,mo=list.filter(r=>!Object.keys(r.o.slots.MO.alloc).length).length;
+  return (l?`<span class="tag amber">${l} without a leader</span>`:"")+(mo?`<span class="tag amber">${mo} without a moderator</span>`:"")+(list.length&&!l&&!mo?`<span class="tag">All led and moderated</span>`:"");};
+ const table=list=>`<div class="table-wrap"><table class="lead-table"><thead><tr><th style="width:36%">Module</th><th style="width:6%">Occ.</th><th style="width:29%">Module leader</th><th style="width:29%">Moderator</th></tr></thead><tbody>
+  ${list.map(({m,o})=>`<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}<span class="sub">${esc(gName(m.dept))}${sel.leadCourse==="__all"&&o.courses.length?" · "+esc(o.courses.map(x=>(C(x)||{title:x}).title).join(", ")):""}</span></td>
+   <td><span class="occ">${esc(o.occ)}</span></td><td>${cell(m,o,"ML")}</td><td>${cell(m,o,"MO")}</td></tr>`).join("")}</tbody></table></div>`;
+ if(!rows.length)return h+`<article class="card"><div class="card-head"><h2>${esc(title)}</h2></div>${empty("No modules on this course yet",isOwner()?"Link module occurrences to it on Module details.":"")}</article>`;
+ const hint=`<p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits; to share them, adjust them on Module allocation. A module's year comes from its code (1xxx Year 1, 2xxx Year 2…)${isOwner()?", and can be changed for any course on Module details":""}.</p>`;
+ if(!c)return h+`<article class="card"><div class="card-head"><div class="left"><h2>${esc(title)}</h2><span class="tag gray">${plural(rows.length,"module occurrence")}</span>${gaps(rows)}</div></div>${table(rows)}</article>`+hint;
+ // one section per year of the course, then anything whose year isn't known
+ const years=Array.from({length:c.years},(_,i)=>i+1);
+ let out=`<div class="course-banner"><div><div class="eyebrow">${esc(c.level==="PG"?"Postgraduate":"Undergraduate")} · ${plural(c.years,"year")}</div><h2>${esc(c.title)}</h2></div><div class="actions">${`<span class="tag gray">${plural(rows.length,"module occurrence")}</span>`+gaps(rows)}</div></div>`;
+ years.forEach(y=>{const list=rows.filter(r=>r.y===y);
+  out+=`<article class="card year-card"><div class="card-head"><div class="left"><h2>Year ${y}</h2><span class="tag gray">${plural(list.length,"module")}</span>${gaps(list)}</div></div>
+   ${list.length?table(list):`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules linked to Year ${y} of this course.</p>`}</article>`;});
+ const unknown=rows.filter(r=>r.y==null);
+ if(unknown.length)out+=`<article class="card year-card"><div class="card-head"><div class="left"><h2>Year not set</h2><span class="tag amber">${plural(unknown.length,"module")}</span></div></div>${table(unknown)}
+  <p class="hint" style="padding:0 18px 14px">These module codes don't show which year of this course they belong to.${isOwner()?" Set the year on Module details.":""}</p></article>`;
+ return h+out+hint;
 };
 
 /* --------------------------- Non-teaching roles --------------------------- */
@@ -1532,7 +1578,7 @@ const ACT={
  },
  deleteOcc(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);delOccs(m,[o]);},
  deleteAllOcc(){const m=M(sel.module);delOccs(m,[...m.occs]);},
- rmCourse(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses=o.courses.filter(c=>c!==el.dataset.course);
+ rmCourse(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses=o.courses.filter(c=>c!==el.dataset.course);if(o.courseYears)delete o.courseYears[el.dataset.course];
   touch([m.dept,(C(el.dataset.course)||{}).dept],`Unlinked ${el.dataset.course} from ${m.code} occ ${o.occ}`);render();},
  // ---- time slots (credit categories budgeted on every module occurrence) ----
  timeSlots(){if(!isOwner())return;openModal({title:"Time slots",ok:"Done",body:slotManagerHTML(),onOk(){}});$("#modalOk").previousElementSibling.style.display="none";},
@@ -1670,6 +1716,9 @@ const CHG={
  year(el){selYear=el.value;render(true);},
  selGroup(el){sel.group=el.value;render();},
  selModule(el){sel.module=el.value;render();},
+ pickModule(el){const m=findModule(el.value);
+  if(!m){toast("No module found",`Nothing matches “${el.value.trim()}”. Type or paste a module code or title, or choose from the list.`,true);return render();}
+  sel.module=m.code;render();},
  selStaff(el){sel.staff=el.value;render();},
  selCourse(el){sel.course=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
@@ -1703,6 +1752,9 @@ const CHG={
   o.occ=l;m.occs.sort((a,b)=>a.occ.localeCompare(b.occ));
   touch(groupsOf(staffOnOcc(o),[m.dept]),`${m.code}: occurrence ${old} renamed ${l}`);toast("Occurrence renamed",`${m.code} occ ${old} is now occ ${l}; its allocations, sessions and course links moved with it.`);render();
  },
+ linkYear(el){if(!isOwner())return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.course;
+  o.courseYears=o.courseYears||{};if(el.value)o.courseYears[c]=+el.value;else delete o.courseYears[c];
+  touch([m.dept,(C(c)||{}).dept],`${m.code} occ ${o.occ}: set as Year ${el.value} of ${c}`);render();},
  occGroups(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.groups=Math.max(1,int(el.value));touch([m.dept],`${m.code} occ ${o.occ}: groups set to ${o.groups}`);render();},
  addCourse(el){if(!el.value)return;const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses.push(el.value);
   touch([m.dept,(C(el.value)||{}).dept],`Linked ${el.value} to ${m.code} occ ${o.occ}`);render();},
@@ -1771,6 +1823,10 @@ document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");i
  if(el.dataset.chg==="year"){const v=el.value;return guardNav(()=>f({value:v}));}
  staged(()=>f(el));});
 document.addEventListener("input",e=>{
+ // picking from the suggestion list (or typing/pasting an exact code or title) selects straight away
+ if(e.target.dataset&&e.target.dataset.chg==="pickModule"){const v=e.target.value.trim(),mods=Y()?Y().modules:[];
+  const exact=mods.find(m=>m.code.toUpperCase()===v.toUpperCase()||m.title.toLowerCase()===v.toLowerCase());
+  if(exact&&exact.code!==sel.module){sel.module=exact.code;render();const box=document.querySelector(`[data-chg=pickModule][data-by=${e.target.dataset.by}]`);if(box){box.focus();box.select();}}}
  if(e.target.id==="nsId")e.target.dataset.touched="1";
  if(e.target.id==="atgSearch"){const q=e.target.value.trim().toLowerCase();document.querySelectorAll("#modalBody .check-row").forEach(r=>r.style.display=!q||r.dataset.name.includes(q)?"":"none");}
  if((e.target.id==="nsF"||e.target.id==="nsS")&&$("#nsId")&&!$("#nsId").dataset.touched)$("#nsId").value=suggestStaffId(mval("nsF"),mval("nsS"));if(e.target.dataset.inp==="staffSearch"){const q=e.target.value.trim().toLowerCase();
