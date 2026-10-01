@@ -620,6 +620,8 @@ const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"]
 const HIDDEN_TABS={head:["nt"]};
 // Non-teaching role entries: the Owner can change any; a Head only the ones they added themselves.
 const canEditNtEntry=p=>!!me&&(me.role==="owner"||(me.role==="head"&&p.addedBy===me.id));
+// Who added a non-teaching role entry, and when - shown to the Owner. Imported entries have no record.
+const addedByText=p=>p.addedBy?`Added by ${p.addedBy===(me&&me.id)?"you":nameOf(p.addedBy)}${p.addedAt?`, ${p.addedAt}`:""}`:"";
 const canOpen=t=>ROLE_TABS[me.role].includes(t)||(HIDDEN_TABS[me.role]||[]).includes(t);
 const canEdit=(t=tab)=>EDIT[me.role]==="all"||EDIT[me.role].includes(t);
 const isOwner=()=>me.role==="owner";
@@ -1215,7 +1217,7 @@ VIEWS.nt=()=>{
    const body=roles.map(r=>{const ps=[...r.people].sort((a,b)=>a.s.localeCompare(b.s,"en",{numeric:true})),rt=ps.reduce((a,p)=>a+p.cr,0);
     const roleCell=`<td rowspan="${Math.max(1,ps.length)}" class="role-cell"><span class="name-cell">${esc(r.title)}</span>${ps.length>1?`<span class="sub">${ps.length} people, ${rt} credits</span>`:""}</td>`;
     if(!ps.length)return `<tr>${roleCell}<td colspan="4" class="muted">No one holds this role yet.</td></tr>`;
-    return ps.map((p,i)=>`<tr>${i===0?roleCell:""}<td>${esc(nameOf(p.s))}</td><td>${esc((SY(p.s)||{}).group||"—")}</td><td class="r"><b>${p.cr}</b></td><td>${esc(p.note)}</td></tr>`).join("");}).join("");
+    return ps.map((p,i)=>`<tr>${i===0?roleCell:""}<td>${esc(nameOf(p.s))}${isOwner()&&p.addedBy?`<span class="sub">${esc(addedByText(p))}</span>`:""}</td><td>${esc((SY(p.s)||{}).group||"—")}</td><td class="r"><b>${p.cr}</b></td><td>${esc(p.note)}</td></tr>`).join("");}).join("");
    return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(cat)}</h2><span class="tag gray">${plural(roles.length,"role")}</span><span class="tag">${tot} credits</span></div></div>
     ${roles.length?`<div class="table-wrap"><table class="nt-summary"><thead><tr><th style="width:32%">Role</th><th style="width:24%">Staff member</th><th style="width:10%">Group</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th></tr></thead><tbody>${body}
     <tr class="sum"><td colspan="3">Total for ${esc(cat)}</td><td class="r">${tot}</td><td></td></tr></tbody></table></div>`:empty("No roles of this type yet","Add one from Edit roles.")}</article>`;}).join("");
@@ -1228,7 +1230,7 @@ VIEWS.nt=()=>{
  return h+roles.map(r=>`<article class="card${sel.ntFocus===r.id?" focus-card":""}" id="role-${esc(r.id)}"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
   ${owner?`<div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div>`:""}</div>
   <div class="table-wrap"><table><thead><tr><th>Staff</th><th class="r">Credits</th><th>Comments</th><th></th></tr></thead><tbody>
-  ${r.people.map((p,i)=>{const ed=canEditNtEntry(p);return `<tr${sel.back&&sel.back.staff===p.s?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(p.s))}</span>${!owner&&ed?' <span class="tag plain blue">Added by you</span>':""}<span class="sub">${esc(gName((SY(p.s)||{}).group))}</span></td>
+  ${r.people.map((p,i)=>{const ed=canEditNtEntry(p);return `<tr${sel.back&&sel.back.staff===p.s?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(p.s))}</span>${!owner&&ed?' <span class="tag plain blue">Added by you</span>':""}<span class="sub">${esc(gName((SY(p.s)||{}).group))}${owner&&p.addedBy?` · ${esc(addedByText(p))}`:""}</span></td>
    <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"${ed?"":" disabled"}></td>
    <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"${ed?"":" disabled"}></td>
    <td class="r">${ed?`<button class="icon-btn" data-act="ntRm" data-r="${r.id}" data-i="${i}" aria-label="Remove ${esc(nameOf(p.s))}">✕</button>`:""}</td></tr>`;}).join("")||`<tr><td colspan="4" class="muted">No one holds this role yet.</td></tr>`}
@@ -1748,7 +1750,7 @@ const ACT={
  ntRm(el){const r=Y().nt.find(x=>x.id===el.dataset.r);if(!r||!canEditNtEntry(r.people[+el.dataset.i]||{}))return;const p=r.people.splice(+el.dataset.i,1)[0];touch(groupsOf([p.s]),`Removed ${nameOf(p.s)} from ${r.title}`);render();},
  ntAdd(el){if(!["owner","head"].includes(me.role))return;const r=Y().nt.find(x=>x.id===el.dataset.r),id=mval(`nt-${r.id}-s`);if(!id)return toast("Choose a member of staff","",true);
   if(r.people.some(p=>p.s===id))return toast(`${nameOf(id)} already holds this role`,"Change their credits in the table instead.",true);
-  r.people.push({s:id,cr:int(mval(`nt-${r.id}-n`)),note:mval(`nt-${r.id}-c`),addedBy:me.id});touch(groupsOf([id]),`${nameOf(id)} added to ${r.title}`);render();},
+  r.people.push({s:id,cr:int(mval(`nt-${r.id}-n`)),note:mval(`nt-${r.id}-c`),addedBy:me.id,addedAt:stamp()});touch(groupsOf([id]),`${nameOf(id)} added to ${r.title}`);render();},
 
  /* ---- courses ---- */
  selCourse(el){sel.course=el.dataset.code;render();},
