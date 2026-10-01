@@ -564,7 +564,7 @@ function suggestStaffId(f,s){
 }
 const skey=(m,o,c)=>`${m}|${o}|${c}`;
 // Module credit values allowed (academic credits, not workload).
-const MODULE_CREDITS=[0,10,15,20,30,45,60,120]; // 0 = a module with no credit weighting
+const MODULE_CREDITS=[0,5,10,15,20,25,30,35,40,45,60,120,240]; // 0 = a module with no credit weighting
 const creditOptions=cur=>(MODULE_CREDITS.includes(+cur)||cur==null?[]:[{v:cur,l:`${cur} (not a standard value)`}]).concat(MODULE_CREDITS.map(v=>({v,l:String(v)})));
 // Occurrence letters are typed (e.g. A Business, C Computing, D Accounting & Finance, H Health): 1 to 3 letters or digits.
 const cleanOcc=v=>String(v||"").trim().toUpperCase();
@@ -1880,7 +1880,7 @@ function buildFromLegacy(T,dbName){
  const modules=[],modBy={};
  rows("module").forEach(r=>{const code=str(r.module_code);if(!code||modBy[code])return;
   const d=str(r.staff_group_id);if(d)ensureGroup(d);
-  const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of 0, 10, 15, 20, 30, 45, 60 or 120");eg("credits",`${code}: ${cr}`);}
+  const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of the standard values (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 120 or 240)");eg("credits",`${code}: ${cr}`);}
   const m={code,title:str(r.module_title)||code,dept:d,credit:cr,occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
   modules.push(m);modBy[code]=m;});
  const occBy={};
