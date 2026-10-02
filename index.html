@@ -57,10 +57,16 @@ button{cursor:pointer}
 .brand small{display:block;color:#b8d3df;font-size:10px;letter-spacing:.13em;text-transform:uppercase}
 .cycle{display:flex;align-items:center;gap:10px;border-left:1px solid rgba(255,255,255,.2);padding-left:18px}
 .cycle-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(33,138,103,.25)}
-.cycle-dot.planning{background:var(--amber);box-shadow:0 0 0 4px rgba(242,181,75,.18)}
+.cycle-dot.next,.cycle-dot.none{background:var(--amber);box-shadow:0 0 0 4px rgba(242,181,75,.25)}
+.cycle-dot.previous{background:#9fb1b9;box-shadow:0 0 0 4px rgba(159,177,185,.25)}
 .cycle select{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:#fff;border-radius:8px;padding:6px 8px;min-height:0;font-weight:700;font-size:12px}
 .cycle select option{color:#102a3b;background:#fff}
-.cycle span{font-size:11px;color:#b8d3df}
+/* the year flag in the top bar */
+.cycle .year-flag{display:inline-block;font-size:13px;font-weight:700;padding:5px 12px;border-radius:999px;line-height:1.2;white-space:nowrap}
+.year-flag.current{background:#d9f2e6;color:#0f5c40}
+.year-flag.next{background:#f2b54b;color:#2e1e00;font-weight:900;text-transform:uppercase;letter-spacing:.04em;box-shadow:0 0 0 2px #ffd88a}
+.year-flag.previous{background:#cfd8dc;color:#24343c}
+.year-flag.none{background:rgba(255,255,255,.12);color:#fff}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
 .top-btn{border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.07);color:#fff;border-radius:9px;padding:8px 11px;font-size:12px}
 .top-btn:hover{background:rgba(255,255,255,.14)}
@@ -210,7 +216,11 @@ tr.selected td{background:var(--t-cyan)}
 .notice p{margin:2px 0 0;color:var(--ink);opacity:.85;font-size:12px;max-width:95ch}
 .notice strong{color:var(--heading)}
 .notice.amber{background:var(--t-amber);border-color:var(--b-amber)}.notice.amber .glyph{background:var(--amber);color:var(--navy)}
-.notice.red{background:var(--t-red);border-color:var(--b-red)}.notice.red .glyph{background:var(--badge-red)}
+.notice.red{background:var(--t-red);border-color:var(--b-red)}
+.notice.year-next strong{font-size:15px;text-transform:uppercase;letter-spacing:.03em}
+.notice.slate{background:var(--t-gray);border-color:var(--line)}
+.notice.slate .glyph{background:#5d6d74}
+.notice.slate strong{font-size:15px}.notice.red .glyph{background:var(--badge-red)}
 .hint{color:var(--muted);font-size:11px;margin:10px 0 0;max-width:95ch}
 
 /* ---------- overview ---------- */
@@ -423,7 +433,8 @@ tr.addl-row:hover td{background:var(--t-lime)}
  body{overflow:auto}
  .app{display:block;height:auto}
  .topbar{height:60px;position:sticky;top:0;padding:0 14px;gap:10px}
- .brand div:last-child,.top-btn,.role-chip span.who,.cycle span,.theme-btn .tl{display:none}
+ .brand div:last-child,.top-btn,.role-chip span.who,.theme-btn .tl{display:none}
+ .cycle .year-flag{font-size:11px;padding:4px 9px}
  .top-btn.theme-btn{display:inline-flex;padding:8px 10px}
  .theme-float{top:12px;right:12px}
  .login-box{padding-top:34px}
@@ -592,11 +603,13 @@ function seed(){
    {id:"nt6",title:"Scholarship",cat:"Research",people:[{s:"andf1",cr:60,note:""},{s:"farh1",cr:60,note:""}]},
    {id:"nt7",title:"Personal Academic Tutors - Computing",cat:"Learning & Teaching",people:[{s:"andf1",cr:20,note:"L4 Software 26-27"},{s:"odum1",cr:20,note:""}]}],
   changes:[],published:{},lastPublished:{},overrides:{}}};
- YEAR_ORDER=["2026-27","2027-28"];
+ YEAR_ORDER=["2025-26","2026-27","2027-28"];
  // Start with everything published, as the live system would be.
  const yd=YEARS["2026-27"];
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,"18 Sep 2026, 16:40"));yd.lastPublished[g.id]="18 Sep 2026, 16:40";});
  yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
+ // A sample previous (archived) year, so the "Previous academic year" flag can be seen in the prototype.
+ YEARS["2025-26"]=Object.assign(JSON.parse(JSON.stringify(yd)),{status:"archived",changes:[],overrides:{}});
 }
 
 /* ------------------------------ state ------------------------------ */
@@ -893,8 +906,11 @@ function renderTop(){
  $("#yearSel").innerHTML=years.map(y=>opt(y,y+(YEARS[y]?"":" (not created)"),selYear)).join("");
  $("#yearSel").dataset.chg="year";
  const yd=Y();
- $("#yearState").textContent=!yd?"Not created yet":yd.status==="current"?"Current year":"Next academic year";
- $("#cycleDot").className="cycle-dot"+(yd&&yd.status==="current"?"":" planning");
+ // The year flag: Current (green), NEXT (amber, bold, capitals) or Previous (slate) academic year.
+ const kind=!yd?"none":yd.status==="current"?"current":yd.status==="archived"?"previous":"next";
+ const ys=$("#yearState");ys.textContent={current:"Current academic year",next:"Next academic year",previous:"Previous academic year",none:"Not created yet"}[kind];
+ ys.className="year-flag "+kind;
+ $("#cycleDot").className="cycle-dot "+kind;
  const p=P(me.id);
  $("#avatar").textContent=(p.forename[0]+p.surname[0]).toUpperCase();
  $("#whoName").textContent=nameOf(me.id);
@@ -919,8 +935,13 @@ function renderNav(){
 function yearBanner(){
  const yd=Y();
  const imp=IMPORT&&me.role!=="staff"?`<div class="notice"><div class="glyph">⇪</div><div style="flex:1"><strong>Your own data: ${esc(IMPORT.db)}</strong><p>Held only in this browser tab. Nothing has been uploaded or saved; reloading or closing the tab discards it.</p></div><button class="btn small" data-act="importReport">Import report</button></div>`:"";
- if(!yd||yd.status!=="planning"||me.role==="staff")return imp;
- return imp+notice("!","Next academic year",`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||"the current year"}.`,"amber");
+ if(!yd)return imp;
+ const cur=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||"the current year";
+ if(yd.status==="planning")return imp+notice("!",`Next academic year: ${selYear}`,me.role==="staff"
+   ?`You're looking at ${selYear}, which is still being planned and may change. The current year is ${cur}.`
+   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.`,"amber year-next");
+ if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear}`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
+ return imp;
 }
 // A redraw can make the focused box lose focus, which fires its change event; that must not start a second
 // redraw while the first is still replacing the page (the outer redraw already shows the latest state).
