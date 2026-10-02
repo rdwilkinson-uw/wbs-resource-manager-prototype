@@ -91,7 +91,7 @@ CREATE TRIGGER academic_year_protect_delete
 -- =============================================================================
 
 -- Old table: staff_group. is_subject_group separates real departments from
--- non-department groups (HPL / sessional, SMT, Other).
+-- non-department groups (AL / Associate Lecturers, SMT, Other).
 CREATE TABLE staff_group (
     id                integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     code              text NOT NULL UNIQUE,           -- 'COMP'; used in published page paths
@@ -133,9 +133,12 @@ ALTER TABLE staff_group
 -- Contract statuses (old table: staff_status). A lookup rather than a fixed
 -- list so new statuses can be added without a schema change.
 CREATE TABLE contract_status (
-    code           text PRIMARY KEY,                  -- 'FT', 'PT', 'HPL', 'NEW', 'TBA'...
+    code           text PRIMARY KEY,                  -- 'FT', 'PT', 'AL', 'NEW', 'TBA'... (renameable by the Owner)
     description    text NOT NULL,
-    is_sessional   boolean NOT NULL DEFAULT false,    -- true for HPL: hidden names show 'HPL' not 'TBC'
+    is_associate   boolean NOT NULL DEFAULT false,    -- Associate Lecturers (formerly 'HPL'): a hidden name shows
+                                                      -- as this status's code (e.g. 'AL') rather than 'TBC'.
+                                                      -- The app checks this flag, never the word, so the
+                                                      -- term can change without a code change.
     display_order  integer NOT NULL DEFAULT 100
 );
 
@@ -153,8 +156,8 @@ CREATE TABLE staff_year (
     room              text,
     phone             text,
     -- Publish/Hide: whether OTHER staff see this person's real name when they
-    -- expand a module on their own timetable. Hidden shows 'TBC' ('HPL' for
-    -- sessional staff). Never affects what Owner / Head / PAS Admin see.
+    -- expand a module on their own timetable. Hidden shows 'TBC' (or the status
+    -- code, e.g. 'AL', for Associate Lecturers). Never affects what Owner / Head / PAS Admin see.
     publish_name      boolean NOT NULL DEFAULT true,
     notes             text,
     created_at        timestamptz NOT NULL DEFAULT now(),
@@ -875,7 +878,7 @@ SELECT sy.academic_year_id,
        sy.staff_id,
        CASE
            WHEN sy.publish_name          THEN s.forename || ' ' || s.surname
-           WHEN cs.is_sessional          THEN 'HPL'
+           WHEN cs.is_associate          THEN cs.code
            ELSE 'TBC'
        END AS public_name
   FROM staff_year sy
@@ -990,11 +993,12 @@ BEGIN
     END LOOP;
 END $$;
 
--- Contract statuses. The migration replaces these with the old staff_status rows.
-INSERT INTO contract_status (code, description, is_sessional, display_order) VALUES
+-- Contract statuses. The migration copies the old staff_status rows, translating the
+-- legacy 'HPL' status (and the HPL staff group) to 'AL' / Associate Lecturer(s).
+INSERT INTO contract_status (code, description, is_associate, display_order) VALUES
     ('FT',  'Full time',                    false, 10),
     ('PT',  'Part time',                    false, 20),
-    ('HPL', 'Hourly paid / sessional',      true,  30),
+    ('AL',  'Associate Lecturer',           true,  30),
     ('NEW', 'New starter',                  false, 40),
     ('TBA', 'To be appointed',              false, 50);
 
@@ -1003,7 +1007,7 @@ VALUES ('2026-27', DATE '2026-09-01', DATE '2027-08-31', 'current');
 
 -- Non-department groups. Add the real departments through the app.
 INSERT INTO staff_group (code, name, is_subject_group) VALUES
-    ('HPL',   'Sessional Staff / HPL',   false),
+    ('AL',    'Associate Lecturers',     false),
     ('SMT',   'Senior Management Team',  false),
     ('OTHER', 'Other',                   false);
 

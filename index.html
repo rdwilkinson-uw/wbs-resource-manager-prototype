@@ -511,7 +511,14 @@ const int=v=>Math.max(0,Math.round(parseFloat(v)||0));
 const sumV=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
 const plural=(n,w,p)=>`${n} ${n===1?w:(p||w+"s")}`;
 
-let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null,REPORT_TOTALS;
+let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null,REPORT_TOTALS,STATUS_INFO;
+// Contract statuses are data, not code: each has a label and an "associate" flag (hourly-paid Associate Lecturers,
+// formerly HPL). Everything that treats associates differently checks the flag, never the word, so a future
+// rename is just an edit to the status.
+const DEFAULT_STATUS_INFO=()=>({FT:{label:"Full time"},PT:{label:"Part time"},AL:{label:"Associate Lecturer",assoc:true},NEW:{label:"New starter"},TBA:{label:"To be appointed"}});
+const isAssoc=code=>!!((STATUS_INFO||{})[code]||{}).assoc;
+// What colleagues see instead of a hidden associate's name: the status code (e.g. "AL").
+const assocTag=code=>isAssoc(code)?code:null;
 // Role types with no display order (0 or empty) are not role types: they are total lines on the Activity breakdown
 // report. A name containing "non" totals non-teaching roles whose type does NOT start with "Management"; otherwise
 // a name containing "management" totals those whose type DOES start with "Management".
@@ -532,7 +539,7 @@ function seed(){
   {id:"COMP",name:"Dept. of Computing",leader:"odum1",dept:true},
   {id:"MGT",name:"Dept. of Management & Finance",leader:"farh1",dept:true},
   {id:"MKT",name:"Dept. of Marketing & Enterprise",leader:"shap1",dept:true},
-  {id:"HPL",name:"Sessional Staff / HPL",leader:"",dept:false},
+  {id:"AL",name:"Associate Lecturers",leader:"",dept:false},
   {id:"SMT",name:"Senior Management Team",leader:"farh1",dept:false}];
  PEOPLE=[
   {id:"odum1",forename:"Martin",surname:"Oduya",email:"m.oduya@example.ac.uk",role:"owner"},
@@ -548,12 +555,12 @@ function seed(){
   {code:"MKT-BRND",title:"BA Brand & Promotion",dept:"MKT",level:"UG",years:3,leader:"doym1",cis:true},
   {code:"COMP-SWD",title:"BSc Software Development",dept:"COMP",level:"UG",years:3,leader:"odum1",cis:true}];
  NT_CATS=DEFAULT_NT_CATS.slice();REPORT_TOTALS=DEFAULT_REPORT_TOTALS.map(t=>({...t}));
- STATUSES=["FT","PT","HPL","NEW","TBA"];IMPORT=null;
+ STATUS_INFO=DEFAULT_STATUS_INFO();STATUSES=Object.keys(STATUS_INFO);IMPORT=null;
  const sy=(group,status,fte,target,room,publish=true)=>({group,status,fte,target,room,phone:"",publish});
  YEARS={"2026-27":{status:"current",
-  staff:{odum1:sy("COMP","FT",1,850,"CH2001"),andf1:sy("COMP","FT",1,550,""),pemg1:sy("COMP","HPL",0,0,""),
+  staff:{odum1:sy("COMP","FT",1,850,"CH2001"),andf1:sy("COMP","FT",1,550,""),pemg1:sy("COMP","AL",0,0,""),
    okon1:sy("MGT","FT",1,550,"BB210"),farh1:sy("MGT","FT",1,850,"BB105"),doym1:sy("MGT","FT",1,550,"BB105"),
-   shap1:sy("MKT","FT",1,550,"MK020"),caso1:sy("MKT","HPL",0,0,"",false)},
+   shap1:sy("MKT","FT",1,550,"MK020"),caso1:sy("MKT","AL",0,0,"",false)},
   modules:[
    {code:"BMGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,occs:[
     {occ:"A",groups:3,courses:["MGT-ENTM"],slots:slots({S1:[140,{andf1:60,farh1:70},{andf1:"Reduced to 2 groups"}],SV:[20,{farh1:20},{farh1:"4 Cr / Project"}],ML:[16,{farh1:16}],MO:[12,{okon1:12}],MC:[18,{farh1:9,okon1:9}]})},
@@ -695,7 +702,7 @@ function teamOf(o,yd){
  const team={};
  CATS.forEach(c=>Object.entries(o.slots[c.id].alloc).forEach(([sid,cr])=>{
   const s=yd.staff[sid]||{};
-  team[sid]=team[sid]||{id:sid,name:nameOf(sid),hidden:s.publish===false,hpl:s.status==="HPL",roles:[]};
+  team[sid]=team[sid]||{id:sid,name:nameOf(sid),hidden:s.publish===false,assoc:assocTag(s.status),roles:[]};
   team[sid].roles.push(`${c.label} ${cr}`);
  }));
  return Object.values(team).sort(byStaffId);
@@ -716,14 +723,14 @@ function staffBreakdown(id,yd=Y()){
  });
  const nt=[];
  NT_CATS.forEach(cat=>yd.nt.filter(r=>r.cat===cat).forEach(r=>r.people.filter(p=>p.s===id).forEach(p=>nt.push({rid:r.id,title:r.title,type:cat,credits:p.cr,comment:p.note||"",
-  team:r.people.map(q=>{const s=yd.staff[q.s]||{};return {id:q.s,name:nameOf(q.s),hidden:s.publish===false,hpl:s.status==="HPL",roles:[`${q.cr}`]};}).sort(byStaffId)}))));
+  team:r.people.map(q=>{const s=yd.staff[q.s]||{};return {id:q.s,name:nameOf(q.s),hidden:s.publish===false,assoc:assocTag(s.status),roles:[`${q.cr}`]};}).sort(byStaffId)}))));
  if(nt.length)sections.push({label:"Non-Teaching Roles",kind:"nt",rows:nt});
  const s=yd.staff[id]||{};
  return {sections,target:s.target||0,total:breakdown(id,yd).total};
 }
 // The Course Information Site is a PUBLISHED copy of the year: staff only see changes once it is updated.
 function buildCIS(yd=Y(),when=stamp()){
- const people={};Object.keys(yd.staff).forEach(id=>{const st=yd.staff[id];people[id]={name:nameOf(id),hidden:st.publish===false,hpl:st.status==="HPL"};});
+ const people={};Object.keys(yd.staff).forEach(id=>{const st=yd.staff[id];people[id]={name:nameOf(id),hidden:st.publish===false,assoc:assocTag(st.status)};});
  return {at:when,cats:JSON.parse(JSON.stringify(CATS)),courses:COURSES.map(c=>({...c})),modules:JSON.parse(JSON.stringify(yd.modules)),sessions:JSON.parse(JSON.stringify(yd.sessions)),people};
 }
 const cisPending=(yd=Y())=>{if(!yd)return false;if(!yd.cis)return true;const a={...buildCIS(yd,"")},b={...yd.cis,at:""};return JSON.stringify(a)!==JSON.stringify(b);};
@@ -789,7 +796,7 @@ const staffOptions=(list=inYear())=>list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${(
 // suggestion list; either one selects the module and fills in the other.
 function modulePicker(m){
  const mods=[...Y().modules].sort((a,b)=>a.code.localeCompare(b.code));
- return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input data-combo="moduleCode" data-code="1" maxlength="8" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
+ return `<label class="field" style="min-width:170px;flex:0 0 190px">Module code<input data-combo="moduleCode" data-modcode="1" maxlength="8" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.code)}" data-chg="pickModule" data-by="code" autocomplete="off" spellcheck="false" aria-label="Module code: type, paste or choose"></label>
  <label class="field grow">Module title<input data-combo="moduleTitle" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" value="${esc(m.title)}" data-chg="pickModule" data-by="title" autocomplete="off" aria-label="Module title: type, paste or choose"></label>
  <span class="tag blue" style="align-self:center;margin-bottom:8px">${esc(m.dept)}</span>
 `;
@@ -821,9 +828,9 @@ const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.ma
 const STAGED_TABS=["modules","alloc","sessions","leaders","nt","staff","courses"];
 let DRAFT=null,LAST_SAVED=null,SKIP_STAGE=false,PENDING_NAV=null,COMMITTED=false;
 const stagedHere=()=>!!me&&me.role!=="staff"&&STAGED_TABS.includes(tab)&&canEdit(tab)&&!!Y();
-const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,YEAR_ORDER,REPORT_TOTALS});
+const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,STATUS_INFO,YEAR_ORDER,REPORT_TOTALS});
 function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=p.theme);
- YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;REPORT_TOTALS=o.REPORT_TOTALS;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
+ YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;REPORT_TOTALS=o.REPORT_TOTALS;STATUS_INFO=o.STATUS_INFO;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
 // Run something that may change data; on an editing screen, the first real change starts an unsaved draft.
 function staged(fn){
  if(!stagedHere())return fn();
@@ -1009,7 +1016,7 @@ VIEWS.staff=()=>{
  if(!groups.some(g=>g.id===sel.group))sel.group=(groups[0]||{}).id;
  const g=G(sel.group),ed=canEdit("staff"),owner=isOwner();
  const list=inYear().filter(p=>inGroup(p.id,g.id)),main=list.filter(p=>SY(p.id).group===g.id),addl=list.length-main.length;
- const actions=(owner?`<button class="btn" data-act="newGroup">New group</button><button class="btn danger" data-act="deleteGroup">Delete group</button>`:"")+
+ const actions=(owner?`<button class="btn" data-act="statuses">Contract statuses</button><button class="btn" data-act="newGroup">New group</button><button class="btn danger" data-act="deleteGroup">Delete group</button>`:"")+
   (owner?`<button class="btn primary" data-act="newStaff">New staff</button>`:"");
  let h=pageHead("People & capacity","Staff details",
   me.role==="head"?"Credit totals by staff group. Your own department opens first; choose any other group to view it. Staff records are maintained by the Owner.":"Group membership, credit targets, sign-in roles and name visibility.",actions);
@@ -1021,7 +1028,7 @@ VIEWS.staff=()=>{
   ${totalsOnly?"":segmented("staffMode",sel.staffMode,[["list","Details"],["totals","Totals"]])}</div>`;
  const tot=main.reduce((a,p)=>{const s=SY(p.id);a.t+=s.target;a.a+=breakdown(p.id).total;return a;},{t:0,a:0});
  h+=`<div class="grid cols-4 metrics">
-  ${metric("Staff in group",main.length,addl?`plus ${addl} additional member${addl>1?"s":""}`:`${main.filter(p=>SY(p.id).status==="HPL").length} sessional (HPL)`)}
+  ${metric("Staff in group",main.length,addl?`plus ${addl} additional member${addl>1?"s":""}`:`${plural(main.filter(p=>isAssoc(SY(p.id).status)).length,"Associate Lecturer")} (AL)`)}
   ${metric("Target credits",tot.t.toLocaleString(),addl?"main members only":"sum of individual targets","var(--lime)")}
   ${metric("Allocated",tot.a.toLocaleString(),"teaching and non-teaching","var(--blue)")}
   ${metric("Remaining",(tot.t-tot.a).toLocaleString(),tot.t-tot.a<0?"group is over target":"still available","var(--amber)")}</div>`;
@@ -1034,7 +1041,7 @@ function staffDetails(g,list,ed,owner){
    <label class="field">Group ID<input value="${esc(g.id)}" disabled></label>
    <label class="field wide">Group name<input data-chg="groupField" data-f="name" value="${esc(g.name)}"${owner?"":" disabled"}></label>
    <label class="field">Group leader${selectH('data-chg="groupField" data-f="leader"',[{v:"",l:"None"}].concat(staffOptions()),g.leader,!owner)}</label>
-   <label class="field">Kind of group${selectH('data-chg="groupField" data-f="dept"',[{v:"1",l:"Department"},{v:"0",l:"Non-department (e.g. SMT, HPL)"}],g.dept?"1":"0",!owner)}</label>
+   <label class="field">Kind of group${selectH('data-chg="groupField" data-f="dept"',[{v:"1",l:"Department"},{v:"0",l:"Non-department (e.g. SMT, Associate Lecturers)"}],g.dept?"1":"0",!owner)}</label>
   </div></div></article>
  <article class="card"><div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Staff member</th>${owner?"<th>Main group</th>":""}<th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
   ${list.map(p=>{const s=SY(p.id),b=breakdown(p.id),isMain=s.group===g.id,others=(s.extra||[]).filter(x=>x!==g.id);
@@ -1049,7 +1056,7 @@ function staffDetails(g,list,ed,owner){
     <td class="r"><input class="num sm" type="number" step="0.05" min="0" max="1.5" value="${s.fte}" data-chg="staffField" data-id="${p.id}" data-f="fte" aria-label="FTE"${ed?"":" disabled"}></td>
     <td class="r"><input class="num" type="number" min="0" value="${s.target}" data-chg="staffField" data-id="${p.id}" data-f="target" aria-label="Target credits"${ed?"":" disabled"}></td>
     <td>${capacity(b.total,s.target)}</td>
-    <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="publish" aria-label="Name shown to staff"`,[{v:"1",l:"Real name"},{v:"0",l:s.status==="HPL"?"HPL":"TBC"}],s.publish?"1":"0",!ed)}</td>
+    <td>${selectH(`data-chg="staffField" data-id="${p.id}" data-f="publish" aria-label="Name shown to staff"`,[{v:"1",l:"Real name"},{v:"0",l:assocTag(s.status)||"TBC"}],s.publish?"1":"0",!ed)}</td>
     <td>${selectH(`data-chg="role" data-id="${p.id}" aria-label="Sign-in role"`,roleOpts,p.role,!owner)}</td>
     <td><input style="width:72px" value="${esc(s.room)}" data-chg="staffField" data-id="${p.id}" data-f="room" aria-label="Room"${ed?"":" disabled"}></td>
     <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${owner&&isMain?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
@@ -1317,7 +1324,7 @@ function timeHTML(items){
 function teamName(t,viewer){
  if(viewer==null)return t.name;
  if(t.id===viewer)return t.name+" (you)";
- return t.hidden?(t.hpl?"HPL":"TBC"):t.name;
+ return t.hidden?(t.assoc||(t.hpl?"AL":"TBC")):t.name;
 }
 let rowSeq=0;
 // "Allocate" from a staff timetable: Owner and Heads only (staff viewing their own timetable never see it).
@@ -1494,9 +1501,9 @@ const QUERIES=[
   params:[{id:"prefix",label:"Code starts with",type:"text",def:"BMGT42",check:v=>/^[A-Za-z0-9]{1,8}$/.test(v)||"Use 1 to 8 letters or numbers, for example BMGT42."}],
   run:p=>({cols:["Module","Title","Credits","Department","Occurrences"],num:[2],
    rows:Y().modules.filter(m=>m.code.toUpperCase().startsWith(p.prefix.toUpperCase())).sort((a,b)=>a.code.localeCompare(b.code)).map(m=>[m.code,m.title,m.credit,m.dept,m.occs.map(o=>o.occ).join(", ")])})},
- {id:"03",name:"Sessional (HPL) staff",desc:"Sessional staff this year, with the credits they hold and what they teach.",
+ {id:"03",name:"Associate Lecturers (AL)",desc:"Associate Lecturers this year, with the credits they hold and what they teach (formerly \"HPLs\").",
   run:()=>({cols:["Staff","Main group","Credits","Teaching"],num:[2],
-   rows:inYear().filter(x=>SY(x.id).status==="HPL").map(x=>[...nameAndGroup(x.id),breakdown(x.id).total,
+   rows:inYear().filter(x=>isAssoc(SY(x.id).status)).map(x=>[...nameAndGroup(x.id),breakdown(x.id).total,
     Y().modules.flatMap(m=>m.occs.filter(o=>CATS.some(k=>x.id in o.slots[k.id].alloc)).map(o=>`${m.code}-${o.occ}`)).join(", ")])})},
  {id:"04",name:"Role holders by role type",desc:"Everyone holding a non-teaching role of the type you choose (replaces the old \"RASA\" query, which used fixed type codes).",
   params:[{id:"type",label:"Role type",type:"select",opts:()=>NT_CATS,def:()=>{const used=NT_CATS.filter(c=>Y().nt.some(r=>r.cat===c&&r.people.length));return used.find(c=>/research/i.test(c))||used[0]||NT_CATS[0];}}],
@@ -1523,9 +1530,9 @@ const QUERIES=[
  {id:"10",name:"Non-teaching roles with staff",desc:"Every non-teaching role with its role type, holders, credits and comments, in role type order.",
   run:()=>({cols:["Role type","Role","Staff","Main group","Credits","Comments"],num:[4],rows:NT_CATS.flatMap(cat=>ntHolders(r=>r.cat===cat).map(x=>[cat,...x]))})},
  {id:"11",name:"Credit totals",desc:"Each member of staff's total credits against their target. Unlike the old query, people with no allocations yet are included.",
-  params:[{id:"hpl",label:"Sessional (HPL) staff",type:"select",opts:()=>["Leave out","Include"],def:"Leave out"}],
+  params:[{id:"hpl",label:"Associate Lecturers (AL)",type:"select",opts:()=>["Leave out","Include"],def:"Leave out"}],
   run:p=>({cols:["Staff","Main group","Contract","Target","Total","Remaining"],num:[3,4,5],
-   rows:inYear().filter(x=>p.hpl==="Include"||SY(x.id).status!=="HPL").map(x=>{const s=SY(x.id),t=breakdown(x.id).total;return [...nameAndGroup(x.id),s.status,s.target,t,s.target-t];})})},
+   rows:inYear().filter(x=>p.hpl==="Include"||!isAssoc(SY(x.id).status)).map(x=>{const s=SY(x.id),t=breakdown(x.id).total;return [...nameAndGroup(x.id),s.status,s.target,t,s.target-t];})})},
  {id:"12",name:"Tutors by module",desc:"Everyone teaching on each module occurrence, with their credits in each category.",
   params:[{id:"dept",label:"Owning department",type:"select",opts:()=>["All departments"].concat(GROUPS.filter(g=>g.dept).map(g=>g.id)),def:"All departments"}],
   run:p=>({cols:["Module","Title","Occ.","Staff","Credits"],
@@ -1574,6 +1581,27 @@ VIEWS.publish=()=>{
    ${list.length?list.map(c=>`<div class="publish-item"><span class="change-icon" aria-hidden="true">✎</span><div><b>${esc(c.text)}</b><p>by ${esc(c.who)}</p></div><span class="when">${esc(c.when)}</span></div>`).join(""):`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">Nothing waiting to publish.</p>`}</article>`;}).join("");
 };
 
+/* --------------------------- Contract statuses ---------------------------
+   Owner-managed list (e.g. FT, PT, AL). "Associate" marks hourly-paid Associate Lecturers: a hidden associate's
+   name shows as their status code (e.g. AL) to colleagues, and associate-specific queries use the flag. */
+function statusUse(code){return Object.values(YEARS).reduce((a,yd)=>a+Object.values(yd.staff).filter(s=>s.status===code).length,0);}
+function statusManagerHTML(){
+ return `<p>The contract statuses used on Staff details. Rename them here if the terminology changes; staff records follow automatically.</p>
+ <div class="table-wrap"><table><thead><tr><th style="width:90px">Code</th><th>Label</th><th>Associate Lecturer type</th><th class="r">Staff</th><th></th></tr></thead><tbody>
+ ${STATUSES.map(code=>{const st=STATUS_INFO[code]||{label:code},u=statusUse(code);return `<tr>
+  <td><input value="${esc(code)}" maxlength="6" style="width:70px;text-transform:uppercase" data-chg="statusCode" data-code="${esc(code)}" aria-label="Code for ${esc(st.label)}"></td>
+  <td><input value="${esc(st.label)}" maxlength="40" style="width:100%" data-chg="statusLabel" data-code="${esc(code)}" aria-label="Label for ${esc(code)}"></td>
+  <td>${selectH(`data-chg="statusAssoc" data-code="${esc(code)}" aria-label="Is ${esc(code)} an Associate Lecturer status"`,[{v:"0",l:"No"},{v:"1",l:"Yes (hidden name shows as "+code+")"}],st.assoc?"1":"0")}</td>
+  <td class="r">${u||'<span class="muted">0</span>'}</td>
+  <td class="r">${u?'<span class="muted" style="font-size:11px">In use</span>':`<button class="icon-btn" data-act="statusDelete" data-code="${esc(code)}" aria-label="Delete ${esc(code)}">✕</button>`}</td></tr>`;}).join("")}
+ </tbody></table></div>
+ <h3 style="margin:18px 0 8px">Add a status</h3>
+ <div class="form-grid"><label class="field">Code<input id="csC" maxlength="6" placeholder="e.g. FTC" style="text-transform:uppercase"></label>
+  <label class="field wide">Label<input id="csL" maxlength="40" placeholder="e.g. Fixed-term contract"></label>
+  <label class="field">Associate Lecturer type${selectH('id="csA"',[{v:"0",l:"No"},{v:"1",l:"Yes"}],"0")}</label></div>
+ <div style="margin-top:12px"><button class="btn primary small" data-act="statusAdd">Add status</button></div>`;
+}
+
 /* ------------------------------ Time slots ------------------------------ */
 // How much a time slot is used, across every year: budgets, allocations and sessions.
 function slotUse(id){let n=0;Object.values(YEARS).forEach(yd=>yd.modules.forEach(m=>m.occs.forEach(o=>{const s=o.slots[id];if(!s)return;
@@ -1603,7 +1631,7 @@ VIEWS.cis=()=>{
  if(!yd||!yd.cis)return h+`<article class="card">${empty("Not published yet",`The Course Information Site for ${selYear} appears once it has been published.`)}</article>`;
  const S=yd.cis,cats=S.cats,page=sel.cisPage||"menu";
  const upd=`<span class="tag gray">Updated ${esc(S.at)}</span>`;
- const person=id=>{const p=S.people[id];if(!p)return nameOf(id);if(me.role==="staff"&&id===me.id)return p.name+" (you)";if(me.role==="staff"&&p.hidden)return p.hpl?"HPL":"TBC";return p.name;};
+ const person=id=>{const p=S.people[id];if(!p)return nameOf(id);if(me.role==="staff"&&id===me.id)return p.name+" (you)";if(me.role==="staff"&&p.hidden)return p.assoc||(p.hpl?"AL":"TBC");return p.name;};
  const single=c=>c.level==="PG"||c.years<=1;
  const occsFor=c=>{const r=[];S.modules.forEach(m=>m.occs.filter(o=>o.courses.includes(c.code)).forEach(o=>r.push({m,o,y:linkYear(o,m.code,c)})));return r.sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));};
  const foot=`<p class="hint">Worcester Business School · Course Information Site ${esc(selYear)}</p>`;
@@ -1795,7 +1823,7 @@ const ACT={
   if(!isOwner())return;
   openModal({title:"New group",ok:"Create group",body:`<div class="form-grid">
    <label class="field">Group ID<input id="ngI" maxlength="6" placeholder="e.g. LAW"></label>
-   <label class="field">Kind${selectH('id="ngD"',[{v:"1",l:"Department"},{v:"0",l:"Other group (HPL, SMT…)"}],"1")}</label>
+   <label class="field">Kind${selectH('id="ngD"',[{v:"1",l:"Department"},{v:"0",l:"Other group (Associate Lecturers, SMT…)"}],"1")}</label>
    <label class="field wide">Name<input id="ngN"></label>
    <label class="field wide">Leader${selectH('id="ngL"',[{v:"",l:"None"}].concat(staffOptions()),"")}</label></div>`,
    onOk(){const id=mval("ngI").toUpperCase(),n=mval("ngN");
@@ -1816,7 +1844,7 @@ const ACT={
  newModule(){
   if(!isOwner())return;
   openModal({title:"New module",ok:"Create module",body:`<div class="form-grid">
-   <label class="field">Code<input id="nmC" data-code="1" maxlength="8" autocomplete="off" spellcheck="false" placeholder="e.g. BMGT1234"></label><label class="field">Credits (academic)${selectH('id="nmK"',creditOptions(15),15)}</label>
+   <label class="field">Code<input id="nmC" data-modcode="1" maxlength="8" autocomplete="off" spellcheck="false" placeholder="e.g. BMGT1234"></label><label class="field">Credits (academic)${selectH('id="nmK"',creditOptions(15),15)}</label>
    <label class="field wide">Title<input id="nmT"></label>
    <label class="field wide">Owning department${selectH('id="nmD"',depts().map(d=>({v:d.id,l:d.name})),depts()[0].id)}</label></div>
    <p class="hint" style="margin:6px 0 0">${CODE_RULE}</p><p style="margin-top:12px">A new module has no occurrences. Add one, set its budgets, then allocate staff.</p>`,
@@ -1852,6 +1880,13 @@ const ACT={
  deleteAllOcc(){const m=M(sel.module);delOccs(m,[...m.occs]);},
  rmCourse(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses=o.courses.filter(c=>c!==el.dataset.course);
   touch([m.dept,(C(el.dataset.course)||{}).dept],`Unlinked ${el.dataset.course} from ${m.code} occ ${o.occ}`);render();},
+ // ---- contract statuses (Owner) ----
+ statuses(){if(!isOwner())return;openModal({title:"Contract statuses",ok:"Done",body:statusManagerHTML(),onOk(){}});$("#modalOk").previousElementSibling.style.display="none";},
+ statusAdd(){if(!isOwner())return;const c=mval("csC").toUpperCase(),l=mval("csL");
+  if(!/^[A-Z]{1,6}$/.test(c)){$("#modalErr").textContent="Use 1 to 6 letters for the code, e.g. FTC.";return;}
+  if(STATUS_INFO[c]){$("#modalErr").textContent=`${c} already exists.`;return;}if(!l){$("#modalErr").textContent="Give the status a label.";return;}
+  STATUS_INFO[c]={label:l,...(mval("csA")==="1"?{assoc:true}:{})};STATUSES=Object.keys(STATUS_INFO);$("#modalErr").textContent="";$("#modalBody").innerHTML=statusManagerHTML();toast("Status added",`${c} · ${l}`);},
+ statusDelete(el){if(!isOwner())return;const c=el.dataset.code;if(statusUse(c))return;delete STATUS_INFO[c];STATUSES=Object.keys(STATUS_INFO);$("#modalBody").innerHTML=statusManagerHTML();toast("Status deleted",c);},
  // ---- time slots (credit categories budgeted on every module occurrence) ----
  timeSlots(){if(!isOwner())return;openModal({title:"Time slots",ok:"Done",body:slotManagerHTML(),onOk(){}});$("#modalOk").previousElementSibling.style.display="none";},
  slotAdd(){
@@ -2093,6 +2128,14 @@ const CHG={
  ntType(el){if(!isOwner()||!el.value)return render();const r=Y().nt.find(x=>x.id===el.dataset.r);const from=r.cat;r.cat=el.value;
   touch(groupsOf(r.people.map(p=>p.s)),`${r.title}: role type set to ${r.cat}`);toast("Role type updated",`${r.title} is now under ${r.cat}.`);
   if(from&&sel.ntMode==="edit"&&sel.nt===from)sel.nt=r.cat;render();},
+ statusLabel(el){if(!isOwner())return;const st=STATUS_INFO[el.dataset.code],v=el.value.trim();if(!st)return;if(!v){el.value=st.label;$("#modalErr").textContent="A status needs a label.";return;}
+  st.label=v;$("#modalErr").textContent="";toast("Label updated",`${el.dataset.code} · ${v}`);},
+ statusAssoc(el){if(!isOwner())return;const st=STATUS_INFO[el.dataset.code];if(!st)return;if(el.value==="1")st.assoc=true;else delete st.assoc;$("#modalBody").innerHTML=statusManagerHTML();},
+ statusCode(el){if(!isOwner())return;const old=el.dataset.code,c=el.value.trim().toUpperCase();if(c===old)return;
+  if(!/^[A-Z]{1,6}$/.test(c)||STATUS_INFO[c]){el.value=old;$("#modalErr").textContent=STATUS_INFO[c]?`${c} already exists.`:"Use 1 to 6 letters for the code.";return;}
+  const info={};STATUSES.forEach(k=>info[k===old?c:k]=STATUS_INFO[k]);STATUS_INFO=info;STATUSES=Object.keys(info);
+  const n=Object.values(YEARS).reduce((a,yd)=>{Object.values(yd.staff).forEach(s=>{if(s.status===old){s.status=c;a++;}});return a;},0);
+  $("#modalErr").textContent="";$("#modalBody").innerHTML=statusManagerHTML();toast("Code renamed",`${old} is now ${c}${n?`; ${plural(n,"staff record")} updated`:""}.`);},
  slotName(el){
   if(!isOwner())return;const c=CAT(el.dataset.cat),n=el.value.trim().replace(/\s+/g," ");
   if(!n||CATS.some(x=>x!==c&&x.label.toLowerCase()===n.toLowerCase())){el.value=c.label;$("#modalErr").textContent=n?"Another time slot already has that name.":"A time slot needs a name.";return;}
@@ -2175,10 +2218,10 @@ document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");i
  if(el.dataset.chg==="year"){const v=el.value;return guardNav(()=>f({value:v}));}
  staged(()=>f(el));});
 // Module code boxes: capitals as you type; pasting keeps only the first 8 characters (e.g. BMGT1234A -> BMGT1234).
-document.addEventListener("paste",e=>{const el=e.target.closest&&e.target.closest("input[data-code]");if(!el)return;
+document.addEventListener("paste",e=>{const el=e.target.closest&&e.target.closest("input[data-modcode]");if(!el)return;
  e.preventDefault();el.value=cleanCode((e.clipboardData||window.clipboardData).getData("text"));el.dispatchEvent(new Event("input",{bubbles:true}));},true);
 document.addEventListener("input",e=>{
- if(e.target.matches&&e.target.matches("input[data-code]")){const v=e.target.value,u=v.toUpperCase().slice(0,8);if(v!==u){const p=e.target.selectionStart;e.target.value=u;try{e.target.setSelectionRange(p,p);}catch(x){}}}
+ if(e.target.matches&&e.target.matches("input[data-modcode]")){const v=e.target.value,u=v.toUpperCase().slice(0,8);if(v!==u){const p=e.target.selectionStart;e.target.value=u;try{e.target.setSelectionRange(p,p);}catch(x){}}}
  // picking from the suggestion list (or typing/pasting an exact code or title) selects straight away
  if(e.target.dataset&&e.target.dataset.chg==="pickModule"){const v=e.target.value.trim(),mods=Y()?Y().modules:[];
   const exact=mods.find(m=>m.code.toUpperCase()===v.toUpperCase()||m.title.toLowerCase()===v.toLowerCase());
@@ -2235,11 +2278,20 @@ function buildFromLegacy(T,dbName){
  const ym=/rm(\d{2})(\d{2})/i.exec(dbName||"");const year=ym?`20${ym[1]}-${ym[2]}`:"Imported";
 
  // groups
- const groups=rows("staff_group").map(g=>({id:str(g.staff_group_id),name:str(g.staff_group_name)||str(g.staff_group_id),leader:str(g.leader_id),dept:str(g.subject_group).toUpperCase()==="Y"})).filter(g=>g.id);
+ // "HPL" is a legacy term: the group becomes AL / Associate Lecturers, and the HPL contract status becomes AL.
+ let renamed={staff:0,group:false};
+ const gidOf=v=>{const t=str(v);return t.toUpperCase()==="HPL"?"AL":t;};
+ const groups=rows("staff_group").map(g=>{const id=gidOf(g.staff_group_id),nm=str(g.staff_group_name)||id;if(str(g.staff_group_id).toUpperCase()==="HPL")renamed.group=true;
+  return {id,name:/hpl|sessional|hourly/i.test(nm)?"Associate Lecturers":nm,leader:str(g.leader_id),dept:str(g.subject_group).toUpperCase()==="Y"};}).filter(g=>g.id);
  const ensureGroup=id=>{if(!groups.some(g=>g.id===id))groups.push({id,name:id==="NONE"?"No group recorded":id,leader:"",dept:false});};
 
  // statuses
- const statuses=rows("staff_status").sort((a,b)=>num(a.display_order)-num(b.display_order)).map(r=>str(r.status)).filter(Boolean);
+ const statusInfo={};
+ rows("staff_status").sort((a,b)=>num(a.display_order)-num(b.display_order)).forEach(r=>{let code=str(r.status);if(!code)return;const desc=str(r.desc||r.description);
+  const legacy=code.toUpperCase()==="HPL",assoc=legacy||/hourly|sessional|associate/i.test(desc);
+  if(legacy)code="AL";statusInfo[code]={label:legacy?"Associate Lecturer":(desc||code),...(assoc?{assoc:true}:{})};});
+ if(!statusInfo.AL&&!Object.values(statusInfo).some(x=>x.assoc))statusInfo.AL={label:"Associate Lecturer",assoc:true};
+ const statuses=Object.keys(statusInfo);
 
  // people and their details for this year
  const people=[],staff={},emails={};
@@ -2250,17 +2302,18 @@ function buildFromLegacy(T,dbName){
   if(!email){warn("noemail","staff have no email address, so couldn't be invited to sign in until one is added");eg("noemail",id);}
   else if(emails[email]){warn("dupemail","email addresses are shared by more than one staff record (email must be unique for sign-in)");eg("dupemail",email);}
   else emails[email]=id;
-  let g=str(r.staff_group_id);
+  let g=gidOf(r.staff_group_id);
   if(!g){g="NONE";warn("nogroup","staff have no group; they're shown in \"No group recorded\"");eg("nogroup",id);}
   ensureGroup(g);
-  let st=str(r.status)||"TBA";if(statuses.length&&!statuses.includes(st)){warn("status","staff have a contract status that isn't in the staff_status list");eg("status",`${id}: ${st}`);}
+  let st=str(r.status)||"TBA";if(st.toUpperCase()==="HPL"){st="AL";renamed.staff++;}if(statuses.length&&!statuses.includes(st)){warn("status","staff have a contract status that isn't in the staff_status list");eg("status",`${id}: ${st}`);}
   people.push({id,forename:str(r.forename)||"(no forename)",surname:str(r.surname)||id,email,role:"staff"});
   staff[id]={group:g,extra:[],status:st,fte:num(r.fte),target:Math.round(num(r.allocation)),room:str(r.room),phone:str(r.phone),publish:str(r.publish).toUpperCase()!=="N"};
  });
  counts.staff=people.length;
+ if(renamed.staff||renamed.group)warns.alrename={msg:`The legacy term HPL was changed to AL (Associate Lecturer)${renamed.group?": the HPL group is now AL, Associate Lecturers":""}${renamed.staff?`${renamed.group?", and":":"} ${plural(renamed.staff,"staff contract status","staff contract statuses")} changed from HPL to AL`:""}. Nothing needs changing in the old system`,n:renamed.staff||1,eg:[]};
  // additional group memberships (old membership table): anything other than the person's main group
  let addl=0;
- rows("membership").forEach(m=>{const sid=str(m.staff_id),gid=str(m.staff_group_id),s=staff[sid];
+ rows("membership").forEach(m=>{const sid=str(m.staff_id),gid=gidOf(m.staff_group_id),s=staff[sid];
   if(!s||!gid||s.group===gid)return;ensureGroup(gid);s.extra=s.extra||[];if(!s.extra.includes(gid)){s.extra.push(gid);addl++;}});
  counts.additionalMemberships=addl;
 
@@ -2296,7 +2349,7 @@ function buildFromLegacy(T,dbName){
  // modules and occurrences
  const modules=[],modBy={};
  rows("module").forEach(r=>{const code=str(r.module_code);if(!code||modBy[code])return;
-  const d=str(r.staff_group_id);if(d)ensureGroup(d);
+  const d=gidOf(r.staff_group_id);if(d)ensureGroup(d);
   if(!MODULE_CODE_RE.test(code)){warn("code","module codes aren't 4 letters followed by 4 numbers (the new system only accepts that format, e.g. BMGT1234)");eg("code",code);}
   const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of the standard values (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 120 or 240)");eg("credits",`${code}: ${cr}`);}
   const m={code,title:str(r.module_title)||code,dept:d,credit:cr,occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
@@ -2394,13 +2447,13 @@ function buildFromLegacy(T,dbName){
  const deptLeader=(groups.find(g=>g.dept&&staff[g.leader])||{}).leader;
  const teacher=byName.find(p=>modules.some(m=>m.occs.some(o=>cats.some(c=>c.tt&&p.id in o.slots[c.id].alloc))));
  const first=(byName[0]||{}).id;
- return {year,cats,groups,people,courses,ntCats,reportTotals:allRoleTypes.length?reportTotals:DEFAULT_REPORT_TOTALS.map(t=>({...t})),statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
+ return {year,statusInfo,cats,groups,people,courses,ntCats,reportTotals:allRoleTypes.length?reportTotals:DEFAULT_REPORT_TOTALS.map(t=>({...t})),statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
   yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{},overrides:{}},
   counts,warnings:Object.values(warns),defaults:{owner:first,head:deptLeader||first,pas:first,staff:(teacher||{}).id||first}};
 }
 
 function applyImport(res,db,tablesFound){
- CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();REPORT_TOTALS=res.reportTotals;STATUSES=res.statuses.length?res.statuses:["FT","PT","HPL"];
+ CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();REPORT_TOTALS=res.reportTotals;STATUS_INFO=res.statusInfo&&Object.keys(res.statusInfo).length?res.statusInfo:DEFAULT_STATUS_INFO();STATUSES=res.statuses.length?res.statuses:Object.keys(STATUS_INFO);
  YEARS={[res.year]:res.yearData};
  const ym=/^(\d{4})-/.exec(res.year);YEAR_ORDER=ym?[res.year,`${+ym[1]+1}-${String(+ym[1]+2).slice(2)}`]:[res.year];
  selYear=res.year;
