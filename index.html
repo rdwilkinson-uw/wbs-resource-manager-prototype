@@ -326,6 +326,10 @@ tr.addl-row:hover td{background:var(--t-lime)}
 .report-grid{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;align-items:start}
 .report-menu{padding:8px}
 .report-menu button{width:100%;border:0;background:transparent;text-align:left;padding:10px;border-radius:8px;font-weight:700;font-size:12px;color:var(--ink)}
+.report-menu .menu-label{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+.report-menu .menu-label:first-child{padding-top:6px}
+.report-menu .q-no{display:inline-block;min-width:22px;font-weight:900;color:var(--teal-text)}
+.report-menu button.active .q-no{color:var(--lime)}
 .report-menu button.active{background:var(--primary);color:#fff}
 .report-menu button:disabled{opacity:.5}
 .bars{padding:18px}
@@ -635,7 +639,7 @@ const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
 
 const TABS=[["overview","Overview","OV"],["modules","Module details","MD"],["alloc","Module allocation","AL"],["sessions","Module sessions","SE"],
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
- ["courses","Course details","CO"],["coursett","Course timetables","CT"],["reports","View reports","RP"],["adhoc","Ad hoc queries","QY"],["publish","Publish","PB"]];
+ ["courses","Course details","CO"],["coursett","Course timetables","CT"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
 const ROLE_TABS={owner:TABS.map(t=>t[0]),head:["staff","alloc","sessions","leaders","tt","coursett","publish"],pas:["sessions","leaders","tt","coursett","publish"],staff:[]};
 const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
@@ -1433,7 +1437,10 @@ VIEWS.coursett=()=>{
 /* ------------------------------- Reports ------------------------------- */
 const REPORTS=[["activity","Activity breakdown"],["target","Staff against target"],["budgets","Module budgets"]];
 VIEWS.reports=()=>{
- let h=pageHead("Analysis","View reports","Fixed reports worked out from this year's allocations.");
+ let h=pageHead("Analysis","Reports and queries","Fixed reports and saved, read-only queries for this year. Nothing here can change data, nobody can type SQL, and exports go to your own computer.");
+ const menu=`<nav class="card report-menu" aria-label="Reports and queries"><div class="menu-label">Reports</div>${REPORTS.map(([k,l])=>`<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${l}</button>`).join("")}
+  <div class="menu-label">Saved queries</div>${QUERIES.map(q=>{const k="q:"+q.id;return `<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}><span class="q-no">${q.id}</span> ${esc(q.name)}</button>`;}).join("")}</nav>`;
+ if(String(sel.report).startsWith("q:")){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(q)return h+`<div class="report-grid">${menu}${queryPane(q)}</div>`;sel.report="activity";}
  let body="";
  if(sel.report==="activity"){
   const gs=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
@@ -1456,7 +1463,7 @@ VIEWS.reports=()=>{
   body=`<div class="card-head"><h2>Module budgets</h2><span class="muted" style="font-size:11px">Every category with a budget or allocation</span></div><div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Category</th><th class="r">Budget</th><th class="r">Allocated</th><th class="r">Unallocated</th></tr></thead><tbody>
    ${rows.map(r=>`<tr><td class="name-cell">${r.m.code}</td><td>${r.o.occ}</td><td>${esc(r.c.label)}</td><td class="r">${r.t}</td><td class="r">${r.a}</td><td class="r">${r.t-r.a<0?`<span class="tag red">${r.t-r.a}</span>`:r.t-r.a}</td></tr>`).join("")}</tbody></table></div>`;
  }
- return h+`<div class="report-grid"><nav class="card report-menu" aria-label="Reports">${REPORTS.map(([k,l])=>`<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}">${l}</button>`).join("")}</nav><article class="card">${body}</article></div>`;
+ return h+`<div class="report-grid">${menu}<article class="card">${body}</article></div>`;
 };
 
 /* ---------------------------- Ad hoc queries ---------------------------- */
@@ -1517,28 +1524,23 @@ const qParams=q=>{sel.qp=sel.qp||{};const v=sel.qp[q.id]=sel.qp[q.id]||{};(q.par
 // CSV for the user's own computer. Cells that could start a spreadsheet formula are made safe.
 function toCSV(r){const cell=v=>{let t=String(v??"");if(/^[=+\-@\t\r]/.test(t))t="'"+t;return /[",\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t;};
  return [r.cols].concat(r.rows).map(row=>row.map(cell).join(",")).join("\r\n");}
-VIEWS.adhoc=()=>{
- let h=pageHead("Analysis","Ad hoc queries","Saved, read-only queries. They can't change data, nobody can type SQL, and exports go to your own computer.");
- const q=QUERIES.find(x=>x.id===sel.query);
- if(q){const pv=qParams(q);let err="";
-  (q.params||[]).forEach(p=>{if(p.check){const ok=p.check(String(pv[p.id]));if(ok!==true)err=ok;}});
-  const r=err?null:q.run(pv);
-  const form=(q.params||[]).map(p=>`<label class="field${p.type==="text"?" grow":""}">${esc(p.label)}${p.type==="select"
-    ?selectH(`data-chg="qParam" data-q="${q.id}" data-p="${p.id}"`,p.opts().map(o=>({v:o,l:o})),pv[p.id])
-    :`<input value="${esc(pv[p.id])}" maxlength="60" data-chg="qParam" data-q="${q.id}" data-p="${p.id}" autocomplete="off">`}</label>`).join("");
-  return h+`<article class="card"><div class="card-head"><div class="left"><button class="btn small" data-act="query" data-v="">← All queries</button><h2>${q.id} · ${esc(q.name)}</h2>${r?`<span class="tag gray">${plural(r.rows.length,"row")}</span>`:""}</div>
-   ${r&&r.rows.length?`<button class="btn small primary" data-act="exportQuery">Export CSV</button>`:""}</div>
-   <p class="muted" style="margin:0;padding:12px 18px 0;font-size:12px">${esc(q.desc)}</p>
-   ${form?`<div class="filterbar" style="margin:12px 18px 0">${form}</div>`:""}
-   ${err?notice("!","Check the value",esc(err),"amber").replace('class="notice amber"','class="notice amber" style="margin:12px 18px"')
-    :r.rows.length?`<div class="table-wrap" style="margin-top:12px"><table><thead><tr>${r.cols.map((c,i)=>`<th${(r.num||[]).includes(i)?' class="r"':""}>${esc(c)}</th>`).join("")}</tr></thead><tbody>
-     ${r.rows.map(row=>`<tr>${row.map((v,i)=>`<td${(r.num||[]).includes(i)?' class="r"':""}>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
-    :empty("No results","Nothing matches right now.")}</article>`;}
- return h+`<article class="card"><div class="table-wrap"><table><thead><tr><th style="width:60px">No.</th><th style="width:26%">Query</th><th>What it returns</th><th class="r"></th></tr></thead><tbody>
-  ${QUERIES.map(x=>`<tr><td class="name-cell">${x.id}</td><td class="name-cell">${esc(x.name)}</td><td>${esc(x.desc)}${x.params?`<span class="sub">You choose: ${x.params.map(p=>p.label.toLowerCase()).join(", ")}</span>`:""}</td>
-   <td class="r"><button class="btn small primary" data-act="query" data-v="${x.id}">Run</button></td></tr>`).join("")}</tbody></table></div></article>
-  <p class="hint">Numbers match the old system's queries. 07 (Moderators) is now part of 06, and 99 (delete all sessions) has been removed: a new year is created by copying the current one, so sessions never need wiping.</p>`;
-};
+function queryPane(q){
+ const pv=qParams(q);let err="";
+ (q.params||[]).forEach(p=>{if(p.check){const ok=p.check(String(pv[p.id]));if(ok!==true)err=ok;}});
+ const r=err?null:q.run(pv);
+ const form=(q.params||[]).map(p=>`<label class="field${p.type==="text"?" grow":""}">${esc(p.label)}${p.type==="select"
+   ?selectH(`data-chg="qParam" data-q="${q.id}" data-p="${p.id}"`,p.opts().map(o=>({v:o,l:o})),pv[p.id])
+   :`<input value="${esc(pv[p.id])}" maxlength="60" data-chg="qParam" data-q="${q.id}" data-p="${p.id}" autocomplete="off">`}</label>`).join("");
+ return `<article class="card"><div class="card-head"><div class="left"><h2>${q.id} · ${esc(q.name)}</h2>${r?`<span class="tag gray">${plural(r.rows.length,"row")}</span>`:""}</div>
+  ${r&&r.rows.length?`<button class="btn small primary" data-act="exportQuery">Export CSV</button>`:""}</div>
+  <p class="muted" style="margin:0;padding:12px 18px 0;font-size:12px">${esc(q.desc)}</p>
+  ${form?`<div class="filterbar" style="margin:12px 18px 0">${form}</div>`:""}
+  ${err?notice("!","Check the value",esc(err),"amber").replace('class="notice amber"','class="notice amber" style="margin:12px 18px"')
+   :r.rows.length?`<div class="table-wrap" style="margin-top:12px"><table><thead><tr>${r.cols.map((c,i)=>`<th${(r.num||[]).includes(i)?' class="r"':""}>${esc(c)}</th>`).join("")}</tr></thead><tbody>
+    ${r.rows.map(row=>`<tr>${row.map((v,i)=>`<td${(r.num||[]).includes(i)?' class="r"':""}>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
+   :empty("No results","Nothing matches right now.")}
+  <p class="hint" style="padding:0 18px 14px">Query numbers match the old system. 07 (Moderators) is part of 06, and 99 (delete all sessions) has been removed.</p></article>`;
+}
 
 /* ------------------------------- Publish ------------------------------- */
 VIEWS.publish=()=>{
@@ -1627,8 +1629,8 @@ const ACT={
  myView(el){sel.myView=el.dataset.v;render();},
  ctView(el){sel.ctView=el.dataset.v;render();},
  report(el){sel.report=el.dataset.v;render();},
- query(el){sel.query=el.dataset.v||null;render(true);},
- exportQuery(){const q=QUERIES.find(x=>x.id===sel.query);if(!q)return;const r=q.run(qParams(q)),csv=toCSV(r);
+ query(el){sel.report=el.dataset.v?"q:"+el.dataset.v:"activity";tab="reports";render(true);},
+ exportQuery(){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(!q)return;const r=q.run(qParams(q)),csv=toCSV(r);
   openModal({title:`Export: ${q.id} ${q.name}`,ok:"Done",body:`<p>${plural(r.rows.length,"row")} as CSV. In the live system this downloads straight to your computer; nothing is saved on the server. Here, copy it below (it's already selected) or try the download.</p>
    <textarea id="csvOut" readonly style="width:100%;height:220px;font:12px/1.4 monospace">${esc(csv)}</textarea>
    <p style="margin-top:10px"><a class="btn small" id="csvDl" download="${esc(`query-${q.id}-${q.name.toLowerCase().replace(/[^a-z0-9]+/g,"-")}.csv`)}" href="data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+csv)}">Download CSV</a></p>`,onOk(){}});
