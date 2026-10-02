@@ -282,6 +282,13 @@ tr.selected td{background:var(--t-cyan)}
 .course-banner h2{font-size:22px}
 .year-card+.year-card{margin-top:14px}
 .sem-card+.sem-card{margin-top:14px}
+.cis-course{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 18px;border-bottom:1px solid var(--line-2)}
+.cis-course:last-child{border-bottom:0}
+.cis-course b{font-size:14px;color:var(--heading)}
+.cis-lm{display:flex;gap:28px;flex-wrap:wrap;margin:4px 0 10px;font-size:13px}
+.cis-lm .share-label{margin-right:6px}
+.cis-alloc{table-layout:fixed;min-width:700px;background:var(--surface);border:1px solid var(--line-2);border-radius:8px}
+.cis-alloc td{vertical-align:top}
 .ct-table{table-layout:fixed;min-width:820px}
 .ct-table td{vertical-align:top}
 .ct-line{min-height:20px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -577,11 +584,12 @@ function seed(){
  // Start with everything published, as the live system would be.
  const yd=YEARS["2026-27"];
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,"18 Sep 2026, 16:40"));yd.lastPublished[g.id]="18 Sep 2026, 16:40";});
+ yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
 }
 
 /* ------------------------------ state ------------------------------ */
 let me=null, tab="overview", selYear="2026-27";
-const sel={module:"BMGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",leadCourse:"",report:"activity",query:null,
+const sel={cisPage:"menu",cisView:"module",module:"BMGX2140",group:"COMP",staff:"andf1",course:"MGT-ENTM",nt:"Management - Programmes",ntMode:"summary",leadCourse:"",report:"activity",query:null,
  ttView:"chart",ctView:"module",myView:"chart",staffMode:"list"};
 
 const Y=()=>YEARS[selYear];
@@ -637,10 +645,10 @@ function parseDay(v){const s=String(v||"").trim().toLowerCase();if(s.length<2)re
 const ROLE_LABEL={owner:"Owner",head:"Head",pas:"PAS Admin",staff:"Academic staff"};
 const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
 
-const TABS=[["overview","Overview","OV"],["modules","Module details","MD"],["alloc","Module allocation","AL"],["sessions","Module sessions","SE"],
+const TABS=[["mine","My timetable","MT"],["overview","Overview","OV"],["modules","Module details","MD"],["alloc","Module allocation","AL"],["sessions","Module sessions","SE"],
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
- ["courses","Course details","CO"],["coursett","Course timetables","CT"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
-const ROLE_TABS={owner:TABS.map(t=>t[0]),head:["staff","alloc","sessions","leaders","tt","coursett","publish"],pas:["sessions","leaders","tt","coursett","publish"],staff:[]};
+ ["courses","Course details","CO"],["coursett","Course timetables","CT"],["cis","Course Information Site","CI"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
+const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","sessions","leaders","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
 const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
 const HIDDEN_TABS={head:["nt"]};
@@ -713,6 +721,12 @@ function staffBreakdown(id,yd=Y()){
  const s=yd.staff[id]||{};
  return {sections,target:s.target||0,total:breakdown(id,yd).total};
 }
+// The Course Information Site is a PUBLISHED copy of the year: staff only see changes once it is updated.
+function buildCIS(yd=Y(),when=stamp()){
+ const people={};Object.keys(yd.staff).forEach(id=>{const st=yd.staff[id];people[id]={name:nameOf(id),hidden:st.publish===false,hpl:st.status==="HPL"};});
+ return {at:when,cats:JSON.parse(JSON.stringify(CATS)),courses:COURSES.map(c=>({...c})),modules:JSON.parse(JSON.stringify(yd.modules)),sessions:JSON.parse(JSON.stringify(yd.sessions)),people};
+}
+const cisPending=(yd=Y())=>{if(!yd)return false;if(!yd.cis)return true;const a={...buildCIS(yd,"")},b={...yd.cis,at:""};return JSON.stringify(a)!==JSON.stringify(b);};
 function snapshot(id,yd=Y(),when=stamp()){return {at:when,items:staffItems(id,yd),breakdown:staffBreakdown(id,yd)};}
 function yearBudget(yd=Y()){
  let budget=0,assigned=0,over=0;
@@ -875,7 +889,7 @@ function renderNav(){
  $("#nav").innerHTML=ROLE_TABS[me.role].map(k=>TABS.find(t=>t[0]===k)).map(([k,l,i])=>
   `<button data-act="go" data-tab="${k}" class="${tab===k?"active":""}"${tab===k?' aria-current="page"':""}><span class="nav-icon">${i}</span><span>${l}</span></button>`).join("");
  const yd=Y();
- if(!yd){$("#sideFoot").innerHTML="";return;}
+ if(!yd||me.role==="staff"){$("#sideFoot").innerHTML="";return;}
  const b=yearBudget(),pct=b.budget?Math.round(b.assigned/b.budget*100):0;
  $("#sideFoot").innerHTML=`<b>${pct}% allocated</b><p>${b.assigned.toLocaleString()} of ${b.budget.toLocaleString()} budgeted credits are assigned to staff in ${selYear}.</p><div class="progress"><i style="width:${pct}%"></i></div>`;
 }
@@ -899,13 +913,10 @@ function renderNow(anim){
  const a=document.activeElement,fk=a&&main.contains(a)?[a.tagName,...Object.entries(a.dataset).map(e=>e.join("="))].join("|"):null;
  renderTop();
  let html;
- if(me.role==="staff"){$("#app").classList.add("solo");$("#nav").innerHTML="";$("#sideFoot").innerHTML="";html=viewMine();}
- else{
-  $("#app").classList.remove("solo");
-  if(!canOpen(tab))tab=ROLE_TABS[me.role][0];
-  renderNav();
-  html=Y()?VIEWS[tab]():viewNoYear();
- }
+ $("#app").classList.remove("solo");
+ if(!canOpen(tab))tab=ROLE_TABS[me.role][0];
+ renderNav();
+ html=Y()||me.role==="staff"?VIEWS[tab]():viewNoYear();
  main.innerHTML=`<div class="page${anim?" enter":""}">${yearBanner()}${html}${me.role!=="staff"&&Y()?saveBarHTML():""}</div>`;
  if(anim)main.scrollTop=0;else main.scrollTop=scroll;
  if(anim&&tab==="nt"&&sel.ntFocus){const f=document.getElementById("role-"+sel.ntFocus);if(f)f.scrollIntoView({block:"center"});}
@@ -1351,6 +1362,7 @@ VIEWS.tt=()=>{
  return h+chartHTML(items);
 };
 
+VIEWS.mine=()=>viewMine();
 function viewMine(){
  const p=P(me.id),yd=Y();
  let h=pageHead(selYear,"My timetable","Read-only. Use + on any row to see who else teaches on that module or holds that role.");
@@ -1551,6 +1563,10 @@ VIEWS.publish=()=>{
  let h=pageHead("Release","Publish",hg?"Publish your department's changes so staff see them.":"Publish changes by department so staff see them.",
   isOwner()?`<button class="btn primary" data-act="publishAll"${total?"":" disabled"}>Publish all departments</button>`:"");
  if(!ed)h+=readOnlyNote();
+ {const pend=cisPending(yd);
+  h+=`<article class="card"><div class="card-head"><div class="left"><h2>Course Information Site</h2>${pend?'<span class="tag amber">Changes not yet on the site</span>':'<span class="tag">Up to date</span>'}</div>
+   <div class="actions"><span class="muted" style="font-size:11px;align-self:center">Updated ${yd.cis?esc(yd.cis.at):"never"}</span>${isOwner()?`<button class="btn small primary" data-act="publishCIS"${pend?"":" disabled"}>Update the site</button>`:""}</div></div>
+   <p class="muted" style="margin:0;padding:12px 18px;font-size:12px">The course timetables everyone sees on the Course Information Site. ${isOwner()?"Updating it publishes every course at once; Publish all departments also updates it.":"The Owner updates it."}</p></article><div style="height:16px"></div>`;}
  h+=notice("i","Staff only see published timetables","Heads and the Owner can make changes as they go. Each change is listed under every department whose staff it affects, until that department is published.");
  return h+groups.map(g=>{const list=pend(g);
   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(g.name)}</h2>${list.length?`<span class="tag amber">${plural(list.length,"change")} waiting</span>`:`<span class="tag">Up to date</span>`}</div>
@@ -1577,6 +1593,79 @@ function slotManagerHTML(){
  <div style="margin-top:12px"><button class="btn primary small" data-act="slotAdd">Add time slot</button></div>
  <p class="hint">A new time slot starts at 0 credits on every module in every year. One can only be deleted when no module has a budget, allocation or session in it. Module Leader and Moderation are required because leaders and moderators come from them.</p>`;
 }
+
+/* ------------------------ Course Information Site ------------------------
+   Read-only for every role. Shows the PUBLISHED copy (yd.cis), like the old RMOutput/CIS pages:
+   course menu -> course year (By module / By time / Chart, by semester) -> + to drill into a module. */
+VIEWS.cis=()=>{
+ const yd=Y();
+ let h=pageHead("Published","Course Information Site","Course timetables by year, with who teaches each module. This is the published version everyone sees.");
+ if(!yd||!yd.cis)return h+`<article class="card">${empty("Not published yet",`The Course Information Site for ${selYear} appears once it has been published.`)}</article>`;
+ const S=yd.cis,cats=S.cats,page=sel.cisPage||"menu";
+ const upd=`<span class="tag gray">Updated ${esc(S.at)}</span>`;
+ const person=id=>{const p=S.people[id];if(!p)return nameOf(id);if(me.role==="staff"&&id===me.id)return p.name+" (you)";if(me.role==="staff"&&p.hidden)return p.hpl?"HPL":"TBC";return p.name;};
+ const single=c=>c.level==="PG"||c.years<=1;
+ const occsFor=c=>{const r=[];S.modules.forEach(m=>m.occs.filter(o=>o.courses.includes(c.code)).forEach(o=>r.push({m,o,y:linkYear(o,m.code,c)})));return r.sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));};
+ const owner=(PEOPLE.find(p=>p.role==="owner"&&p.email)||{}).email;
+ const foot=`<p class="hint">Worcester Business School · Course Information Site ${esc(selYear)}${owner?` · Questions? <a class="linkish" href="mailto:${esc(owner)}">Contact the Resourcing Lead</a>`:""}</p>`;
+ // ---- menu of courses
+ if(page==="menu"){
+  const shown=S.courses.filter(c=>c.cis);
+  return h+`<div class="course-banner"><div><div class="eyebrow">${esc(selYear)}</div><h2>Courses</h2></div><div class="actions">${upd}</div></div>
+  <article class="card">${shown.map(c=>{const occ=occsFor(c);
+    const btns=!occ.length?`<span class="muted" style="font-size:12px">No modules listed yet</span>`
+     :single(c)?`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="all">Module timetable</button>`
+     :courseYearsShown(c,occ.some(r=>r.y===0)).map(y=>`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="${y}">Year ${y}${y===0?" (foundation)":""}</button>`).join("");
+    return `<div class="cis-course"><div><b>${esc(c.title)}</b><span class="sub">${c.level==="PG"?"Postgraduate":"Undergraduate"}</span></div><div class="actions">${btns}</div></div>`;}).join("")||empty("No courses are shown on the site","")}
+   <div class="cis-course"><div><b>All other courses</b><span class="sub">Courses not listed above</span></div><div class="actions"><button class="btn small" data-act="cisOther">Full module list by course</button></div></div></article>${foot}`;
+ }
+ // ---- all other courses: module list
+ if(page==="other"){
+  const others=S.courses.filter(c=>!c.cis);
+  return h+`<div class="course-banner"><div><div class="eyebrow">${esc(selYear)}</div><h2>All other courses</h2></div><div class="actions"><button class="btn small" data-act="cisMenu">← Back to courses</button>${upd}</div></div>
+  ${others.map(c=>{const occ=occsFor(c);return `<article class="card sem-card"><div class="card-head"><h2>${esc(c.title)}</h2><span class="tag gray">${plural(occ.length,"module")}</span></div>
+   ${occ.length?`<div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Year</th><th>Leader</th></tr></thead><tbody>${occ.map(({m,o,y})=>`<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}</td><td><span class="occ">${esc(o.occ)}</span></td><td>${y==null?"—":"Year "+y}</td><td>${esc(Object.keys(o.slots.ML.alloc).map(person).join(", ")||"—")}</td></tr>`).join("")}</tbody></table></div>`
+    :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules listed.</p>`}</article>`;}).join("")||`<article class="card">${empty("No other courses","Every course is shown on the site.")}</article>`}${foot}`;
+ }
+ // ---- one course (and year)
+ const c=S.courses.find(x=>x.code===sel.cisCourse);
+ if(!c){sel.cisPage="menu";return VIEWS.cis();}
+ const yr=sel.cisYear==="all"?null:+sel.cisYear,all=occsFor(c),rows=yr==null?all:all.filter(r=>r.y===yr);
+ const title=`${c.title}${yr==null?"":` – Year ${yr}${yr===0?" (foundation)":""}`}`;
+ const sess=(m,o,k)=>(S.sessions[skey(m.code,o.occ,k.id)]||[]).slice().sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
+ const semCats=cats.filter(k=>k.tt&&(k.sem===1||k.sem===2||rows.some(({m,o})=>(o.slots[k.id]||{}).total||sess(m,o,k).length)));
+ h+=`<div class="course-banner"><div><div class="eyebrow">${esc(selYear)} · ${c.level==="PG"?"Postgraduate":"Undergraduate"}</div><h2>${esc(title)}</h2></div>
+  <div class="actions"><button class="btn small" data-act="cisMenu">← Back to courses</button>${upd}${segmented("cisView",sel.cisView,[["module","By module"],["time","By time"],["chart","Chart"]])}</div></div>`;
+ if(!rows.length)return h+`<article class="card">${empty("No modules listed","")}</article>${foot}`;
+ const items=[];rows.forEach(({m,o})=>cats.filter(k=>k.tt).forEach(k=>sess(m,o,k).forEach(s=>items.push({...s,module:m.code,title:m.title,occ:o.occ,sem:k.sem,cat:k.label}))));
+ if(sel.cisView==="chart")return h+chartHTML(items)+foot;
+ if(sel.cisView==="time")return h+semCats.map(k=>{const its=items.filter(i=>i.cat===k.label).sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
+   return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(its.length,"session")}</span></div>
+   ${its.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:13%">Day</th><th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:40%">Module</th><th style="width:7%">Occ.</th><th style="width:22%">Comments</th></tr></thead><tbody>
+   ${its.map(i=>`<tr><td>${DAY_NAME[i.day]}</td><td>${fmt(i.start)}</td><td>${fmt(i.end)}</td><td><span class="name-cell">${esc(i.module)}</span> ${esc(i.title)}</td><td><span class="occ">${esc(i.occ)}</span></td><td>${esc(i.c)}</td></tr>`).join("")}</tbody></table></div>`
+   :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No sessions in ${esc(k.label)}.</p>`}</article>`;}).join("")+foot;
+ // By module, with + to drill into the module (leader, moderator, every time slot's staff, total allocation and shortfall)
+ let seq=0;
+ const drill=(m,o)=>{const lead=Object.keys(o.slots.ML.alloc).map(person).join(", ")||"—",mod=Object.keys(o.slots.MO.alloc).map(person).join(", ")||"—";
+  const lines=cats.filter(k=>o.slots[k.id]&&(o.slots[k.id].total||Object.keys(o.slots[k.id].alloc).length)).map(k=>{const sl=o.slots[k.id],given=sumV(sl.alloc),gap=sl.total-given,ss=k.tt?sess(m,o,k):[];
+   return `<tr><td class="name-cell">${esc(k.label)}</td><td>${k.tt?(ss.length?ss.map(s=>`${s.day} ${fmt(s.start)}–${fmt(s.end)}`).join("<br>"):'<span class="muted">Not timetabled</span>'):'<span class="muted">–</span>'}</td>
+    <td>${Object.entries(sl.alloc).sort((a,b)=>b[1]-a[1]).map(([id,cr])=>`${esc(person(id))} <b>${cr}</b>`).join("<br>")||'<span class="muted">Nobody yet</span>'}</td>
+    <td class="r">${sl.total}</td><td class="r">${gap<0?`<span class="tag red">Over by ${-gap}</span>`:gap}</td></tr>`;}).join("");
+  return `<div class="detail-head"><h3>${esc(m.code)} ${esc(m.title)} · occurrence ${esc(o.occ)}</h3></div>
+   <div class="cis-lm"><div><span class="share-label">Leader</span> ${esc(lead)}</div><div><span class="share-label">Moderator</span> ${esc(mod)}</div></div>
+   <div class="table-wrap"><table class="cis-alloc"><thead><tr><th style="width:18%">Time slot</th><th style="width:20%">Sessions</th><th>Staff and credits</th><th class="r" style="width:14%">Total allocation</th><th class="r" style="width:12%">Shortfall</th></tr></thead><tbody>${lines}</tbody></table></div>`;};
+ return h+semCats.map(k=>{
+  const list=rows.filter(({m,o})=>(o.slots[k.id]||{}).total||Object.keys((o.slots[k.id]||{alloc:{}}).alloc).length||sess(m,o,k).length);
+  return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(list.length,"module")}</span></div>
+  ${list.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:33%">Module</th><th style="width:6%">Occ.</th><th style="width:15%">Sessions</th><th class="c" style="width:6%">Grps</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
+  ${list.map(({m,o})=>{const ss=sess(m,o,k),id=`cis${++seq}`;
+   return `<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}</td><td><span class="occ">${esc(o.occ)}</span></td>
+    <td>${ss.length?ss.map(s=>`<div class="ct-line">${s.day} ${fmt(s.start)}–${fmt(s.end)}</div>`).join(""):'<span class="muted">Not timetabled</span>'}</td>
+    <td class="c">${o.groups}</td><td class="r"><b>${o.slots[k.id].total}</b></td><td>${ss.map(s=>`<div class="ct-line">${esc(s.c)||"&nbsp;"}</div>`).join("")}</td>
+    <td class="c"><button class="plus-btn" data-act="toggleRow" data-row="${id}" aria-expanded="false" aria-controls="${id}" aria-label="Show who teaches ${esc(m.code)} occurrence ${esc(o.occ)}">+</button></td></tr>
+    <tr class="detail-row" id="${id}" hidden><td colspan="7">${drill(m,o)}</td></tr>`;}).join("")}</tbody></table></div>`
+  :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules in ${esc(k.label)}.</p>`}</article>`;}).join("")+foot;
+};
 
 /* ---------------------------- Year not created ---------------------------- */
 function viewNoYear(){
@@ -1881,10 +1970,15 @@ const ACT={
   const n=Y().changes.filter(c=>c.groups.includes(g)).length;publishGroup(g);toast(`Published ${gName(g)}`,`${plural(n,"change")} now visible to its staff.`);render();},
  publishAll(){if(!isOwner())return;const gs=[...new Set(Y().changes.flatMap(c=>c.groups))];
   openModal({title:"Publish all departments?",ok:"Publish all",body:`<p>${plural(Y().changes.length,"change")} across ${plural(gs.length,"group")} become visible to staff.</p>`,
-   onOk(){gs.forEach(publishGroup);toast("Published",`${plural(gs.length,"group")} updated.`);}});},
+   onOk(){gs.forEach(publishGroup);Y().cis=buildCIS(Y());toast("Published",`${plural(gs.length,"group")} and the Course Information Site updated.`);}});},
+ publishCIS(){if(!isOwner())return;Y().cis=buildCIS(Y());toast("Course Information Site updated",`Everyone now sees ${selYear} as it stands.`);render();},
+ cisMenu(){sel.cisPage="menu";render(true);},
+ cisOther(){sel.cisPage="other";render(true);},
+ cisOpen(el){sel.cisPage="course";sel.cisCourse=el.dataset.course;sel.cisYear=el.dataset.year;render(true);},
+ cisView(el){sel.cisView=el.dataset.v;render();},
  createYear(el){if(!isOwner())return;SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
-  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{}});YEARS[selYear]=copy;
+  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null});YEARS[selYear]=copy;
   const [a]=selYear.split("-").map(Number),next=`${a+1}-${String(a+2).slice(2)}`;if(!YEAR_ORDER.includes(next))YEAR_ORDER.push(next);
   tab="overview";toast(`${selYear} created`,`Copied from ${src}. Changes here don't affect ${src}.`);render(true);}
 };
@@ -2313,6 +2407,7 @@ function applyImport(res,db,tablesFound){
  selYear=res.year;
  const yd=YEARS[res.year],when=stamp();
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,when));yd.lastPublished[g.id]=when;});
+ yd.cis=buildCIS(yd,when);
  Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],ntMode:"summary",query:null,staffMode:"list"});
  IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound};
 }
