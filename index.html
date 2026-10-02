@@ -313,6 +313,8 @@ tr.addl-row:hover td{background:var(--t-lime)}
 .check-row input{min-height:0;width:16px;height:16px;margin:0}
 .check-row .muted{margin-left:auto;font-size:11px}
 .nt-summary{table-layout:fixed;min-width:760px}
+.nt-edit-table{table-layout:fixed;min-width:700px}
+.nt-edit-table td{overflow-wrap:anywhere}
 .nt-summary td{overflow-wrap:anywhere}
 .nt-summary td.role-cell{border-right:1px solid var(--line-2)}
 .bd-table{table-layout:fixed;min-width:760px}
@@ -1283,7 +1285,7 @@ VIEWS.nt=()=>{
  if(!roles.length)return h+`<article class="card">${empty("No roles of this type yet","Create one with New role.")}</article>`;
  return h+roles.map(r=>`<article class="card${sel.ntFocus===r.id?" focus-card":""}" id="role-${esc(r.id)}"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
   ${owner?`<div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div>`:""}</div>
-  <div class="table-wrap"><table><thead><tr><th>Staff</th><th class="r">Credits</th><th>Comments</th><th></th></tr></thead><tbody>
+  <div class="table-wrap"><table class="nt-edit-table"><thead><tr><th style="width:34%">Staff</th><th class="r" style="width:12%">Credits</th><th style="width:48%">Comments</th><th style="width:6%"></th></tr></thead><tbody>
   ${r.people.map((p,i)=>{const ed=canEditNtEntry(p);return `<tr${sel.back&&sel.back.staff===p.s?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(p.s))}</span>${!owner&&ed?' <span class="tag plain blue">Added by you</span>':""}<span class="sub">${esc(gName((SY(p.s)||{}).group))}${owner&&p.addedBy?` · ${esc(addedByText(p))}`:""}</span></td>
    <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"${ed?"":" disabled"}></td>
    <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"${ed?"":" disabled"}></td>
@@ -2233,10 +2235,10 @@ document.addEventListener("input",e=>{
 $("#modalBg").addEventListener("click",e=>{if(e.target.id==="modalBg")closeModal();});
 
 /* ---- light / dark mode ----
-   Saved on the person's account (user_account.theme_preference), so it follows them to any device.
-   Before sign-in, and for anyone who hasn't chosen, the device's own setting is used. */
-const effTheme=()=>document.documentElement.dataset.theme||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");
-function applyTheme(t){if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;else delete document.documentElement.dataset.theme;paintThemeButtons();}
+   Light is the default for everyone. Dark is an option; a signed-in person's choice is saved to their account
+   (user_account.theme_preference) and applied whenever they sign in, on any device. Signing out returns to Light. */
+const effTheme=()=>document.documentElement.dataset.theme==="dark"?"dark":"light";
+function applyTheme(t){document.documentElement.dataset.theme=t==="dark"?"dark":"light";paintThemeButtons();}
 function paintThemeButtons(){const d=effTheme()==="dark";
  document.querySelectorAll('[data-act="theme"]').forEach(b=>{b.innerHTML=`<span class="ti" aria-hidden="true">${d?"☀":"☾"}</span><span class="tl">${d?"Light mode":"Dark mode"}</span>`;
   b.setAttribute("aria-label",d?"Switch to light mode":"Switch to dark mode");b.title=d?"Switch to light mode":"Switch to dark mode";});}
@@ -2244,7 +2246,7 @@ ACT.theme=()=>{const next=effTheme()==="dark"?"light":"dark";applyTheme(next);
  const on=next==="dark"?"Dark mode on":"Light mode on";
  if(me){P(me.id).theme=next;toast(on,"Saved to your account, so it follows you on any device.");}
  else toast(on,"For this visit only. Sign in to save it to your account.");};
-try{matchMedia("(prefers-color-scheme: dark)").addEventListener("change",paintThemeButtons);}catch(e){}
+applyTheme("light");
 paintThemeButtons();
 
 

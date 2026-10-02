@@ -240,7 +240,7 @@ CREATE TABLE user_account (
     last_login_at        timestamptz,
     password_changed_at  timestamptz,
     -- Light / dark display preference, saved to the account so it follows
-    -- the person to any device. NULL = follow the device's own setting.
+    -- the person to any device. NULL = Light, the default for everyone.
     theme_preference     text CHECK (theme_preference IN ('light', 'dark')),
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now()
