@@ -218,6 +218,37 @@ tr.selected td{background:var(--t-cyan)}
 .notice.amber{background:var(--t-amber);border-color:var(--b-amber)}.notice.amber .glyph{background:var(--amber);color:var(--navy)}
 .notice.red{background:var(--t-red);border-color:var(--b-red)}
 .notice.year-next strong{font-size:15px;text-transform:uppercase;letter-spacing:.03em}
+.sd-card+.sd-card{margin-top:10px}
+.sd-head{margin:18px 0 8px;font-size:13px}
+.date-field{display:flex;gap:6px;align-items:center}
+.date-field .date-in{flex:1;min-width:0;font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0;font-weight:400}
+.date-in.bad{border-color:var(--red);background:var(--t-red)}
+.date-btn{flex:none;width:38px;height:38px;border:1px solid var(--input-line);border-radius:8px;background:var(--surface);cursor:pointer;font-size:16px;line-height:1}
+.date-btn:hover{border-color:var(--teal-text)}
+.sd-msg{margin:8px 0 0;font-size:12px;color:var(--t-red-ink);font-weight:700}
+.sd-msg:empty{display:none}
+.sd-status{display:inline-block;margin:4px 0 6px;padding:5px 12px;border-radius:999px;font-size:12px;font-weight:800;background:var(--t-cyan);color:var(--t-cyan-ink)}
+.sd-status.bad{background:var(--t-red);color:var(--t-red-ink)}
+.date-pop{position:fixed;z-index:170;width:276px;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px}
+.date-pop[hidden]{display:none}
+.dp-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.dp-head b{font-size:13px;color:var(--heading)}
+.dp-head button{width:32px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);cursor:pointer;font-size:16px}
+.dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.dp-dow span{font-size:10px;font-weight:800;color:var(--muted);text-align:center;padding:4px 0}
+.dp-grid button{height:34px;border:0;border-radius:7px;background:transparent;color:var(--ink);font:13px var(--body);cursor:pointer}
+.dp-grid button:hover{background:var(--t-cyan)}
+.dp-grid button.today{box-shadow:inset 0 0 0 1px var(--teal-text)}
+.dp-grid button.offwk{background:var(--t-amber);color:var(--t-amber-ink)}
+.dp-grid button.sel{background:var(--primary);color:#fff;font-weight:800}
+.dp-grid button:focus-visible{outline:3px solid rgba(0,166,166,.55);outline-offset:1px}
+.dp-hint{margin:8px 2px 0;font-size:11px;color:var(--muted)}
+.sd-summary .sd-row{display:flex;gap:16px;align-items:flex-start;padding:12px 18px;border-bottom:1px solid var(--line-2)}
+.sd-summary .sd-cal{min-width:38px;font-weight:900;color:var(--heading);font-size:14px}
+.sd-summary .sd-dates{display:flex;flex-wrap:wrap;gap:6px 22px;font-size:12px}
+.sd-summary .sd-dates small{color:var(--muted)}
+.sd-hint{margin:-6px 0 14px}
+.sd-card h3{margin-bottom:8px}
 .del-list{margin:6px 0 12px;padding-left:20px;font-size:13px}
 .del-list li{margin:3px 0}
 .notice.slate{background:var(--t-gray);border-color:var(--line)}
@@ -375,14 +406,17 @@ tr.addl-row:hover td{background:var(--t-lime)}
 /* ---------- modal, toast ---------- */
 .modal-backdrop{position:fixed;inset:0;background:rgba(4,28,42,.56);z-index:120;display:none;place-items:center;padding:20px;backdrop-filter:blur(4px)}
 .modal-backdrop.open{display:grid}
-.modal{width:min(620px,100%);max-height:90%;overflow:auto;background:var(--surface);border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.3);animation:modalIn .2s ease-out}
+.modal{width:min(620px,100%);max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);display:flex;flex-direction:column;overflow:hidden;background:var(--surface);border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.3);animation:modalIn .2s ease-out}
 @keyframes modalIn{from{opacity:0;transform:scale(.97) translateY(8px)}to{opacity:1;transform:none}}
 .modal-head{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
-.modal-body{padding:20px 22px}
+/* only the middle scrolls, so the title and the Save / Cancel buttons are always on screen */
+.modal-body{padding:20px 22px;overflow:auto;flex:1 1 auto;min-height:0}
+.modal-head,.modal-foot,.modal-err{flex:none}
+.modal-err{color:var(--t-red-ink);font-size:12px;font-weight:700;padding:0 22px}
+.modal-err:not(:empty){padding:10px 22px;background:var(--t-red);border-top:1px solid var(--b-red)}
 .modal-body p{margin:0 0 12px;color:var(--muted);font-size:13px}
 .modal-body .form-grid{grid-template-columns:1fr 1fr}
 .modal-body .form-grid .wide{grid-column:1/-1}
-.modal-err{color:var(--t-red-ink);font-size:12px;font-weight:700;margin-top:12px;min-height:1em}
 .modal-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
 .toast-stack{position:fixed;right:22px;bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:130;display:grid;gap:9px}
 .toast{width:330px;max-width:calc(100vw - 44px);background:#102a3b;color:#fff;padding:13px 15px;border-radius:11px;box-shadow:var(--shadow);animation:toastIn .3s ease-out;border-left:4px solid var(--lime)}
@@ -506,11 +540,12 @@ tr.addl-row:hover td{background:var(--t-lime)}
 
 <div class="modal-backdrop" id="modalBg"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
  <div class="modal-head"><h2 id="modalTitle"></h2><button class="icon-btn" data-act="modalClose" aria-label="Close" style="color:var(--muted)">✕</button></div>
- <div class="modal-body"><div id="modalBody"></div><div class="modal-err" id="modalErr"></div></div>
+ <div class="modal-body"><div id="modalBody"></div></div><div class="modal-err" id="modalErr" role="alert"></div>
  <div class="modal-foot"><button class="btn" data-act="modalClose">Cancel</button><button class="btn primary" id="modalOk" data-act="modalOk">Save</button></div>
 </div></div>
 <div class="toast-stack" id="toasts" aria-live="polite"></div>
 <div class="combo-pop" id="comboPop" role="listbox" hidden></div>
+<div class="date-pop" id="datePop" role="dialog" aria-label="Choose a date" hidden></div>
 <script>
 "use strict";
 /* =====================================================================
@@ -580,14 +615,14 @@ function seed(){
    okon1:sy("MGT","FT",1,550,"BB210"),farh1:sy("MGT","FT",1,850,"BB105"),doym1:sy("MGT","FT",1,550,"BB105"),
    shap1:sy("MKT","FT",1,550,"MK020"),caso1:sy("MKT","AL",0,0,"",false)},
   modules:[
-   {code:"BMGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,occs:[
+   {code:"BMGX2140",title:"Digital Enterprise Strategy",dept:"MGT",credit:30,calendar:"UG",occs:[
     {occ:"A",groups:3,courses:["MGT-ENTM"],slots:slots({S1:[140,{andf1:60,farh1:70},{andf1:"Reduced to 2 groups"}],SV:[20,{farh1:20},{farh1:"4 Cr / Project"}],ML:[16,{farh1:16}],MO:[12,{okon1:12}],MC:[18,{farh1:9,okon1:9}]})},
     {occ:"C",groups:2,courses:["MKT-BRND"],slots:slots({S1:[118,{shap1:59,doym1:59}],ML:[12,{doym1:12}],MO:[7,{shap1:7}],MC:[18,{shap1:9,doym1:9}]})}]},
-   {code:"COMX2205",title:"Applied Software Design",dept:"COMP",credit:15,occs:[
+   {code:"COMX2205",title:"Applied Software Design",dept:"COMP",credit:15,calendar:"UG",occs:[
     {occ:"A",groups:2,courses:["COMP-SWD"],slots:slots({S1:[70,{odum1:40,andf1:30}],S2:[30,{andf1:30}],SV:[15,{odum1:15},{odum1:"7.5 Cr / Student"}],ML:[10,{odum1:10}],MO:[6,{andf1:6}]})}]},
-   {code:"BMKX1010",title:"Principles of Marketing",dept:"MKT",credit:15,occs:[
+   {code:"BMKX1010",title:"Principles of Marketing",dept:"MKT",credit:15,calendar:"UG",occs:[
     {occ:"A",groups:2,courses:["MKT-BRND","MGT-ENTM"],slots:slots({S2:[90,{shap1:45,caso1:45}],ML:[10,{shap1:10}],MO:[6,{doym1:6}]})}]},
-   {code:"COMX3310",title:"Secure Systems Engineering",dept:"COMP",credit:15,occs:[
+   {code:"COMX3310",title:"Secure Systems Engineering",dept:"COMP",credit:15,calendar:"UG",occs:[
     {occ:"A",groups:1,courses:["COMP-SWD"],slots:slots({S2:[60,{pemg1:30}],ML:[8,{}],MO:[5,{}]})}]}],
   sessions:{
    "BMGX2140|A|S1":[{day:"Mon",start:9.25,end:11.25,c:"Seminar group 1"},{day:"Mon",start:12.25,end:13.25,c:"Lecture"},{day:"Tue",start:13.75,end:15.75,c:"Seminar group 2"}],
@@ -604,14 +639,19 @@ function seed(){
    {id:"nt5",title:"Admissions Tutor - Computing",cat:"Management - Recruitment & International",people:[{s:"andf1",cr:45,note:"UG COMP"}]},
    {id:"nt6",title:"Scholarship",cat:"Research",people:[{s:"andf1",cr:60,note:""},{s:"farh1",cr:60,note:""}]},
    {id:"nt7",title:"Personal Academic Tutors - Computing",cat:"Learning & Teaching",people:[{s:"andf1",cr:20,note:"L4 Software 26-27"},{s:"odum1",cr:20,note:""}]}],
-  changes:[],published:{},lastPublished:{},overrides:{}}};
+  changes:[],published:{},lastPublished:{},overrides:{},
+  // teaching dates per timetabled time slot; weeks off are the Mondays of weeks with no teaching
+  semesterDates:{UG:{S1:{start:"2026-09-21",end:"2026-12-11",off:[]},S2:{start:"2027-01-25",end:"2027-05-07",off:["2027-03-29","2027-04-05"]}},
+                 PG:{S1:{start:"2026-10-05",end:"2027-01-15",off:["2026-12-21","2026-12-28"]},S2:{start:"2027-02-08",end:"2027-05-21",off:["2027-03-29","2027-04-05"]}}}}};
  YEAR_ORDER=["2025-26","2026-27","2027-28"];
  // Start with everything published, as the live system would be.
  const yd=YEARS["2026-27"];
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,"18 Sep 2026, 16:40"));yd.lastPublished[g.id]="18 Sep 2026, 16:40";});
  yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
  // A sample previous (archived) year, so the "Previous academic year" flag can be seen in the prototype.
- YEARS["2025-26"]=Object.assign(JSON.parse(JSON.stringify(yd)),{status:"archived",changes:[],overrides:{}});
+ YEARS["2025-26"]=Object.assign(JSON.parse(JSON.stringify(yd)),{status:"archived",changes:[],overrides:{},
+  semesterDates:{UG:{S1:{start:"2025-09-22",end:"2025-12-12",off:[]},S2:{start:"2026-01-26",end:"2026-05-08",off:["2026-03-30","2026-04-06"]}},
+                 PG:{S1:{start:"2025-10-06",end:"2026-01-16",off:["2025-12-22","2025-12-29"]},S2:{start:"2026-02-09",end:"2026-05-22",off:["2026-03-30","2026-04-06"]}}}});
 }
 
 /* ------------------------------ state ------------------------------ */
@@ -621,6 +661,18 @@ const sel={cisPage:"menu",cisView:"module",module:"BMGX2140",group:"COMP",staff:
 
 const Y=()=>YEARS[selYear];
 // ---- academic years: created in order, and only the latest future (planning) year can be deleted ----
+// ---- UK dates: shown as DD/MM/YYYY; typed or pasted dates in common forms are understood ----
+const fmtUK=iso=>{const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||"");return m?`${m[3]}/${m[2]}/${m[1]}`:"";};
+function parseUK(v){
+ const t=String(v||"").trim();let y,m,d,r;
+ if((r=/^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(t))){y=+r[1];m=+r[2];d=+r[3];}
+ else if((r=/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/.exec(t))){d=+r[1];m=+r[2];y=+r[3];if(y<100)y+=2000;}
+ else return null;
+ const dt=new Date(Date.UTC(y,m-1,d));
+ if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return null; // e.g. 31/02 is not a date
+ return dt.toISOString().slice(0,10);
+}
+const mondayOf=iso=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()-((d.getUTCDay()+6)%7));return d.toISOString().slice(0,10);};
 const nextYearCode=code=>{const a=+String(code).slice(0,4);return `${a+1}-${String(a+2).slice(2)}`;};
 const latestYear=()=>YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
 const currentYearCode=()=>YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||latestYear();
@@ -654,6 +706,10 @@ const skey=(m,o,c)=>`${m}|${o}|${c}`;
 const MODULE_CODE_RE=/^[A-Z]{4}[0-9]{4}$/;
 const cleanCode=v=>String(v||"").trim().slice(0,8).toUpperCase();
 const CODE_RULE="Module codes are 4 letters followed by 4 numbers, for example BMGT1234.";
+// Each module follows the UG or PG semester dates, or a non-standard semester (left out of calendar exports).
+const CALENDARS=[{v:"UG",l:"UG Semester Dates"},{v:"PG",l:"PG Semester Dates"},{v:"NS",l:"Non-Standard Semester"}];
+const calLabel=v=>(CALENDARS.find(c=>c.v===v)||CALENDARS[0]).l;
+const defaultCalendar=code=>levelDigit(code)===4?"PG":"UG";
 // Module credit values allowed (academic credits, not workload).
 const MODULE_CREDITS=[0,5,10,15,20,25,30,35,40,45,60,120,240]; // 0 = a module with no credit weighting
 const creditOptions=cur=>(MODULE_CREDITS.includes(+cur)||cur==null?[]:[{v:cur,l:`${cur} (not a standard value)`}]).concat(MODULE_CREDITS.map(v=>({v,l:String(v)})));
@@ -705,7 +761,7 @@ function staffItems(id,yd=Y()){
  const out=[];
  yd.modules.forEach(m=>m.occs.forEach(o=>CATS.filter(c=>c.tt).forEach(c=>{
   if(!(id in o.slots[c.id].alloc))return;
-  (yd.sessions[skey(m.code,o.occ,c.id)]||[]).forEach(s=>out.push({...s,module:m.code,title:m.title,occ:o.occ,sem:c.sem,cat:c.label}));
+  (yd.sessions[skey(m.code,o.occ,c.id)]||[]).forEach(s=>out.push({...s,module:m.code,title:m.title,occ:o.occ,sem:c.sem,cat:c.label,cal:m.calendar||"UG"}));
  })));
  return out;
 }
@@ -783,15 +839,16 @@ function publishGroup(gid){
 }
 
 /* --------------------------- modal & toast --------------------------- */
-let modalCb=null;
-function openModal({title,body,ok="Save",danger=false,onOk}){
+let modalCb=null,modalCancelCb=null;
+function openModal({title,body,ok="Save",danger=false,onOk,onCancel=null}){
+ modalCancelCb=onCancel;
  $("#modalTitle").textContent=title;$("#modalBody").innerHTML=body;$("#modalErr").textContent="";
  const b=$("#modalOk");b.textContent=ok;b.className="btn "+(danger?"danger":"primary");modalCb=onOk;b.previousElementSibling.textContent="Cancel";
  $("#modalBg").classList.add("open");
  // focus the first field straight away (never later, which could steal focus from a field already being typed in)
  const f=$("#modalBody input:not([disabled]),#modalBody select:not([disabled])");(f||b).focus();
 }
-function closeModal(){$("#modalBg").classList.remove("open");modalCb=null;
+function closeModal(){$("#modalBg").classList.remove("open");modalCb=null;modalCancelCb=null;if(typeof dpClose==="function")dpClose();
  if(PENDING_NAV){PENDING_NAV=null;if(me)renderTop();} // chose to stay: put the year selector back
 }
 function toast(title,detail="",err=false){
@@ -1047,6 +1104,7 @@ VIEWS.overview=()=>{
   ${metric("Unallocated",b.unalloc.toLocaleString(),`of ${b.budget.toLocaleString()} budgeted credits`,"var(--amber)")}
   ${metric("Timetable clashes",clashes,`needing attention${overridden.some(i=>i.key.startsWith("clash:"))?`, ${overridden.filter(i=>i.key.startsWith("clash:")).length} overridden`:""}`,"var(--red)")}
  </div>
+ ${semesterDatesCard()}
  <div class="section-title"><h2>Needs attention</h2><span>Override anything that's acceptable; it comes back only if something about that item changes</span></div>
  <article class="card">${active.length?`<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail</th><th class="r"></th></tr></thead><tbody>${active.map(row).join("")}</tbody></table></div>`
   :empty("Nothing needs attention",overridden.length?"Everything outstanding has been overridden as acceptable.":"Every budget is fully allocated and within limits, every occurrence has a leader and moderator, and there are no clashes.")}</article>
@@ -1133,7 +1191,7 @@ const namesOrNone=(o,k,l)=>{const ids=Object.keys(o.slots[k].alloc);return ids.l
 VIEWS.modules=()=>{
  const m=ensureModule();
  let h=pageHead("Curriculum","Module details","Module records, their occurrences, linked courses and the credit budget for each category.",
-  `<button class="btn" data-act="timeSlots">Time slots</button><button class="btn primary" data-act="newModule">New module</button>`);
+  `<button class="btn" data-act="semesterDates">Semester dates</button><button class="btn" data-act="timeSlots">Time slots</button><button class="btn primary" data-act="newModule">New module</button>`);
  if(!Y().modules.length)return h+`<article class="card">${empty("No modules yet","Create the first one with New module.")}</article>`;
  if(!m)return h+`<div class="filterbar">${modulePicker(null)}</div>`+choosePrompt("a module","Type or paste a module code or title above, or pick one from the list.");
  h+=`<div class="filterbar">${modulePicker(m)}
@@ -1145,6 +1203,7 @@ VIEWS.modules=()=>{
    <label class="field wide">Title<input id="mTitle" value="${esc(m.title)}"></label>
    <label class="field">Credits (academic)${selectH('id="mCredit"',creditOptions(m.credit),m.credit)}</label>
    <label class="field wide">Owning department${selectH('id="mDept"',depts().map(d=>({v:d.id,l:d.name})),m.dept)}</label>
+   <label class="field wide">Semester dates${selectH('id="mCal"',CALENDARS,m.calendar||"UG")}</label>
   </div></div>
   <div class="card-foot"><button class="btn primary small" data-act="saveModule">Save changes</button><span class="muted" style="font-size:11px">The code can't change once the module exists: allocations, sessions and course links all depend on it.</span></div>
  </article>
@@ -1221,6 +1280,8 @@ VIEWS.sessions=()=>{
  if(!Y().modules.length)return h+`<article class="card">${empty("No modules","")}</article>`;
  if(!m)return h+`<div class="filterbar">${modulePicker(null)}</div>`+choosePrompt("a module","Type or paste a module code or title above, or pick one from the list.");
  h+=`<div class="filterbar">${modulePicker(m)}</div>`;
+ h+=m.calendar==="NS"?notice("i","Non-Standard Semester","This module isn't on the normal timetable dates, so its sessions aren't included in calendar exports.","amber")
+   :`<p class="hint sd-hint">Follows <b>${esc(calLabel(m.calendar||"UG"))}</b>${isOwner()?" (change on Module details)":""}.</p>`;
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","Sessions are added per occurrence once one exists.")}</article>`;
  if(ed)h+=`<p class="hint" style="margin:-4px 0 14px">Type or paste days and times. Times like 9, 9:15, 0915 or 2pm all work, and an hour on its own becomes quarter past (9 → 09:15). You can paste a whole line such as <b>Mon 09:15-12:15</b> into the Day box.</p>`;
  return h+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
@@ -1431,7 +1492,7 @@ function viewMine(){
  const snap=yd.published[me.id];
  if(!snap)return h+`<article class="card">${empty("Not published yet",`Your department hasn't published a ${selYear} timetable yet.`)}</article>`;
  h+=notice("i","Your published timetable",`Last published ${snap.at}. It changes only when your department publishes updates, not while they're being drafted.`);
- h+=`<div class="filterbar"><span class="muted" style="align-self:center;font-size:12px">Signed in as <b>${esc(nameOf(p.id))}</b> (${esc(p.email)})</span><span class="spacer"></span>${ttSeg("myView",sel.myView)}</div>`;
+ h+=`<div class="filterbar"><span class="muted" style="align-self:center;font-size:12px">Signed in as <b>${esc(nameOf(p.id))}</b> (${esc(p.email)})</span><span class="spacer"></span>${ttSeg("myView",sel.myView)}<button class="btn primary" data-act="exportIcs">Add to Outlook (.ics)</button></div>`;
  if(sel.myView==="module")return h+breakdownHTML(snap.breakdown,me.id);
  if(sel.myView==="time")return h+timeHTML(snap.items);
  return h+chartHTML(snap.items);
@@ -1748,6 +1809,126 @@ VIEWS.cis=()=>{
   :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules in ${esc(k.label)}.</p>`}</article>`;}).join("")+foot;
 };
 
+/* ---------------------------- Calendar export (.ics) ----------------------------
+   Each weekly session becomes a repeating event for its semester (RFC 5545), in UK time (Europe/London),
+   skipping the Owner's weeks off. Built from the person's PUBLISHED timetable. */
+const ICS_TZ=["BEGIN:VTIMEZONE","TZID:Europe/London","BEGIN:DAYLIGHT","TZOFFSETFROM:+0000","TZOFFSETTO:+0100","TZNAME:BST","DTSTART:19700329T010000","RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU","END:DAYLIGHT",
+ "BEGIN:STANDARD","TZOFFSETFROM:+0100","TZOFFSETTO:+0000","TZNAME:GMT","DTSTART:19701025T020000","RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU","END:STANDARD","END:VTIMEZONE"];
+const icsText=v=>String(v||"").replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+// Lines longer than 75 bytes are folded onto continuation lines starting with a space.
+function icsFold(line){const out=[];let cur="",bytes=0;for(const ch of line){const b=new TextEncoder().encode(ch).length;if(bytes+b>(out.length?74:75)){out.push(cur);cur="";bytes=0;}cur+=ch;bytes+=b;}out.push(cur);return out.join("\r\n ");}
+const ymd=d=>d.toISOString().slice(0,10).replace(/-/g,"");
+const parseISODate=s=>{const [y,m,d]=String(s).split("-").map(Number);return new Date(Date.UTC(y,m-1,d));};
+const hm=t=>{const h=Math.floor(t+1e-9),m=Math.round((t-h)*60);return String(h).padStart(2,"0")+String(m).padStart(2,"0")+"00";};
+/** @returns {{ics:string, events:number, skipped:string[]}} */
+function buildICS(items,dates,calName,uidBase){
+ const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Worcester Business School//Resource Manager//EN","CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:"+icsText(calName),"X-WR-TIMEZONE:Europe/London",...ICS_TZ];
+ const stamp=new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d+Z$/,"Z");
+ const skipped=[];let n=0;const seen={};
+ items.forEach((it,i)=>{
+  const cal=it.cal||(M(it.module)||{}).calendar||"UG";
+  if(cal==="NS"){skipped.push(`${it.module} (non-standard semester)`);return;}
+  const cat=CATS.find(c=>c.tt&&c.sem===it.sem),sd=cat&&(dates[cal]||{})[cat.id];
+  if(!sd||!sd.start||!sd.end){skipped.push(`${cal} ${it.cat} (dates not set)`);return;}
+  const start=parseISODate(sd.start),end=parseISODate(sd.end),wd=DAYS.indexOf(it.day)+1; // Mon=1
+  const first=new Date(start);while(first.getUTCDay()!==wd)first.setUTCDate(first.getUTCDate()+1);
+  if(first>end){skipped.push(`${cal} ${it.cat} (dates not set)`);return;}
+  const ex=(sd.off||[]).map(w=>{const d=parseISODate(w);d.setUTCDate(d.getUTCDate()+(wd-((d.getUTCDay()+6)%7+1)));return d;}).filter(d=>d>=first&&d<=end);
+  // A stable identifier from the session itself, so re-importing an updated file updates events rather than duplicating them.
+  const base=`${uidBase}-${it.module}-${it.occ}-${it.sem}-${it.day}-${hm(it.start)}`,k=seen[base]=(seen[base]||0)+1;
+  L.push("BEGIN:VEVENT","UID:"+base+(k>1?"-"+k:"")+"@wbs-resource-manager","DTSTAMP:"+stamp,
+   "DTSTART;TZID=Europe/London:"+ymd(first)+"T"+hm(it.start),"DTEND;TZID=Europe/London:"+ymd(first)+"T"+hm(it.end),
+   "RRULE:FREQ=WEEKLY;UNTIL="+ymd(end)+"T235959Z");
+  if(ex.length)L.push("EXDATE;TZID=Europe/London:"+ex.map(d=>ymd(d)+"T"+hm(it.start)).join(","));
+  L.push("SUMMARY:"+icsText(`${it.module}-${it.occ} ${it.title||""}`.trim()),"DESCRIPTION:"+icsText(`${it.cat}${it.c?" · "+it.c:""}`),"END:VEVENT");n++;
+ });
+ L.push("END:VCALENDAR");
+ return {ics:L.map(icsFold).join("\r\n")+"\r\n",events:n,skipped:[...new Set(skipped)]};
+}
+
+/* Semester dates (Owner): the first and last teaching day of each timetabled time slot, plus weeks off. */
+function semesterDatesCard(){
+ const sd=Y().semesterDates||{},tt=CATS.filter(c=>c.tt),fmtD=fmtUK;
+ const line=cal=>tt.map(c=>{const d=(sd[cal]||{})[c.id];return d&&d.start?`<span><b>${esc(c.label)}</b> ${fmtD(d.start)} – ${fmtD(d.end)}${(d.off||[]).length?` <small>(${plural(d.off.length,"week")} off)</small>`:""}</span>`:`<span class="muted"><b>${esc(c.label)}</b> not set</span>`;}).join("");
+ const counts=CALENDARS.map(c=>`${Y().modules.filter(m=>(m.calendar||"UG")===c.v).length} ${c.v==="NS"?"non-standard":c.v}`).join(" · ");
+ return `<div class="section-title"><h2>Semester dates</h2><span>Used for calendar exports · modules: ${counts}</span></div>
+ <article class="card sd-summary"><div class="sd-row"><div class="sd-cal">UG</div><div class="sd-dates">${line("UG")}</div></div><div class="sd-row"><div class="sd-cal">PG</div><div class="sd-dates">${line("PG")}</div></div>
+  <div class="card-foot"><button class="btn small primary" data-act="semesterDates">Edit semester dates</button></div></article>`;
+}
+function semesterDatesHTML(){
+ const sd=Y().semesterDates||{},tt=CATS.filter(c=>c.tt);
+ const box=(id,cal,cat,f,val,label,mode="date")=>`<span class="date-field"><input id="${id}" class="date-in" value="${esc(val)}" placeholder="${mode==="week"?"DD/MM/YYYY, DD/MM/YYYY":"DD/MM/YYYY"}" inputmode="numeric" autocomplete="off" spellcheck="false"
+   data-chg="sdField" data-cal="${cal}" data-cat="${cat}" aria-label="${esc(label)}"><button type="button" class="date-btn" data-act="pickDate" data-for="${id}" data-mode="${mode}" aria-label="${mode==="week"?"Add a week off from a calendar":"Choose "+esc(label.toLowerCase())+" from a calendar"}">📅</button></span>`;
+ const block=(cal,title)=>`<h3 class="sd-head">${title}</h3>${tt.map(c=>{const d=(sd[cal]||{})[c.id]||{},k=`${cal}-${c.id}`;return `<div class="card pad sd-card"><h3>${esc(c.label)}</h3><div class="form-grid">
+  <label class="field">First teaching day${box(`sd-${k}-s`,cal,c.id,"s",fmtUK(d.start),`${cal} ${c.label} first teaching day`)}</label>
+  <label class="field">Last teaching day${box(`sd-${k}-e`,cal,c.id,"e",fmtUK(d.end),`${cal} ${c.label} last teaching day`)}</label>
+  <label class="field wide">Weeks off: any day in each week, separated by commas${box(`sd-${k}-o`,cal,c.id,"o",(d.off||[]).map(fmtUK).join(", "),`${cal} ${c.label} weeks off`,"week")}</label></div>
+  <p class="sd-msg" id="sdmsg-${k}" role="alert"></p></div>`;}).join("")}`;
+ return `<p>These dates apply across the whole system for ${esc(selYear)}. Each module follows the UG or PG dates, or a non-standard semester (set on Module details). Type, paste or pick dates as <b>DD/MM/YYYY</b>; each change saves as soon as it's valid.</p>
+  <p class="sd-status" id="sdStatus" role="status">✓ All changes saved</p>
+  ${block("UG","UG Semester Dates")}${block("PG","PG Semester Dates")}`;
+}
+/** Reads one time slot's three boxes, tidies them to DD/MM/YYYY and saves the slot if it's valid. Returns a problem or "". */
+function sdSaveSlot(cal,cat){
+ const g=f=>document.getElementById(`sd-${cal}-${cat}-${f}`),s=g("s"),e=g("e"),o=g("o"),msg=document.getElementById(`sdmsg-${cal}-${cat}`);
+ if(!s)return "";
+ const st=s.value.trim()?parseUK(s.value):"",en=e.value.trim()?parseUK(e.value):"";
+ const raw=o.value.split(/[,;\s]+/).filter(Boolean),iso=raw.map(parseUK),badOff=raw.filter((x,i)=>!iso[i]);
+ const mondays=[...new Set(iso.filter(Boolean).map(mondayOf))].sort();
+ if(st)s.value=fmtUK(st);if(en)e.value=fmtUK(en);if(!badOff.length)o.value=mondays.map(fmtUK).join(", ");
+ s.classList.toggle("bad",st===null);e.classList.toggle("bad",en===null);o.classList.toggle("bad",badOff.length>0);
+ let problem="";
+ if(st===null||en===null)problem="Use DD/MM/YYYY, for example 21/09/2026.";
+ else if(badOff.length)problem=`Weeks off: couldn't read ${badOff.join(", ")}. Use DD/MM/YYYY.`;
+ else if(!!st!==!!en)problem="Enter both the first and the last teaching day.";
+ else if(st&&en&&en<st)problem="The last teaching day is before the first.";
+ else if(!st&&mondays.length)problem="Add the first and last teaching days for these weeks off.";
+ if(!problem){const sd=Y().semesterDates=Y().semesterDates||{};sd[cal]=sd[cal]||{};
+  if(st)sd[cal][cat]={start:st,end:en,off:mondays};else delete sd[cal][cat];commitDraft(true);}
+ if(problem&&(st===null||en===null))(st===null?s:e).classList.add("bad");
+ msg.textContent=problem?`${cal} ${CAT(cat).label}: ${problem}`:"";msg.classList.toggle("bad",!!problem);
+ const n=document.querySelectorAll("#modalBody .sd-msg.bad").length,status=document.getElementById("sdStatus");
+ if(status){status.classList.toggle("bad",n>0);status.textContent=n?`${plural(n,"time slot")} ${n>1?"need":"needs"} fixing; ${n>1?"they aren't":"it isn't"} saved until then`:"✓ All changes saved";}
+ return problem;
+}
+
+/* A small calendar for picking dates (keyboard: arrows move, Page Up/Down change month, Enter picks, Esc closes). */
+const DP={input:null,mode:"date",focus:null,anchor:null};
+function dpClose(){const p=document.getElementById("datePop");if(p){p.hidden=true;p.innerHTML="";}DP.input=null;}
+function dpOpen(btn){
+ const inp=document.getElementById(btn.dataset.for);if(!inp)return;
+ DP.input=inp;DP.mode=btn.dataset.mode||"date";DP.anchor=btn;
+ const cur=DP.mode==="date"?parseUK(inp.value):null,today=new Date();
+ DP.focus=cur?new Date(cur+"T00:00:00Z"):new Date(Date.UTC(today.getFullYear(),today.getMonth(),today.getDate()));
+ dpDraw(true);
+}
+function dpDraw(focusDay){
+ const pop=document.getElementById("datePop"),f=DP.focus,y=f.getUTCFullYear(),mo=f.getUTCMonth();
+ const lead=(new Date(Date.UTC(y,mo,1)).getUTCDay()+6)%7,days=new Date(Date.UTC(y,mo+1,0)).getUTCDate();
+ const sel=DP.mode==="date"?parseUK(DP.input.value):null,offs=DP.mode==="week"?DP.input.value.split(/[,;\s]+/).map(parseUK).filter(Boolean).map(mondayOf):[];
+ const t=new Date(),todayIso=new Date(Date.UTC(t.getFullYear(),t.getMonth(),t.getDate())).toISOString().slice(0,10),fIso=f.toISOString().slice(0,10);
+ let cells="";for(let i=0;i<lead;i++)cells+=`<span></span>`;
+ for(let d=1;d<=days;d++){const iso=new Date(Date.UTC(y,mo,d)).toISOString().slice(0,10);
+  const cls=[iso===sel?"sel":"",iso===todayIso?"today":"",offs.includes(mondayOf(iso))?"offwk":""].filter(Boolean).join(" ");
+  cells+=`<button type="button" class="${cls}" data-act="dpPick" data-iso="${iso}" tabindex="${iso===fIso?0:-1}" aria-label="${fmtUK(iso)}${iso===sel?" (selected)":""}${offs.includes(mondayOf(iso))?" (week off)":""}">${d}</button>`;}
+ const month=new Date(Date.UTC(y,mo,1)).toLocaleDateString("en-GB",{month:"long",year:"numeric",timeZone:"UTC"});
+ pop.innerHTML=`<div class="dp-head"><button type="button" data-act="dpMove" data-d="-1" aria-label="Previous month">‹</button><b>${month}</b><button type="button" data-act="dpMove" data-d="1" aria-label="Next month">›</button></div>
+  <div class="dp-grid dp-dow" aria-hidden="true"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
+  <div class="dp-grid" role="grid" aria-label="${month}">${cells}</div>
+  <p class="dp-hint">${DP.mode==="week"?"Pick any day in a week off; it's added as that week.":"Arrow keys move · Enter picks · Esc closes"}</p>`;
+ pop.hidden=false;
+ const r=DP.anchor.getBoundingClientRect(),h=pop.offsetHeight,w=pop.offsetWidth;
+ pop.style.left=Math.max(8,Math.min(r.right-w,window.innerWidth-w-8))+"px";
+ pop.style.top=(r.bottom+6+h>window.innerHeight?Math.max(8,r.top-h-6):r.bottom+6)+"px";
+ if(focusDay){const b=pop.querySelector('button[tabindex="0"]');if(b)b.focus();}
+}
+function dpPick(iso){
+ const inp=DP.input;if(!inp)return;
+ if(DP.mode==="date")inp.value=fmtUK(iso);
+ else{const list=inp.value.split(/[,;\s]+/).map(parseUK).filter(Boolean).map(mondayOf);list.push(mondayOf(iso));inp.value=[...new Set(list)].sort().map(fmtUK).join(", ");}
+ dpClose();inp.dispatchEvent(new Event("change",{bubbles:true}));inp.focus();
+}
+
 /* ---------------------------- Year not created ---------------------------- */
 function viewNoYear(){
  const src=YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
@@ -1777,7 +1958,11 @@ const ACT={
   sel.back={tab:"tt",staff:sel.staff,view:sel.ttView};sel.nt=r.cat;sel.ntMode="edit";sel.ntFocus=r.id;tab="nt";render(true);},
  goBack(){const b=sel.back;if(!b)return;sel.staff=b.staff;sel.ttView=b.view||"module";sel.back=null;sel.ntFocus=null;tab=b.tab;render(true);},
  goto(el){sel.back=null;sel.ntFocus=null;(el.dataset.set||"").split(";").filter(Boolean).forEach(kv=>{const [k,v]=kv.split("=");sel[k]=v;});tab=el.dataset.tab;render(true);},
- modalClose(){closeModal();},
+ modalClose(el){
+  // the footer Cancel button runs the dialog's own Cancel (if it has one); × and Esc just close
+  const cancel=el&&el.closest&&el.closest(".modal-foot")?modalCancelCb:null;
+  closeModal();if(cancel)cancel();if(me)render();
+ },
  modalOk(){const cb=modalCb,r=cb?staged(()=>cb()):undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
  toggleRow(el){const r=document.getElementById(el.dataset.row);if(!r)return;const open=r.hidden;r.hidden=!open;el.setAttribute("aria-expanded",open);el.textContent=open?"−":"+";},
  override(el){
@@ -1901,17 +2086,18 @@ const ACT={
   openModal({title:"New module",ok:"Create module",body:`<div class="form-grid">
    <label class="field">Code<input id="nmC" data-modcode="1" maxlength="8" autocomplete="off" spellcheck="false" placeholder="e.g. BMGT1234"></label><label class="field">Credits (academic)${selectH('id="nmK"',creditOptions(15),15)}</label>
    <label class="field wide">Title<input id="nmT"></label>
-   <label class="field wide">Owning department${selectH('id="nmD"',depts().map(d=>({v:d.id,l:d.name})),depts()[0].id)}</label></div>
+   <label class="field wide">Owning department${selectH('id="nmD"',depts().map(d=>({v:d.id,l:d.name})),depts()[0].id)}</label>
+   <label class="field wide">Semester dates${selectH('id="nmCal"',CALENDARS,"UG")}</label></div>
    <p class="hint" style="margin:6px 0 0">${CODE_RULE}</p><p style="margin-top:12px">A new module has no occurrences. Add one, set its budgets, then allocate staff.</p>`,
    onOk(){const code=mval("nmC").toUpperCase(),t=mval("nmT");
     if(!MODULE_CODE_RE.test(code))return CODE_RULE;
     if(M(code))return `${code} already exists in ${selYear}.`;if(!t)return "Give the module a title.";
-    Y().modules.push({code,title:t,dept:mval("nmD"),credit:int(mval("nmK")),occs:[]});sel.module=code;
+    Y().modules.push({code,title:t,dept:mval("nmD"),credit:int(mval("nmK")),calendar:mval("nmCal")||defaultCalendar(code),occs:[]});sel.module=code;
     touch([mval("nmD")],`Created module ${code} ${t}`);toast("Module created",`${code} ${t}`);}});
  },
  saveModule(){
   const m=M(sel.module),t=mval("mTitle");if(!t)return toast("The title can't be empty","",true);
-  const oldDept=m.dept;m.title=t;m.dept=mval("mDept");m.credit=int(mval("mCredit"));
+  const oldDept=m.dept;m.title=t;m.dept=mval("mDept");m.credit=int(mval("mCredit"));m.calendar=mval("mCal")||m.calendar||"UG";
   touch(groupsOf(m.occs.flatMap(o=>staffOnOcc(o)),[oldDept,m.dept]),`Updated module ${m.code} details`);render();commitDraft();
  },
  deleteModule(){
@@ -2065,6 +2251,33 @@ const ACT={
  cisOther(){sel.cisPage="other";render(true);},
  cisOpen(el){sel.cisPage="course";sel.cisCourse=el.dataset.course;sel.cisYear=el.dataset.year;render(true);},
  cisView(el){sel.cisView=el.dataset.v;render();},
+ semesterDates(){
+  if(!isOwner())return;
+  const before=JSON.stringify(Y().semesterDates||{}); // what Cancel puts back
+  openModal({title:`Semester dates for ${selYear}`,ok:"Save dates",body:semesterDatesHTML(),
+   onOk(){
+    const problems=[];for(const cal of ["UG","PG"])for(const c of CATS.filter(x=>x.tt)){const p=sdSaveSlot(cal,c.id);if(p)problems.push(`${cal} ${c.label}`);}
+    if(problems.length)return `Fix ${problems.join(", ")} first; everything else is already saved.`;
+    toast("Semester dates saved",`They apply to every module on UG or PG dates in ${selYear}.`);},
+   onCancel(){Y().semesterDates=JSON.parse(before);commitDraft(true);toast("Changes undone","Semester dates are back to how they were when you opened them.");}});
+ },
+ pickDate(el){if(DP.input&&DP.input.id===el.dataset.for&&!document.getElementById("datePop").hidden)return dpClose();dpOpen(el);},
+ dpPick(el){dpPick(el.dataset.iso);},
+ dpMove(el){const f=DP.focus;DP.focus=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+(+el.dataset.d),1));dpDraw(false);},
+ exportIcs(){
+  const yd=Y(),snap=yd&&yd.published&&yd.published[me.id];
+  if(!snap)return toast("Nothing to export yet","Your timetable for this year hasn't been published.",true);
+  const p=P(me.id),{ics,events,skipped}=buildICS(snap.items,yd.semesterDates||{},`Timetable ${selYear} – ${p.forename} ${p.surname}`,`${me.id}-${selYear}`);
+  const file=`Timetable-${selYear}-${p.forename}-${p.surname}.ics`.replace(/[^A-Za-z0-9.-]+/g,"-");
+  const url=URL.createObjectURL(new Blob([ics],{type:"text/calendar;charset=utf-8"}));
+  openModal({title:"Add your timetable to Outlook",ok:"Done",body:`${events?`<p><b>${plural(events,"weekly session")}</b> from your published ${esc(selYear)} timetable, each repeating for its semester and skipping weeks off.</p>`:`<p>No sessions could be exported.</p>`}
+   ${skipped.length?`<div class="notice amber"><div class="glyph">!</div><div><strong>Not included: ${esc(skipped.join(", "))}</strong><p>Non-standard semester modules aren't on the normal timetable dates, so they can't be exported automatically. Anything marked "dates not set" will be included once the Owner adds those semester dates.</p></div></div>`:""}
+   ${events?`<p><a class="btn primary" href="${url}" download="${esc(file)}">Download ${esc(file)}</a></p>
+   <p><b>Outlook (desktop):</b> File › Open & Export › Import/Export › Import an iCalendar (.ics) file, choose the file, then <i>Import</i>.<br>
+   <b>Outlook on the web:</b> Calendar › Add calendar › Upload from file.</p>
+   <p class="hint">This is a snapshot: if your timetable changes and is republished, download it again and import the new file.</p>`:""}`,onOk(){}});
+  $("#modalOk").previousElementSibling.style.display="none";
+ },
  deleteYear(){
   const y=selYear,yd=YEARS[y];
   if(!canDeleteYear(y))return toast("This year can't be deleted","Only the Owner can delete a year, and only the latest one that is still being planned. The current year and previous years can never be deleted.",true);
@@ -2085,7 +2298,7 @@ const ACT={
  },
  createYear(el){if(!isOwner())return;if(selYear!==nextYearCode(latestYear()))return toast("Create years in order",`The next year to create is ${nextYearCode(latestYear())}.`,true);SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
-  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null});YEARS[selYear]=copy;
+  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{}});YEARS[selYear]=copy;
   tidyYearOrder();
   tab="overview";toast(`${selYear} created`,`Copied from ${src}. Changes here don't affect ${src}.`);render(true);}
 };
@@ -2210,6 +2423,7 @@ const CHG={
   const info={};STATUSES.forEach(k=>info[k===old?c:k]=STATUS_INFO[k]);STATUS_INFO=info;STATUSES=Object.keys(info);
   const n=Object.values(YEARS).reduce((a,yd)=>{Object.values(yd.staff).forEach(s=>{if(s.status===old){s.status=c;a++;}});return a;},0);
   $("#modalErr").textContent="";$("#modalBody").innerHTML=statusManagerHTML();toast("Code renamed",`${old} is now ${c}${n?`; ${plural(n,"staff record")} updated`:""}.`);},
+ sdField(el){if(!isOwner())return;sdSaveSlot(el.dataset.cal,el.dataset.cat);},
  slotName(el){
   if(!isOwner())return;const c=CAT(el.dataset.cat),n=el.value.trim().replace(/\s+/g," ");
   if(!n||CATS.some(x=>x!==c&&x.label.toLowerCase()===n.toLowerCase())){el.value=c.label;$("#modalErr").textContent=n?"Another time slot already has that name.":"A time slot needs a name.";return;}
@@ -2253,6 +2467,7 @@ function comboClose(restore){const el=COMBO.el,pop=$("#comboPop");if(pop){pop.hi
  if(restore)el.value=COMBO.orig;el.setAttribute("aria-expanded","false");el.removeAttribute("aria-activedescendant");COMBO.el=null;}
 function comboChoose(i){const o=COMBO.list[i],el=COMBO.el;if(!o||!el)return;el.value=o.v;comboClose(false);el.dispatchEvent(new Event("change",{bubbles:true}));}
 document.addEventListener("mousedown",e=>{
+ if(DP.input&&!e.target.closest("#datePop")&&!e.target.closest(".date-btn"))dpClose();
  const opt=e.target.closest("#comboPop .combo-opt");
  if(opt){e.preventDefault();comboChoose(+opt.dataset.i);return;}
  if(e.target.closest("#comboPop")){e.preventDefault();return;}
@@ -2282,13 +2497,22 @@ document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if
  staged(()=>f(el,e));});
 window.addEventListener("beforeunload",e=>{if(DRAFT){e.preventDefault();e.returnValue="";}});
 document.addEventListener("keydown",e=>{
- if(e.key==="Escape"&&$("#modalBg").classList.contains("open"))closeModal();
+ if(e.target.closest&&e.target.closest("#datePop")&&DP.input){
+  const k=e.key,f=DP.focus,step={ArrowLeft:-1,ArrowRight:1,ArrowUp:-7,ArrowDown:7}[k];
+  if(step){e.preventDefault();DP.focus=new Date(f.getTime()+step*86400000);dpDraw(true);return;}
+  if(k==="PageUp"||k==="PageDown"){e.preventDefault();DP.focus=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+(k==="PageUp"?-1:1),Math.min(f.getUTCDate(),28)));dpDraw(true);return;}
+  if(k==="Escape"){e.preventDefault();e.stopPropagation();const i=DP.input;dpClose();i.focus();return;}
+ }
+ if(e.key==="Enter"&&e.target.classList&&e.target.classList.contains("date-in")){e.preventDefault();e.target.dispatchEvent(new Event("change",{bubbles:true}));return;}
+ if(e.key==="Escape"&&DP.input&&!document.getElementById("datePop").hidden){e.preventDefault();dpClose();return;}
+ // Esc closes the dialog (keeping anything already saved) once no calendar is open
+ if(e.key==="Escape"&&$("#modalBg").classList.contains("open")){closeModal();if(me)render();return;}
  if(e.key==="Enter"&&e.target.id==="tsN"){e.preventDefault();ACT.slotAdd();return;}
  if(e.key==="Enter"&&e.target.matches("[data-chg=slotName]")){e.preventDefault();e.target.blur();return;}
  if(e.key==="Enter"&&$("#modalBg").classList.contains("open")&&e.target.matches("#modalBody input")){e.preventDefault();ACT.modalOk();}
  if((e.key==="Enter"||e.key===" ")&&e.target.matches("tr[data-act]")){e.preventDefault();ACT[e.target.dataset.act](e.target);}
 });
-document.addEventListener("change",e=>{const el=e.target.closest("[data-chg]");if(!el||!me)return;const f=CHG[el.dataset.chg];if(!f)return;
+document.addEventListener("change",e=>{if(e.target.id==="nmCal")e.target.dataset.touched="1";const el=e.target.closest("[data-chg]");if(!el||!me)return;const f=CHG[el.dataset.chg];if(!f)return;
  if(el.dataset.chg==="year"){const v=el.value;return guardNav(()=>f({value:v}));}
  staged(()=>f(el));});
 // Module code boxes: capitals as you type; pasting keeps only the first 8 characters (e.g. BMGT1234A -> BMGT1234).
@@ -2301,6 +2525,8 @@ document.addEventListener("input",e=>{
   const exact=mods.find(m=>m.code.toUpperCase()===v.toUpperCase()||m.title.toLowerCase()===v.toLowerCase());
   if(exact&&exact.code!==sel.module){sel.module=exact.code;render();const box=document.querySelector(`[data-chg=pickModule][data-by=${e.target.dataset.by}]`);if(box){box.focus();box.select();}}}
  if(e.target.id==="nsId")e.target.dataset.touched="1";
+ if(e.target.id==="nmCal")e.target.dataset.touched="1";
+ if(e.target.id==="nmC"&&$("#nmCal")&&!$("#nmCal").dataset.touched)$("#nmCal").value=defaultCalendar(cleanCode(e.target.value));
  if(e.target.id==="atgSearch"){const q=e.target.value.trim().toLowerCase();document.querySelectorAll("#modalBody .check-row").forEach(r=>r.style.display=!q||r.dataset.name.includes(q)?"":"none");}
  if((e.target.id==="nsF"||e.target.id==="nsS")&&$("#nsId")&&!$("#nsId").dataset.touched)$("#nsId").value=suggestStaffId(mval("nsF"),mval("nsS"));if(e.target.dataset.inp==="staffSearch"){const q=e.target.value.trim().toLowerCase();
  document.querySelectorAll("tr[data-name]").forEach(r=>r.style.display=!q||r.dataset.name.includes(q)?"":"none");}});
@@ -2426,7 +2652,7 @@ function buildFromLegacy(T,dbName){
   const d=gidOf(r.staff_group_id);if(d)ensureGroup(d);
   if(!MODULE_CODE_RE.test(code)){warn("code","module codes aren't 4 letters followed by 4 numbers (the new system only accepts that format, e.g. BMGT1234)");eg("code",code);}
   const cr=Math.round(num(r.credits));if(!MODULE_CREDITS.includes(cr)){warn("credits","modules have a credit value that isn't one of the standard values (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 120 or 240)");eg("credits",`${code}: ${cr}`);}
-  const m={code,title:str(r.module_title)||code,dept:d,credit:cr,occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
+  const m={code,title:str(r.module_title)||code,dept:d,credit:cr,calendar:defaultCalendar(code),occs:[],_leader:str(r.module_leader_id),_moderator:str(r.module_moderator_id)};
   modules.push(m);modBy[code]=m;});
  const occBy={};
  rows("occurrence").forEach(r=>{const code=str(r.module_code),occ=str(r.occurrence).toUpperCase();if(!code||!occ)return;
