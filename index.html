@@ -218,6 +218,8 @@ tr.selected td{background:var(--t-cyan)}
 .notice.amber{background:var(--t-amber);border-color:var(--b-amber)}.notice.amber .glyph{background:var(--amber);color:var(--navy)}
 .notice.red{background:var(--t-red);border-color:var(--b-red)}
 .notice.year-next strong{font-size:15px;text-transform:uppercase;letter-spacing:.03em}
+.del-list{margin:6px 0 12px;padding-left:20px;font-size:13px}
+.del-list li{margin:3px 0}
 .notice.slate{background:var(--t-gray);border-color:var(--line)}
 .notice.slate .glyph{background:#5d6d74}
 .notice.slate strong{font-size:15px}.notice.red .glyph{background:var(--badge-red)}
@@ -618,6 +620,13 @@ const sel={cisPage:"menu",cisView:"module",module:"BMGX2140",group:"COMP",staff:
  ttView:"chart",ctView:"module",myView:"chart",staffMode:"list"};
 
 const Y=()=>YEARS[selYear];
+// ---- academic years: created in order, and only the latest future (planning) year can be deleted ----
+const nextYearCode=code=>{const a=+String(code).slice(0,4);return `${a+1}-${String(a+2).slice(2)}`;};
+const latestYear=()=>YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
+const currentYearCode=()=>YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||latestYear();
+const canDeleteYear=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="planning"&&y===latestYear();
+// The selector lists every created year plus the one year that could be created next.
+function tidyYearOrder(){const made=YEAR_ORDER.filter(y=>YEARS[y]);YEAR_ORDER=made.concat([nextYearCode(made[made.length-1])]);}
 const P=id=>PEOPLE.find(p=>p.id===id);
 const nameOf=id=>{const p=P(id);return p?p.forename+" "+p.surname:"Unknown";};
 const SY=(id,yd=Y())=>yd&&yd.staff[id];
@@ -939,7 +948,7 @@ function yearBanner(){
  const cur=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||"the current year";
  if(yd.status==="planning")return imp+notice("!",`Next academic year: ${selYear}`,me.role==="staff"
    ?`You're looking at ${selYear}, which is still being planned and may change. The current year is ${cur}.`
-   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.`,"amber year-next");
+   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.${canDeleteYear(selYear)?` <button class="btn small danger" data-act="deleteYear">Delete ${selYear}</button>`:""}`,"amber year-next");
  if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear}`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
  return imp;
 }
@@ -2056,10 +2065,28 @@ const ACT={
  cisOther(){sel.cisPage="other";render(true);},
  cisOpen(el){sel.cisPage="course";sel.cisCourse=el.dataset.course;sel.cisYear=el.dataset.year;render(true);},
  cisView(el){sel.cisView=el.dataset.v;render();},
- createYear(el){if(!isOwner())return;SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
+ deleteYear(){
+  const y=selYear,yd=YEARS[y];
+  if(!canDeleteYear(y))return toast("This year can't be deleted","Only the Owner can delete a year, and only the latest one that is still being planned. The current year and previous years can never be deleted.",true);
+  const occ=yd.modules.reduce((a,m)=>a+m.occs.length,0);
+  const alloc=yd.modules.reduce((a,m)=>a+m.occs.reduce((b,o)=>b+Object.values(o.slots).reduce((c,s)=>c+Object.keys(s.alloc).length,0),0),0)+yd.nt.reduce((a,r)=>a+r.people.length,0);
+  const sess=Object.values(yd.sessions).reduce((a,l)=>a+l.length,0);
+  const published=Object.keys(yd.published||{}).length>0||!!yd.cis;
+  const back=YEAR_ORDER.filter(k=>YEARS[k]&&k!==y).slice(-1)[0];
+  openModal({title:`Delete ${y}?`,ok:`Delete ${y}`,danger:true,body:`<p>This permanently removes everything in <b>${esc(y)}</b>:</p>
+   <ul class="del-list"><li>${plural(yd.modules.length,"module")} with ${plural(occ,"occurrence")}</li><li>${plural(alloc,"credit allocation")}</li>
+    <li>${plural(sess,"timetabled session")}</li><li>${plural(yd.nt.length,"non-teaching role")}</li><li>${plural(Object.keys(yd.staff).length,"staff record")} for the year</li></ul>
+   ${published?`<div class="notice red"><div class="glyph">!</div><div><strong>Already published</strong><p>Some of ${esc(y)} has been published, so staff may have seen it.</p></div></div>`:""}
+   <p>People, departments, courses and every other year are not affected. You can create ${esc(y)} again afterwards as a fresh copy of ${esc(back)}.</p>
+   <label class="field">Type ${esc(y)} to confirm<input id="delYearTxt" autocomplete="off" placeholder="${esc(y)}"></label>`,
+   onOk(){if(mval("delYearTxt")!==y)return `Type ${y} exactly to confirm.`;
+    delete YEARS[y];tidyYearOrder();DRAFT=null;SKIP_STAGE=true;selYear=currentYearCode();tab=ROLE_TABS.owner[0];
+    toast(`${y} deleted`,`You're back in ${selYear}. ${y} can be created again from the year selector.`);}});
+ },
+ createYear(el){if(!isOwner())return;if(selYear!==nextYearCode(latestYear()))return toast("Create years in order",`The next year to create is ${nextYearCode(latestYear())}.`,true);SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
   Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null});YEARS[selYear]=copy;
-  const [a]=selYear.split("-").map(Number),next=`${a+1}-${String(a+2).slice(2)}`;if(!YEAR_ORDER.includes(next))YEAR_ORDER.push(next);
+  tidyYearOrder();
   tab="overview";toast(`${selYear} created`,`Copied from ${src}. Changes here don't affect ${src}.`);render(true);}
 };
 function delOccs(m,occs){

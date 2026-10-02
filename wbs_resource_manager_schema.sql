@@ -78,6 +78,11 @@ BEGIN
         RAISE EXCEPTION 'Academic year % is %; only planning years can be deleted',
             OLD.code, OLD.status USING ERRCODE = 'check_violation';
     END IF;
+    -- Only the latest year can go, so there are never gaps between years.
+    IF EXISTS (SELECT 1 FROM academic_year WHERE start_date > OLD.start_date) THEN
+        RAISE EXCEPTION 'Academic year % is not the latest year; delete later years first',
+            OLD.code USING ERRCODE = 'check_violation';
+    END IF;
     RETURN OLD;
 END $$;
 
