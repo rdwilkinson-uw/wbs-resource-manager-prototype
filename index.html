@@ -1606,8 +1606,7 @@ VIEWS.cis=()=>{
  const person=id=>{const p=S.people[id];if(!p)return nameOf(id);if(me.role==="staff"&&id===me.id)return p.name+" (you)";if(me.role==="staff"&&p.hidden)return p.hpl?"HPL":"TBC";return p.name;};
  const single=c=>c.level==="PG"||c.years<=1;
  const occsFor=c=>{const r=[];S.modules.forEach(m=>m.occs.filter(o=>o.courses.includes(c.code)).forEach(o=>r.push({m,o,y:linkYear(o,m.code,c)})));return r.sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));};
- const owner=(PEOPLE.find(p=>p.role==="owner"&&p.email)||{}).email;
- const foot=`<p class="hint">Worcester Business School · Course Information Site ${esc(selYear)}${owner?` · Questions? <a class="linkish" href="mailto:${esc(owner)}">Contact the Resourcing Lead</a>`:""}</p>`;
+ const foot=`<p class="hint">Worcester Business School · Course Information Site ${esc(selYear)}</p>`;
  // ---- menu of courses
  if(page==="menu"){
   const shown=S.courses.filter(c=>c.cis);
