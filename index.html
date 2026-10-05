@@ -252,6 +252,8 @@ tr.selected td{background:var(--t-cyan)}
 .sd-summary .sd-dates small{color:var(--muted)}
 .sd-hint{margin:-6px 0 14px}
 .sd-card h3{margin-bottom:8px}
+.check-line{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:13px;cursor:pointer}
+.check-line input{margin-top:3px;width:auto;min-height:0}
 .del-list{margin:6px 0 12px;padding-left:20px;font-size:13px}
 .del-list li{margin:3px 0}
 .notice.slate{background:var(--t-gray);border-color:var(--line)}
@@ -1317,9 +1319,9 @@ VIEWS.sessions=()=>{
  return h+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
   ${ed&&m.occs.length>1?`<button class="btn small" data-act="copyOcc" data-occ="${o.occ}">Copy to other occurrences</button>`:""}</div>
   ${CATS.filter(c=>c.tt).map(c=>{
-   const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).map(nameOf);
+   const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).filter(id=>hasCredits(o.slots[c.id].alloc[id])).map(nameOf),otherSems=CATS.filter(x=>x.tt&&x.id!==c.id).length;
    return `<div class="sem-block"><div class="sem-head"><div><h3>${esc(c.label)}</h3><span class="sub">${who.length?"Taught by "+esc(who.join(", ")):"No staff allocated to this semester yet"}</span></div>
-    ${ed?`<button class="btn small" data-act="addSess" data-key="${key}">Add session</button>`:""}</div>
+    ${ed?`<div class="actions">${list.length&&otherSems?`<button class="btn small" data-act="copySem" data-occ="${esc(o.occ)}" data-cat="${c.id}">Copy to other semesters</button>`:""}<button class="btn small" data-act="addSess" data-key="${key}">Add session</button></div>`:""}</div>
     ${list.length?`<div class="session-row headrow"><span>Day</span><span>Start</span><span>End</span><span>Notes</span><span></span></div>`+list.map((s,i)=>`<div class="session-row">
      <input value="${DAY_NAME[s.day]}" data-combo="day" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" data-chg="sess" data-key="${key}" data-i="${i}" data-f="day" aria-label="Day" autocomplete="off"${ed?"":" disabled"}>
      <input value="${fmt(s.start)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="start" aria-label="Start time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
@@ -2202,6 +2204,29 @@ const ACT={
   sessTouch(key,"Added a session");render();
  },
  rmSess(el){if(!guard("sessions"))return;const key=el.dataset.key;Y().sessions[key].splice(+el.dataset.i,1);sessTouch(key,"Removed a session");render();},
+ copySem(el){
+  if(!guard("sessions"))return;
+  const m=M(sel.module),o=m&&m.occs.find(x=>x.occ===el.dataset.occ),from=CAT(el.dataset.cat);if(!o||!from)return;
+  const src=Y().sessions[skey(m.code,o.occ,from.id)]||[];if(!src.length)return;
+  const targets=CATS.filter(c=>c.tt&&c.id!==from.id);
+  const line=s=>`${DAY_NAME[s.day]} ${fmt(s.start)}–${fmt(s.end)}${s.c?" · "+esc(s.c):""}`;
+  openModal({title:`Copy ${from.label} sessions`,ok:"Copy sessions",body:`<p>Copy ${plural(src.length,"session")} from <b>${esc(m.code)} occurrence ${esc(o.occ)}, ${esc(from.label)}</b>:</p>
+   <ul class="del-list">${src.map(s=>`<li>${line(s)}</li>`).join("")}</ul>
+   <p><b>Copy to</b></p>
+   ${targets.map(c=>{const have=(Y().sessions[skey(m.code,o.occ,c.id)]||[]).length,staffed=Object.values(o.slots[c.id].alloc).some(hasCredits);
+     return `<label class="check-line"><input type="checkbox" class="cs-target" value="${c.id}" checked> <span><b>${esc(c.label)}</b> <small class="muted">${have?plural(have,"session")+" already":"no sessions yet"}${staffed?"":" · no staff allocated yet, so nobody will see these on a timetable until there are"}</small></span></label>`;}).join("")}
+   <p><b>How</b></p>
+   <label class="check-line"><input type="radio" name="csMode" value="replace" checked> <span><b>Replace</b> <small class="muted">the sessions there, so the semesters match exactly</small></span></label>
+   <label class="check-line"><input type="radio" name="csMode" value="add"> <span><b>Add</b> <small class="muted">alongside any sessions already there</small></span></label>`,
+   onOk(){
+    const chosen=[...document.querySelectorAll(".cs-target:checked")].map(x=>x.value);
+    if(!chosen.length)return "Tick at least one semester to copy to.";
+    const mode=(document.querySelector('input[name=csMode]:checked')||{}).value||"replace";
+    chosen.forEach(id=>{const key=skey(m.code,o.occ,id),copies=src.map(s=>({...s}));
+     Y().sessions[key]=mode==="add"?(Y().sessions[key]||[]).concat(copies):copies;
+     sessTouch(key,`Copied ${from.label} sessions to ${CAT(id).label}`);});
+    toast("Sessions copied",`${plural(src.length,"session")} from ${from.label} ${mode==="add"?"added to":"copied to"} ${chosen.map(id=>CAT(id).label).join(" and ")}.`);}});
+ },
  copyOcc(el){
   if(!guard("sessions"))return;const m=M(sel.module),from=el.dataset.occ,others=m.occs.filter(o=>o.occ!==from);
   openModal({title:`Copy occurrence ${from}'s sessions?`,ok:"Copy sessions",body:`<p>Sessions for occurrence${others.length>1?"s":""} ${others.map(o=>o.occ).join(", ")} are replaced with a copy of occurrence ${from}'s, in both semesters.</p>`,
