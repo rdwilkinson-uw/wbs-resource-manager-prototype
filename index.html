@@ -462,20 +462,25 @@ tr.addl-row:hover td{background:var(--t-lime)}
  .hero{grid-template-columns:1fr}.hero-side{grid-template-columns:1fr 1fr;grid-template-rows:auto}
  .allocation-layout,.report-grid{grid-template-columns:1fr}.ledger{position:static}
  .brand{min-width:auto}.brand small{display:none}
+ /* the top bar may wrap onto two lines rather than push the page wider than the screen */
+ .app{grid-template-rows:auto 1fr}
+ .topbar{flex-wrap:wrap;min-height:64px;padding:10px 18px;row-gap:8px}
  .report-menu{display:flex;overflow-x:auto}.report-menu button{width:auto;white-space:nowrap}
  .form-grid{grid-template-columns:1fr 1fr}
 }
 @media (max-width:760px){
  body{overflow:auto}
  .app{display:block;height:auto}
- .topbar{height:60px;position:sticky;top:0;padding:0 14px;gap:10px}
+ .topbar{height:auto;min-height:60px;position:static;padding:8px 12px;gap:8px 10px}
+ .brand{min-width:0}
+ .cycle select{max-width:120px}
  .brand div:last-child,.top-btn,.role-chip span.who,.theme-btn .tl{display:none}
  .cycle .year-flag{font-size:11px;padding:4px 9px}
  .top-btn.theme-btn{display:inline-flex;padding:8px 10px}
  .theme-float{top:12px;right:12px}
  .login-box{padding-top:34px}
  .cycle{border:0;padding:0}
- .sidebar{position:sticky;top:60px;z-index:4;padding:8px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);flex-direction:row}
+ .sidebar{position:sticky;top:0;z-index:4;padding:8px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--line);flex-direction:row}
  .nav{display:flex}.nav-label,.sidebar-foot{display:none}
  .nav button{width:auto;white-space:nowrap}
  main{padding:20px 14px 60px}
@@ -751,7 +756,12 @@ const canEdit=(t=tab)=>EDIT[me.role]==="all"||EDIT[me.role].includes(t);
 const isOwner=()=>me.role==="owner";
 
 /* ---------------------------- calculations ---------------------------- */
+let BD_CACHE=null; // set only while a screen is drawn
 function breakdown(id,yd=Y()){
+ if(BD_CACHE&&yd===Y()){const hit=BD_CACHE.get(id);if(hit)return hit;const r=breakdownNow(id,yd);BD_CACHE.set(id,r);return r;}
+ return breakdownNow(id,yd);
+}
+function breakdownNow(id,yd){
  const b={nt:0};CATS.forEach(c=>b[c.id]=0);
  yd.modules.forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{b[c.id]+=(o.slots[c.id].alloc[id]||0);})));
  yd.nt.forEach(r=>r.people.forEach(p=>{if(p.s===id)b.nt+=p.cr;}));
@@ -1014,8 +1024,8 @@ function yearBanner(){
 let RENDERING=false;
 function render(anim=false){
  if(RENDERING)return;
- RENDERING=true;
- try{renderNow(anim);}finally{RENDERING=false;}
+ RENDERING=true;BD_CACHE=new Map();
+ try{renderNow(anim);}finally{RENDERING=false;BD_CACHE=null;}
 }
 function renderNow(anim){
  if(typeof comboClose==="function")comboClose(false);
@@ -1075,6 +1085,9 @@ function collectIssues(yd=Y()){
  out.forEach(i=>{const o=ov[i.key];if(o&&o.fp===i.fp)overridden.push({...i,ov:o});else active.push({...i,prev:o||null});});
  return {active,overridden};
 }
+// Long issue lists show the most serious first, ISSUE_LIMIT at a time, with counts by type.
+const ISSUE_LIMIT=50;
+function issueCounts(list){const n={};list.forEach(i=>{const t=i.tag.replace(/<[^>]+>/g,"").trim();n[t]=(n[t]||0)+1;});return Object.entries(n).map(([t,c])=>`${c} ${esc(t.toLowerCase())}`).join(" · ");}
 VIEWS.overview=()=>{
  const yd=Y(),staff=inYear(),b=yearBudget();
  const nOcc=yd.modules.reduce((a,m)=>a+m.occs.length,0);
@@ -1106,7 +1119,7 @@ VIEWS.overview=()=>{
  </div>
  ${semesterDatesCard()}
  <div class="section-title"><h2>Needs attention</h2><span>Override anything that's acceptable; it comes back only if something about that item changes</span></div>
- <article class="card">${active.length?`<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail</th><th class="r"></th></tr></thead><tbody>${active.map(row).join("")}</tbody></table></div>`
+ <article class="card">${active.length?`<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail</th><th class="r"></th></tr></thead><tbody>${(sel.showAllIssues?active:active.slice(0,ISSUE_LIMIT)).map(row).join("")}</tbody></table></div>${active.length>ISSUE_LIMIT?`<div class="card-foot issue-foot"><span class="muted">${sel.showAllIssues?`Showing all ${active.length}`:`Showing ${ISSUE_LIMIT} of ${active.length}`} · ${issueCounts(active)}</span><button class="btn small" data-act="toggleAllIssues">${sel.showAllIssues?"Show fewer":`Show all ${active.length}`}</button></div>`:""}`
   :empty("Nothing needs attention",overridden.length?"Everything outstanding has been overridden as acceptable.":"Every budget is fully allocated and within limits, every occurrence has a leader and moderator, and there are no clashes.")}</article>
  ${overridden.length?`<div class="section-title"><h2>Overridden</h2><button class="btn small" data-act="toggleOverridden" aria-expanded="${!!sel.showOverridden}">${sel.showOverridden?"Hide":"Show"} ${overridden.length}</button></div>
   ${sel.showOverridden?`<article class="card"><div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail and reason</th><th class="r"></th></tr></thead><tbody>${overridden.map(orow).join("")}</tbody></table></div></article>`:""}`:""}`;
@@ -1178,10 +1191,10 @@ function staffTotals(list){
  const rows=list.map(p=>({p,s:SY(p.id),b:breakdown(p.id),main:SY(p.id).group===sel.group}));
  const mains=rows.filter(r=>r.main),sum=k=>mains.reduce((a,r)=>a+r.b[k],0);
  return `<article class="card"><div class="card-head"><h2>Totals for ${esc(gName(sel.group))}</h2><span class="muted" style="font-size:11px">Teaching is split by semester as allocated on Module allocation</span></div>
- <div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Name</th><th class="r">Target</th>${cols.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th class="r">Non-teaching</th><th class="r">Total</th><th class="r">Remaining</th><th></th></tr></thead><tbody>
- ${rows.map(({p,s,b,main})=>{const rem=s.target-b.total;return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"${main?"":' class="addl-row"'}><td class="name-cell">${esc(p.id)}</td><td>${esc(nameOf(p.id))}${main?"":`<span class="sub">Additional member · main group ${esc(s.group)}</span>`}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
+ <div class="table-wrap"><table><thead><tr><th>Name</th><th class="r">Target</th>${cols.map(c=>`<th class="r">${esc(c.label)}</th>`).join("")}<th class="r">Non-teaching</th><th class="r">Total</th><th class="r">Remaining</th><th></th></tr></thead><tbody>
+ ${rows.map(({p,s,b,main})=>{const rem=s.target-b.total;return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"${main?"":' class="addl-row"'}><td>${esc(nameOf(p.id))}${main?"":`<span class="sub">Additional member · main group ${esc(s.group)}</span>`}</td><td class="r">${s.target}</td>${cols.map(c=>`<td class="r">${b[c.id]}</td>`).join("")}<td class="r">${b.nt}</td><td class="r"><b>${b.total}</b></td>
   <td class="r">${rem<0?`<span class="tag red">${rem}</span>`:rem}</td><td class="r"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button></td></tr>`;}).join("")}
- ${rows.length?`<tr class="sum"><td>Group total</td><td>${mains.length<rows.length?"main members only":""}</td><td class="r">${mains.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${mains.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+7}">${empty("No staff in this group","")}</td></tr>`}
+ ${rows.length?`<tr class="sum"><td>Group total${mains.length<rows.length?'<span class="sub">main members only</span>':""}</td><td class="r">${mains.reduce((a,r)=>a+r.s.target,0)}</td>${cols.map(c=>`<td class="r">${sum(c.id)}</td>`).join("")}<td class="r">${sum("nt")}</td><td class="r">${sum("total")}</td><td class="r">${mains.reduce((a,r)=>a+r.s.target-r.b.total,0)}</td><td></td></tr>`:`<tr><td colspan="${cols.length+7}">${empty("No staff in this group","")}</td></tr>`}
  </tbody></table></div></article>`;
 }
 
@@ -1322,7 +1335,9 @@ VIEWS.leaders=()=>{
  const holders=(o,k)=>Object.entries(o.slots[k].alloc).sort((x,y)=>y[1]-x[1]||x[0].localeCompare(y[0],"en",{numeric:true}));
  let leadSeq=0;
  const cell=(m,o,k)=>{const h=holders(o,k);
-  return `${selectH(`data-chg="leader" data-module="${esc(m.code)}" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Primary module leader":"Primary moderator"}, ${esc(m.code)} occ ${o.occ}" style="width:100%;max-width:280px"`,opts,h.length?h[0][0]:"",!ed)}
+  // the full staff list is filled in when the dropdown is opened (a big course would otherwise build tens of thousands of options)
+  const cur=h.length?h[0][0]:"",only=cur?opts.filter(o=>o.v===cur):[opts[0]];
+  return `${selectH(`data-chg="leader" data-lazy="staff" data-module="${esc(m.code)}" data-occ="${o.occ}" data-cat="${k}" aria-label="${k==="ML"?"Primary module leader":"Primary moderator"}, ${esc(m.code)} occ ${o.occ}" style="width:100%;max-width:280px"`,only,cur,!ed)}
    <span class="sub">${h.length>1?`Shared by ${h.length} · see +`:`${o.slots[k].total} credits budgeted`}</span>`;};
  // Expanded detail: everyone sharing leadership / moderation, primary first.
  const sharedList=(o,k)=>{const h=holders(o,k);return h.length?`<ul class="share-list">${h.map(([id,cr],n)=>`<li><b>${esc(nameOf(id))}</b>${n===0?' <span class="tag plain blue">Primary</span>':""}<span>${cr} credits</span></li>`).join("")}</ul>`:'<span class="muted">None</span>';};
@@ -1972,6 +1987,7 @@ const ACT={
    onOk(){const y=Y();y.overrides=y.overrides||{};y.overrides[i.key]={fp:i.fp,by:nameOf(me.id),when:stamp(),note:mval("ovNote")};toast("Overridden",i.label);}});
  },
  unoverride(el){if(!isOwner())return;const i=ISSUE_INDEX[el.dataset.key];delete (Y().overrides||{})[el.dataset.key];toast("Override removed",i?i.label:"");render();},
+ toggleAllIssues(){sel.showAllIssues=!sel.showAllIssues;render();},
  toggleOverridden(){sel.showOverridden=!sel.showOverridden;render();},
  saveDraft(){commitDraft();},
  discardDraft(){if(!DRAFT)return;openModal({title:"Discard unsaved changes?",ok:"Discard changes",danger:true,
@@ -2054,7 +2070,7 @@ const ACT={
   s.extra=(s.extra||[]).filter(x=>x!==gid);touch([s.group,gid],`Removed ${nameOf(id)} from ${gName(gid)} (additional membership)`);
   toast(`${nameOf(id)} removed from ${gName(gid)}`,`Still in their main group, ${gName(s.group)}.`);render();
  },
- moveStaff(){
+ moveStaff(){if(!isOwner())return;
   const id=mval("moveSel");if(!id)return toast("Choose a person to move","",true);
   const from=SY(id).group;SY(id).group=sel.group;touch([from,sel.group],`Moved ${nameOf(id)} from ${gName(from)} to ${gName(sel.group)}`);
   toast("Moved",`${nameOf(id)} is now in ${gName(sel.group)}.`);render();
@@ -2095,18 +2111,18 @@ const ACT={
     Y().modules.push({code,title:t,dept:mval("nmD"),credit:int(mval("nmK")),calendar:mval("nmCal")||defaultCalendar(code),occs:[]});sel.module=code;
     touch([mval("nmD")],`Created module ${code} ${t}`);toast("Module created",`${code} ${t}`);}});
  },
- saveModule(){
+ saveModule(){if(!isOwner())return;
   const m=M(sel.module),t=mval("mTitle");if(!t)return toast("The title can't be empty","",true);
   const oldDept=m.dept;m.title=t;m.dept=mval("mDept");m.credit=int(mval("mCredit"));m.calendar=mval("mCal")||m.calendar||"UG";
   touch(groupsOf(m.occs.flatMap(o=>staffOnOcc(o)),[oldDept,m.dept]),`Updated module ${m.code} details`);render();commitDraft();
  },
- deleteModule(){
+ deleteModule(){if(!isOwner())return;
   const m=M(sel.module);
   if(m.occs.length)return toast(`Can't delete ${m.code}`,"Delete its occurrences first. That also removes their allocations and sessions.",true);
   openModal({title:`Delete ${m.code}?`,ok:"Delete module",danger:true,body:`<p>${esc(m.title)} is removed from ${selYear}. Other years aren't affected.</p>`,
    onOk(){Y().modules=Y().modules.filter(x=>x!==m);sel.module=(Y().modules[0]||{}).code;touch([m.dept],`Deleted module ${m.code}`);toast("Module deleted",m.code);}});
  },
- newOcc(){
+ newOcc(){if(!isOwner())return;
   const m=M(sel.module);
   openModal({title:`New occurrence of ${m.code}`,ok:"Add occurrence",body:`<p>Type the occurrence letter, for example A for Business, C for Computing, D for Accounting & Finance or H for Health.</p>
    <label class="field">Occurrence<input id="noL" maxlength="3" style="text-transform:uppercase;width:120px" placeholder="e.g. C"></label>
@@ -2117,9 +2133,9 @@ const ACT={
     m.occs.push({occ:l,groups:1,courses:[],slots:slots({})});m.occs.sort((a,b)=>a.occ.localeCompare(b.occ));
     touch([m.dept],`Added occurrence ${l} to ${m.code}`);toast("Occurrence added",`${m.code} occ ${l}. Set its budgets below.`);}});
  },
- deleteOcc(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);delOccs(m,[o]);},
- deleteAllOcc(){const m=M(sel.module);delOccs(m,[...m.occs]);},
- rmCourse(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses=o.courses.filter(c=>c!==el.dataset.course);
+ deleteOcc(el){if(!isOwner())return;const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);delOccs(m,[o]);},
+ deleteAllOcc(){if(!isOwner())return;const m=M(sel.module);delOccs(m,[...m.occs]);},
+ rmCourse(el){if(!isOwner())return;const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses=o.courses.filter(c=>c!==el.dataset.course);
   touch([m.dept,(C(el.dataset.course)||{}).dept],`Unlinked ${el.dataset.course} from ${m.code} occ ${o.occ}`);render();},
  // ---- contract statuses (Owner) ----
  statuses(){if(!isOwner())return;openModal({title:"Contract statuses",ok:"Done",body:statusManagerHTML(),onOk(){}});$("#modalOk").previousElementSibling.style.display="none";},
@@ -2220,7 +2236,7 @@ const ACT={
  courseMove(el){if(!isOwner())return;const i=COURSES.findIndex(c=>c.code===el.dataset.code),j=i+(+el.dataset.d);if(i<0||j<0||j>=COURSES.length)return;
   [COURSES[i],COURSES[j]]=[COURSES[j],COURSES[i]];sel.course=el.dataset.code;render();
   const b=document.querySelector(`[data-act=courseMove][data-code="${el.dataset.code}"][data-d="${el.dataset.d}"]`);if(b&&!b.disabled)b.focus();},
- newCourse(){
+ newCourse(){if(!isOwner())return;
   openModal({title:"New course",ok:"Create course",body:`<div class="form-grid">
    <label class="field">Code<input id="ncC" placeholder="e.g. MGT-FIN"></label><label class="field">Level${selectH('id="ncL"',[{v:"UG",l:"Undergraduate"},{v:"PG",l:"Postgraduate"}],"UG")}</label>
    <label class="field wide">Title<input id="ncT"></label>
@@ -2230,10 +2246,10 @@ const ACT={
     if(!/^[A-Z0-9-]{3,12}$/.test(code))return "Use 3 to 12 letters, digits or hyphens for the code.";if(C(code))return `${code} already exists.`;if(!t)return "Give the course a title.";
     COURSES.push({code,title:t,dept:mval("ncD"),level:mval("ncL"),years:Math.min(7,Math.max(1,int(mval("ncY")))),leader:"",cis:true});sel.course=code;toast("Course created",t);}});
  },
- saveCourse(){const c=C(sel.course),t=mval("cTitle");if(!t)return toast("The title can't be empty","",true);
+ saveCourse(){if(!isOwner())return;const c=C(sel.course),t=mval("cTitle");if(!t)return toast("The title can't be empty","",true);
   Object.assign(c,{title:t,dept:mval("cDept"),level:mval("cLevel"),years:Math.min(7,Math.max(1,int(mval("cYears")))),leader:mval("cLeader"),cis:mval("cCis")==="1"});
   render();commitDraft();},
- deleteCourse(){const c=C(sel.course);
+ deleteCourse(){if(!isOwner())return;const c=C(sel.course);
   const n=Object.values(YEARS).reduce((a,yd)=>a+linkedOccs(c.code,yd),0);
   if(n)return toast(`Can't delete ${c.code}`,`It's linked to ${plural(n,"module occurrence")}. Unlink them on Module details first.`,true);
   openModal({title:`Delete ${c.title}?`,ok:"Delete course",danger:true,body:"<p>No modules are linked to it, so nothing else changes.</p>",
@@ -2360,8 +2376,8 @@ const CHG={
   o.occ=l;m.occs.sort((a,b)=>a.occ.localeCompare(b.occ));
   touch(groupsOf(staffOnOcc(o),[m.dept]),`${m.code}: occurrence ${old} renamed ${l}`);toast("Occurrence renamed",`${m.code} occ ${old} is now occ ${l}; its allocations, sessions and course links moved with it.`);render();
  },
- occGroups(el){const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.groups=Math.max(1,int(el.value));touch([m.dept],`${m.code} occ ${o.occ}: groups set to ${o.groups}`);render();},
- addCourse(el){if(!el.value)return;const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses.push(el.value);
+ occGroups(el){if(!isOwner())return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.groups=Math.max(1,int(el.value));touch([m.dept],`${m.code} occ ${o.occ}: groups set to ${o.groups}`);render();},
+ addCourse(el){if(!isOwner())return render();if(!el.value)return;const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ);o.courses.push(el.value);
   touch([m.dept,(C(el.value)||{}).dept],`Linked ${el.value} to ${m.code} occ ${o.occ}`);render();},
  budget(el){if(!isOwner())return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat;
   o.slots[c].total=int(el.value);touch([m.dept],`${m.code} occ ${o.occ}: ${CAT(c).label} budget set to ${o.slots[c].total}`);render();},
@@ -2466,8 +2482,13 @@ function comboOpen(el){if(el.disabled)return;if(COMBO.el!==el){COMBO.el=el;COMBO
 function comboClose(restore){const el=COMBO.el,pop=$("#comboPop");if(pop){pop.hidden=true;pop.innerHTML="";}if(!el)return;
  if(restore)el.value=COMBO.orig;el.setAttribute("aria-expanded","false");el.removeAttribute("aria-activedescendant");COMBO.el=null;}
 function comboChoose(i){const o=COMBO.list[i],el=COMBO.el;if(!o||!el)return;el.value=o.v;comboClose(false);el.dispatchEvent(new Event("change",{bubbles:true}));}
+// Fill a lazy staff dropdown the moment it's opened (mouse, touch or keyboard focus), keeping its current choice.
+function fillLazy(el){if(!el||el.dataset.filled||el.dataset.lazy!=="staff")return;const cur=el.value;
+ el.innerHTML=[{v:"",l:"None"}].concat(staffOptions()).map(o=>opt(o.v,o.l,cur)).join("");el.value=cur;el.dataset.filled="1";}
+document.addEventListener("focusin",e=>{if(e.target.matches&&e.target.matches("select[data-lazy]"))fillLazy(e.target);});
+document.addEventListener("mousedown",e=>{if(e.target.matches&&e.target.matches("select[data-lazy]"))fillLazy(e.target);
+ if(DP.input&&!e.target.closest("#datePop")&&!e.target.closest(".date-btn"))dpClose();},true);
 document.addEventListener("mousedown",e=>{
- if(DP.input&&!e.target.closest("#datePop")&&!e.target.closest(".date-btn"))dpClose();
  const opt=e.target.closest("#comboPop .combo-opt");
  if(opt){e.preventDefault();comboChoose(+opt.dataset.i);return;}
  if(e.target.closest("#comboPop")){e.preventDefault();return;}
