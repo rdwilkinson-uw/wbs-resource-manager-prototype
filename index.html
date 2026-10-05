@@ -754,7 +754,7 @@ const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
 const TABS=[["mine","My timetable","MT"],["overview","Overview","OV"],["modules","Module details","MD"],["alloc","Module allocation","AL"],["sessions","Module sessions","SE"],
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
  ["courses","Course details","CO"],["coursett","Course timetables","CT"],["cis","Course Information Site","CI"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
-const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","sessions","leaders","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
+const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","leaders","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
 const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
 const HIDDEN_TABS={head:["nt"]};
@@ -1265,7 +1265,7 @@ function catStatus(m,c){
 VIEWS.alloc=()=>{
  const m=ensureModule(),ed=canEdit("alloc");
  let h=pageHead("Workload","Module allocation",me.role==="head"?"Every module is listed, whichever department owns it, because staff from any department can teach on it. Budgets are set by the Owner.":"Divide each category's budget between named staff, per occurrence.",
-  backBtn()+(isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+`<button class="btn" data-act="goto" data-tab="sessions">${canEdit("sessions")?"Edit sessions":"View sessions"}</button>`);
+  backBtn()+(isOwner()?`<button class="btn" data-act="goto" data-tab="modules">Edit budgets</button>`:"")+(canOpen("sessions")?`<button class="btn" data-act="goto" data-tab="sessions">${canEdit("sessions")?"Edit sessions":"View sessions"}</button>`:""));
  if(!Y().modules.length)return h+`<article class="card">${empty("No modules","")}</article>`;
  if(!m)return h+`<div class="filterbar">${modulePicker(null)}</div>`+choosePrompt("a module","Type or paste a module code or title above, or pick one from the list.");
  h+=`<div class="filterbar">${modulePicker(m)}
