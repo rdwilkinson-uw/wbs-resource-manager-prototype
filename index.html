@@ -844,9 +844,10 @@ function buildCIS(yd=Y(),when=stamp()){
 }
 const cisPending=(yd=Y())=>{if(!yd)return false;if(!yd.cis)return true;const a={...buildCIS(yd,"")},b={...yd.cis,at:""};return JSON.stringify(a)!==JSON.stringify(b);};
 function snapshot(id,yd=Y(),when=stamp()){return {at:when,items:staffItems(id,yd),breakdown:staffBreakdown(id,yd)};}
-function yearBudget(yd=Y()){
+// keep: an optional filter for which modules count (e.g. a Head's own department)
+function yearBudget(yd=Y(),keep=null){
  let budget=0,assigned=0,over=0;
- yd.modules.forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const s=o.slots[c.id],a=sumV(s.alloc);budget+=s.total;assigned+=Math.min(a,s.total);if(a>s.total)over++;})));
+ yd.modules.filter(m=>!keep||keep(m)).forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const s=o.slots[c.id],a=sumV(s.alloc);budget+=s.total;assigned+=Math.min(a,s.total);if(a>s.total)over++;})));
  return {budget,assigned,over,unalloc:budget-assigned};
 }
 function staffOnOcc(o,cats=CATS){const ids=new Set();cats.forEach(c=>Object.keys(o.slots[c.id].alloc).forEach(i=>ids.add(i)));return [...ids];}
@@ -1019,6 +1020,13 @@ function renderNav(){
   const t=bd.target,u=bd.total,rem=t-u,pct=t?Math.round(u/t*100):0;
   $("#sideFoot").innerHTML=`<b>${t?`${pct}% of target`:"My credits"}</b><p>${t?`Target ${t} · used ${u} · ${rem>=0?`${rem} remaining`:`<span class="over-txt">${-rem} over</span>`}`:`${u} credits used · no target set`}</p>
    <div class="progress${pct>100?" over":""}"><i style="width:${Math.min(100,pct)}%"></i></div><p class="foot-note">As published ${esc(snap.at)}</p>`;
+  return;
+ }
+ if(me.role==="head"){ // a Head: their own department's modules and staff
+  const g=headGroup(),gn=gName(g).replace(/^Dept\.? of /,""),b=yearBudget(yd,m=>m.dept===g),pct=b.budget?Math.round(b.assigned/b.budget*100):0;
+  const staff=inYear().filter(p=>SY(p.id).group===g),target=staff.reduce((a,p)=>a+(SY(p.id).target||0),0),used=staff.reduce((a,p)=>a+breakdown(p.id).total,0),sp=target?Math.round(used/target*100):0;
+  $("#sideFoot").innerHTML=`<b>${pct}% allocated</b><p>${b.assigned.toLocaleString()} of ${b.budget.toLocaleString()} budgeted credits on ${esc(gn)} modules are assigned to staff in ${selYear}.</p><div class="progress"><i style="width:${Math.min(100,pct)}%"></i></div>
+   <p class="foot-note">Your staff: ${used.toLocaleString()} of ${target.toLocaleString()} target credits used (${sp}%).</p>`;
   return;
  }
  const b=yearBudget(),pct=b.budget?Math.round(b.assigned/b.budget*100):0;
