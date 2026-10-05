@@ -781,7 +781,7 @@ function breakdownNow(id,yd){
 function staffItems(id,yd=Y()){
  const out=[];
  yd.modules.forEach(m=>m.occs.forEach(o=>CATS.filter(c=>c.tt).forEach(c=>{
-  if(!(id in o.slots[c.id].alloc))return;
+  if(!hasCredits(o.slots[c.id].alloc[id]))return;
   (yd.sessions[skey(m.code,o.occ,c.id)]||[]).forEach(s=>out.push({...s,module:m.code,title:m.title,occ:o.occ,sem:c.sem,cat:c.label,cal:m.calendar||"UG"}));
  })));
  return out;
@@ -802,9 +802,12 @@ function clashPairs(items){
 }
 // A member of staff's work broken down by credit category (Semester 1, Semester 2 … Non-Teaching Roles).
 // Empty categories are left out. Used for the "By module" view and for published snapshots.
+// A role with 0 credits is left off every timetable view (lists, by time, chart, who-teaches lists).
+const hasCredits=v=>Number(v)>0;
 function teamOf(o,yd){
  const team={};
  CATS.forEach(c=>Object.entries(o.slots[c.id].alloc).forEach(([sid,cr])=>{
+  if(!hasCredits(cr))return;
   const s=yd.staff[sid]||{};
   team[sid]=team[sid]||{id:sid,name:nameOf(sid),hidden:s.publish===false,assoc:assocTag(s.status),roles:[]};
   team[sid].roles.push(`${c.label} ${cr}`);
@@ -816,18 +819,18 @@ function staffBreakdown(id,yd=Y()){
  CATS.forEach(c=>{
   const rows=[];
   yd.modules.forEach(m=>m.occs.forEach(o=>{
-   if(!(id in o.slots[c.id].alloc))return;
+   if(!hasCredits(o.slots[c.id].alloc[id]))return;
    rows.push({code:m.code,title:m.title,occ:o.occ,
     sessions:c.tt?(yd.sessions[skey(m.code,o.occ,c.id)]||[]).map(s=>({day:s.day,start:s.start,end:s.end})):null,
-    mgt:id in o.slots.ML.alloc?"LEAD":id in o.slots.MO.alloc?"MOD":"",
+    mgt:hasCredits(o.slots.ML.alloc[id])?"LEAD":hasCredits(o.slots.MO.alloc[id])?"MOD":"",
     credits:o.slots[c.id].alloc[id],comment:(o.slots[c.id].notes||{})[id]||"",team:teamOf(o,yd)});
   }));
   rows.sort((a,b)=>a.code.localeCompare(b.code)||a.occ.localeCompare(b.occ));
   if(rows.length)sections.push({label:c.label,kind:"teach",rows});
  });
  const nt=[];
- NT_CATS.forEach(cat=>yd.nt.filter(r=>r.cat===cat).forEach(r=>r.people.filter(p=>p.s===id).forEach(p=>nt.push({rid:r.id,title:r.title,type:cat,credits:p.cr,comment:p.note||"",
-  team:r.people.map(q=>{const s=yd.staff[q.s]||{};return {id:q.s,name:nameOf(q.s),hidden:s.publish===false,assoc:assocTag(s.status),roles:[`${q.cr}`]};}).sort(byStaffId)}))));
+ NT_CATS.forEach(cat=>yd.nt.filter(r=>r.cat===cat).forEach(r=>r.people.filter(p=>p.s===id&&hasCredits(p.cr)).forEach(p=>nt.push({rid:r.id,title:r.title,type:cat,credits:p.cr,comment:p.note||"",
+  team:r.people.filter(q=>hasCredits(q.cr)).map(q=>{const s=yd.staff[q.s]||{};return {id:q.s,name:nameOf(q.s),hidden:s.publish===false,assoc:assocTag(s.status),roles:[`${q.cr}`]};}).sort(byStaffId)}))));
  if(nt.length)sections.push({label:"Non-Teaching Roles",kind:"nt",rows:nt});
  const s=yd.staff[id]||{};
  return {sections,target:s.target||0,total:breakdown(id,yd).total};
@@ -1585,7 +1588,8 @@ VIEWS.coursett=()=>{
   return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(list.length,"module")}</span></div>
   ${list.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:33%">Module</th><th style="width:6%">Occ.</th><th style="width:15%">Sessions</th><th class="c" style="width:6%">Grps</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
   ${list.map(({m,o})=>{const ss=(yd.sessions[skey(m.code,o.occ,k.id)]||[]).slice().sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start),id=`ct${++seq}`;
-   const who=Object.entries(o.slots[k.id].alloc).sort((a,b)=>a[0].localeCompare(b[0])),lead=Object.keys(o.slots.ML.alloc),mod=Object.keys(o.slots.MO.alloc);
+   const pos=k2=>Object.keys(o.slots[k2].alloc).filter(id=>hasCredits(o.slots[k2].alloc[id]));
+   const who=Object.entries(o.slots[k.id].alloc).filter(([,cr])=>hasCredits(cr)).sort((a,b)=>a[0].localeCompare(b[0])),lead=pos("ML"),mod=pos("MO");
    return `<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}</td><td><span class="occ">${esc(o.occ)}</span></td>
     <td>${ss.length?ss.map(s=>`<div class="ct-line">${s.day} ${fmt(s.start)}–${fmt(s.end)}</div>`).join(""):'<span class="muted">Not timetabled</span>'}</td>
     <td class="c">${o.groups}</td><td class="r"><b>${o.slots[k.id].total}</b></td>
@@ -1817,10 +1821,10 @@ VIEWS.cis=()=>{
    :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No sessions in ${esc(k.label)}.</p>`}</article>`;}).join("")+foot;
  // By module, with + to drill into the module (leader, moderator, every time slot's staff, total allocation and shortfall)
  let seq=0;
- const drill=(m,o)=>{const lead=Object.keys(o.slots.ML.alloc).map(person).join(", ")||"—",mod=Object.keys(o.slots.MO.alloc).map(person).join(", ")||"—";
+ const drill=(m,o)=>{const pos=k=>Object.keys(o.slots[k].alloc).filter(id=>hasCredits(o.slots[k].alloc[id]));const lead=pos("ML").map(person).join(", ")||"—",mod=pos("MO").map(person).join(", ")||"—";
   const lines=cats.filter(k=>o.slots[k.id]&&(o.slots[k.id].total||Object.keys(o.slots[k.id].alloc).length)).map(k=>{const sl=o.slots[k.id],given=sumV(sl.alloc),gap=sl.total-given,ss=k.tt?sess(m,o,k):[];
    return `<tr><td class="name-cell">${esc(k.label)}</td><td>${k.tt?(ss.length?ss.map(s=>`${s.day} ${fmt(s.start)}–${fmt(s.end)}`).join("<br>"):'<span class="muted">Not timetabled</span>'):'<span class="muted">–</span>'}</td>
-    <td>${Object.entries(sl.alloc).sort((a,b)=>b[1]-a[1]).map(([id,cr])=>`${esc(person(id))} <b>${cr}</b>`).join("<br>")||'<span class="muted">Nobody yet</span>'}</td>
+    <td>${Object.entries(sl.alloc).filter(([,cr])=>hasCredits(cr)).sort((a,b)=>b[1]-a[1]).map(([id,cr])=>`${esc(person(id))} <b>${cr}</b>`).join("<br>")||'<span class="muted">Nobody yet</span>'}</td>
     <td class="r">${sl.total}</td><td class="r">${gap<0?`<span class="tag red">Over by ${-gap}</span>`:gap}</td></tr>`;}).join("");
   return `<div class="detail-head"><h3>${esc(m.code)} ${esc(m.title)} · occurrence ${esc(o.occ)}</h3></div>
    <div class="cis-lm"><div><span class="share-label">Leader</span> ${esc(lead)}</div><div><span class="share-label">Moderator</span> ${esc(mod)}</div></div>
