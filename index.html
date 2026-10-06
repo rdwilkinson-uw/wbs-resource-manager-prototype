@@ -779,6 +779,10 @@ const HIDDEN_TABS={};
 const canEditNtEntry=p=>!!me&&(me.role==="owner"||(me.role==="head"&&p.addedBy===me.id));
 // Who added a non-teaching role entry, and when - shown to the Owner. Imported entries have no record.
 const addedByText=p=>p.addedBy?`Added by ${p.addedBy===(me&&me.id)?"you":nameOf(p.addedBy)}${p.addedAt?`, ${p.addedAt}`:""}`:"";
+// People who exist (in other years) but aren't in the year being viewed, and their most recent record elsewhere.
+const peopleNotInYear=(yd=Y())=>PEOPLE.filter(p=>!yd.staff[p.id]);
+function lastYearRecord(id){const ys=YEAR_ORDER.filter(y=>YEARS[y]&&y!==selYear&&YEARS[y].staff[id]);
+ if(!ys.length)return null;const later=ys.filter(y=>y<selYear),y=(later.length?later:ys).slice(-1)[0];return {year:y,rec:YEARS[y].staff[id]};}
 const canOpen=t=>ROLE_TABS[me.role].includes(t)||(HIDDEN_TABS[me.role]||[]).includes(t);
 // Read-only years: previous years, and the current year when it was brought across for reference only.
 const yearLocked=(yd=Y())=>!!yd&&(yd.status==="archived"||!!yd.readOnly);
@@ -868,7 +872,7 @@ function buildCIS(yd=Y(),when=stamp()){
  const people={};Object.keys(yd.staff).forEach(id=>{const st=yd.staff[id];people[id]={name:nameOf(id),hidden:st.publish===false,assoc:assocTag(st.status)};});
  return {at:when,cats:JSON.parse(JSON.stringify(CATS)),courses:COURSES.map(c=>({...c})),modules:JSON.parse(JSON.stringify(yd.modules)),sessions:JSON.parse(JSON.stringify(yd.sessions)),people};
 }
-const cisPending=(yd=Y())=>{if(!yd)return false;if(!yd.cis)return true;const a={...buildCIS(yd,"")},b={...yd.cis,at:""};return JSON.stringify(a)!==JSON.stringify(b);};
+const cisPending=(yd=Y())=>{if(!yd)return false;if(!yd.cis)return true;const strip=x=>({...x,at:"",courses:(x.courses||[]).map(({cis,...c})=>c)});return JSON.stringify(strip(buildCIS(yd,"")))!==JSON.stringify(strip(yd.cis));};
 function snapshot(id,yd=Y(),when=stamp()){return {at:when,items:staffItems(id,yd),breakdown:staffBreakdown(id,yd)};}
 // keep: an optional filter for which modules count (e.g. a Head's own department)
 function yearBudget(yd=Y(),keep=null){
@@ -1195,7 +1199,7 @@ VIEWS.staff=()=>{
  // the Show filter (all / permanent / ALs) applies to the whole page: figures and table
  const list=g?staffKindFilter(inYear().filter(p=>inGroup(p.id,g.id))):[],main=list.filter(p=>SY(p.id).group===g.id),addl=list.length-main.length;
  const actions=(owner?`<button class="btn" data-act="statuses">Contract statuses</button><button class="btn" data-act="newGroup">New group</button><button class="btn danger" data-act="deleteGroup">Delete group</button>`:"")+
-  (owner?`<button class="btn primary" data-act="newStaff">New staff</button>`:"");
+  (owner&&peopleNotInYear().length?`<button class="btn" data-act="addBack">Add back to ${selYear}</button>`:"")+(owner?`<button class="btn primary" data-act="newStaff">New staff</button>`:"");
  let h=pageHead("People & capacity","Staff details",
   me.role==="head"?"Credit totals by staff group. Your own department opens first; choose any other group to view it. Staff records are maintained by the Owner.":"Group membership, credit targets, sign-in roles and name visibility.",actions);
  const totalsOnly=me.role==="head",mode=totalsOnly?"totals":sel.staffMode;
@@ -1832,25 +1836,21 @@ VIEWS.cis=()=>{
  const foot=`<p class="hint">Worcester Business School · Course Information Site ${esc(selYear)}</p>`;
  // ---- menu of courses
  if(page==="menu"){
-  const shown=S.courses.filter(c=>c.cis);
+  // The course list follows Course details straight away: courses marked "Shown", in the set course order.
+ // Each course's timetable comes from the published copy (a course not yet published shows no modules).
+ const shown=COURSES.filter(c=>c.cis).map(c=>({...(S.courses.find(x=>x.code===c.code)||{}),...c}));
   return h+`<div class="course-banner"><div><div class="eyebrow">${esc(selYear)}</div><h2>Courses</h2></div><div class="actions">${upd}</div></div>
   <article class="card">${shown.map(c=>{const occ=occsFor(c);
     const btns=!occ.length?`<span class="muted" style="font-size:12px">No modules listed yet</span>`
      :single(c)?`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="all">Module timetable</button>`
      :courseYearsShown(c,occ.some(r=>r.y===0)).map(y=>`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="${y}">Year ${y}${y===0?" (foundation)":""}</button>`).join("");
     return `<div class="cis-course"><div><b>${esc(c.title)}</b><span class="sub">${c.level==="PG"?"Postgraduate":"Undergraduate"}</span></div><div class="actions">${btns}</div></div>`;}).join("")||empty("No courses are shown on the site","")}
-   <div class="cis-course"><div><b>All other courses</b><span class="sub">Courses not listed above</span></div><div class="actions"><button class="btn small" data-act="cisOther">Full module list by course</button></div></div></article>${foot}`;
+   </article>${foot}`;
  }
- // ---- all other courses: module list
- if(page==="other"){
-  const others=S.courses.filter(c=>!c.cis);
-  return h+`<div class="course-banner"><div><div class="eyebrow">${esc(selYear)}</div><h2>All other courses</h2></div><div class="actions"><button class="btn small" data-act="cisMenu">← Back to courses</button>${upd}</div></div>
-  ${others.map(c=>{const occ=occsFor(c);return `<article class="card sem-card"><div class="card-head"><h2>${esc(c.title)}</h2><span class="tag gray">${plural(occ.length,"module")}</span></div>
-   ${occ.length?`<div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Year</th><th>Leader</th></tr></thead><tbody>${occ.map(({m,o,y})=>`<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}</td><td><span class="occ">${esc(o.occ)}</span></td><td>${y==null?"—":"Year "+y}</td><td>${esc(Object.keys(o.slots.ML.alloc).map(person).join(", ")||"—")}</td></tr>`).join("")}</tbody></table></div>`
-    :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules listed.</p>`}</article>`;}).join("")||`<article class="card">${empty("No other courses","Every course is shown on the site.")}</article>`}${foot}`;
- }
+ // Only courses marked "Shown" on Course details are ever on the site (the published copy holds no others).
+ if(page==="other"){sel.cisPage="menu";return VIEWS.cis();}
  // ---- one course (and year)
- const c=S.courses.find(x=>x.code===sel.cisCourse);
+ const live=C(sel.cisCourse),c=live&&live.cis?{...(S.courses.find(x=>x.code===live.code)||{}),...live}:null;
  if(!c){sel.cisPage="menu";return VIEWS.cis();}
  const yr=sel.cisYear==="all"?null:+sel.cisYear,all=occsFor(c),rows=yr==null?all:all.filter(r=>r.y===yr);
  const title=`${c.title}${yr==null?"":` – Year ${yr}${yr===0?" (foundation)":""}`}`;
@@ -2088,12 +2088,17 @@ const ACT={
    <label class="field">Target credits<input id="nsT" type="number" min="0" value="550"></label>
    <label class="field">Name shown to staff${selectH('id="nsP"',[{v:"1",l:"Publish name"},{v:"0",l:"Hide"}],"1")}</label>
    <label class="field">Sign-in role${selectH('id="nsR"',[{v:"staff",l:"Academic staff"},{v:"pas",l:"PAS Admin"},{v:"head",l:"Head"},{v:"owner",l:"Owner"}],"staff",!owner)}</label></div>
-   <p style="margin-top:12px">They'll be emailed an invite to set their own password. Until then they can't sign in.</p>`,
+   <p style="margin-top:12px">In the live system you then give them a one-time sign-in link (People and access) so they can set their own password.</p>
+   ${peopleNotInYear().length?`<p class="hint">Someone who was in another year? Use <b>Add back to ${selYear}</b> instead, so their history is kept.</p>`:""}`,
    onOk(){
     const f=mval("nsF"),s=mval("nsS"),e=mval("nsE").toLowerCase();
     if(!f||!s)return "Enter both a forename and a surname.";
     const id=mval("nsId");
     if(!/^[A-Za-z0-9]{5}$/.test(id))return "The staff ID must be exactly 5 letters or numbers, for example smij1.";
+    const back=PEOPLE.find(p=>p.id.toLowerCase()===id.toLowerCase()||(e&&p.email.toLowerCase()===e));
+    if(back&&!Y().staff[back.id]){const lr=lastYearRecord(back.id);
+     toast(`${nameOf(back.id)} already exists`,`${lr?`Last in ${lr.year}. `:""}Adding them back to ${selYear} instead, so their history is kept.`);
+     setTimeout(()=>ACT.addBack({dataset:{id:back.id}}),0);return;}
     if(PEOPLE.some(p=>p.id.toLowerCase()===id.toLowerCase()))return `The staff ID ${id} is already used by ${nameOf(PEOPLE.find(p=>p.id.toLowerCase()===id.toLowerCase()).id)}.`;
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e))return "Enter a valid email address; it becomes their sign-in username.";
     if(PEOPLE.some(p=>p.email.toLowerCase()===e))return "Someone already uses that email address.";
@@ -2101,14 +2106,34 @@ const ACT={
     PEOPLE.push({id,forename:f,surname:s,email:e,role:owner?mval("nsR"):"staff"});
     Y().staff[id]={group:g,extra:[],status:mval("nsC"),fte:parseFloat(mval("nsFte"))||0,target:int(mval("nsT")),room:"",phone:"",publish:mval("nsP")==="1"};
     sel.group=g;touch([g],`Added ${f} ${s} to ${gName(g)}`);
-    toast("Staff member added",`An invite has been queued to ${e}.`);
+    toast("Staff member added",`${f} ${s} is in ${gName(g)} for ${selYear}.`);
    }});
+ },
+ addBack(el){
+  if(!isOwner())return;
+  const list=peopleNotInYear();if(!list.length)return toast("Nobody to add back",`Everyone is already in ${selYear}.`);
+  const pick=(el&&el.dataset&&el.dataset.id&&list.some(p=>p.id===el.dataset.id))?el.dataset.id:list[0].id;
+  const fill=id=>{const lr=lastYearRecord(id),r=lr?lr.rec:{group:sel.group||GROUPS[0].id,status:"FT",fte:1,target:550,publish:true};return {lr,r};};
+  const {lr,r}=fill(pick);
+  openModal({title:`Add a member of staff back to ${selYear}`,ok:"Add back",body:`<p>For someone who is in other years but not ${esc(selYear)}, for example after being removed by mistake. Their staff ID, email, sign-in role and history are unchanged.</p>
+   <div class="form-grid"><label class="field wide">Person${selectH('id="abId" data-chg="abPick"',list.map(p=>({v:p.id,l:`${nameOf(p.id)} (${p.email})`+((x=>x?` · last in ${x.year}`:"")(lastYearRecord(p.id)))})),pick)}</label>
+   <label class="field">Group${selectH('id="abG"',visibleGroups().map(g=>({v:g.id,l:g.name})),G(r.group)?r.group:(sel.group||GROUPS[0].id))}</label>
+   <label class="field">Contract${selectH('id="abC"',STATUSES.map(v=>({v,l:v})),STATUSES.includes(r.status)?r.status:STATUSES[0])}</label>
+   <label class="field">FTE<input id="abF" type="number" step="0.05" min="0" max="1.5" value="${r.fte??1}"></label>
+   <label class="field">Target credits<input id="abT" type="number" min="0" value="${r.target??0}"></label>
+   <label class="field">Name shown to staff${selectH('id="abP"',[{v:"1",l:"Publish name"},{v:"0",l:"Hide"}],r.publish===false?"0":"1")}</label></div>
+   <p class="hint" id="abFrom">${lr?`Filled in from their ${esc(lr.year)} record. `:""}Allocations aren't restored: add them on Module allocation and Non-teaching roles.</p>`,
+   onOk(){const id=mval("abId");if(!id||Y().staff[id])return "Choose someone who isn't already in this year.";
+    const lr2=lastYearRecord(id),g=mval("abG");
+    Y().staff[id]={...(lr2?JSON.parse(JSON.stringify(lr2.rec)):{room:"",phone:""}),group:g,extra:((lr2&&lr2.rec.extra)||[]).filter(x=>x!==g&&G(x)),
+     status:mval("abC"),fte:parseFloat(mval("abF"))||0,target:int(mval("abT")),publish:mval("abP")==="1"};
+    sel.group=g;touch([g],`Added ${nameOf(id)} back to ${selYear}`);toast(`${nameOf(id)} added back`,`In ${gName(g)} for ${selYear}.`);}});
  },
  removeStaff(el){
   if(!isOwner())return toast("Only the Owner can remove staff","Ask the Resourcing Lead to remove the record.",true);const id=el.dataset.id,b=breakdown(id);
   if(b.total>0)return toast(`${nameOf(id)} still holds ${b.total} credits`,"Remove their module and non-teaching allocations first, or move them to another group instead.",true);
   if(PEOPLE.find(p=>p.id===id).role==="owner"&&PEOPLE.filter(p=>p.role==="owner").length<=1)return toast("Can't remove the last Owner","Make someone else an Owner first.",true);
-  openModal({title:`Remove ${nameOf(id)} from ${selYear}?`,ok:"Remove",danger:true,body:`<p>They won't appear in ${selYear} any more. Their records in other years are kept.</p>`,
+  openModal({title:`Remove ${nameOf(id)} from ${selYear}?`,ok:"Remove",danger:true,body:`<p>They won't appear in ${selYear} any more. Their records in other years are kept.</p><p class="hint">Removed by mistake? Use <b>Add back to ${selYear}</b> on Staff details to restore them.</p>`,
    onOk(){const g=SY(id).group;delete Y().staff[id];delete Y().published[id];touch([g],`Removed ${nameOf(id)} from ${selYear}`);toast("Removed",nameOf(id));}});
  },
  addToGroup(){
@@ -2352,7 +2377,7 @@ const ACT={
    onOk(){gs.forEach(publishGroup);Y().cis=buildCIS(Y());toast("Published",`${plural(gs.length,"group")} and the Course Information Site updated.`);}});},
  publishCIS(){if(!isOwner())return;Y().cis=buildCIS(Y());toast("Course Information Site updated",`Everyone now sees ${selYear} as it stands.`);render();},
  cisMenu(){sel.cisPage="menu";render(true);},
- cisOther(){sel.cisPage="other";render(true);},
+ cisOther(){sel.cisPage="menu";render(true);},
  cisOpen(el){sel.cisPage="course";sel.cisCourse=el.dataset.course;sel.cisYear=el.dataset.year;render(true);},
  cisView(el){sel.cisView=el.dataset.v;render();},
  semesterDates(){
@@ -2442,6 +2467,10 @@ const CHG={
   const n=Math.min(COURSES.length,Math.max(1,int(el.value)||i+1))-1;const [c]=COURSES.splice(i,1);COURSES.splice(n,0,c);sel.course=c.code;render();},
  qParam(el){const q=QUERIES.find(x=>x.id===el.dataset.q);qParams(q)[el.dataset.p]=el.value;render();},
  selCtCourse(el){sel.ctCourse=el.value;sel.ctYear="";render();},
+ abPick(el){const lr=lastYearRecord(el.value),r=lr?lr.rec:{};
+  if(r.group&&G(r.group))$("#abG").value=r.group;if(r.status&&STATUSES.includes(r.status))$("#abC").value=r.status;
+  $("#abF").value=r.fte??1;$("#abT").value=r.target??0;$("#abP").value=r.publish===false?"0":"1";
+  $("#abFrom").textContent=(lr?`Filled in from their ${lr.year} record. `:"")+"Allocations aren't restored: add them on Module allocation and Non-teaching roles.";},
  staffKind(el){sel.staffKind=el.value;render();},
  selCtYear(el){sel.ctYear=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
