@@ -771,10 +771,10 @@ const headGroup=()=>me&&me.role==="head"?(SY(me.id)||{}).group:null;
 const TABS=[["mine","My timetable","MT"],["overview","Overview","OV"],["modules","Module details","MD"],["alloc","Module allocation","AL"],["sessions","Module sessions","SE"],
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
  ["courses","Course details","CO"],["coursett","Course timetables","CT"],["cis","Course Information Site","CI"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
-const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","leaders","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
+const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","leaders","nt","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
 const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
-const HIDDEN_TABS={head:["nt"]};
+const HIDDEN_TABS={};
 // Non-teaching role entries: the Owner can change any; a Head only the ones they added themselves.
 const canEditNtEntry=p=>!!me&&(me.role==="owner"||(me.role==="head"&&p.addedBy===me.id));
 // Who added a non-teaching role entry, and when - shown to the Owner. Imported entries have no record.
@@ -1431,6 +1431,8 @@ VIEWS.leaders=()=>{
 
 /* --------------------------- Non-teaching roles --------------------------- */
 VIEWS.nt=()=>{
+ // Heads have Summary and Edit roles: in Edit roles they can add staff to existing roles and correct or remove the
+ // entries they added. Roles and role types (creating, renaming, deleting) are the Owner's alone.
  const yd=Y(),mode=sel.ntMode==="edit"?"edit":"summary";
  const byTitle=(a,b)=>a.title.localeCompare(b.title);
  const count=cat=>yd.nt.filter(r=>r.cat===cat).length;
