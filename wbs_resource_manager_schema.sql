@@ -59,6 +59,10 @@ CREATE TABLE academic_year (
     end_date             date NOT NULL,
     status               text NOT NULL DEFAULT 'planning'
                          CHECK (status IN ('planning', 'current', 'archived')),
+    -- Read-only years: 'archived' years always are; is_read_only also locks a year for another reason.
+    -- At launch 2026-27 is brought across from the old system as the current year with is_read_only = true
+    -- (the old system stays the master copy until it ends), and 2027-28 is created from it to resource.
+    is_read_only         boolean NOT NULL DEFAULT false,
     copied_from_year_id  integer REFERENCES academic_year (id),
     created_at           timestamptz NOT NULL DEFAULT now(),
     updated_at           timestamptz NOT NULL DEFAULT now(),
@@ -369,6 +373,31 @@ CREATE TABLE credit_category (
 );
 
 
+-- Semester dates, set once per academic year by the Owner for the whole system:
+-- one set for UG modules and one for PG modules, per timetabled time slot
+-- (Semester 1, Semester 2, ...). Calendar (.ics) exports repeat each weekly
+-- session from start_date to end_date, skipping the weeks off.
+CREATE TABLE semester_dates (
+    academic_year_id    integer NOT NULL REFERENCES academic_year (id) ON DELETE CASCADE,
+    calendar            text NOT NULL CHECK (calendar IN ('UG', 'PG')),
+    credit_category_id  integer NOT NULL REFERENCES credit_category (id) ON DELETE CASCADE,
+    start_date          date NOT NULL,
+    end_date            date NOT NULL,
+    PRIMARY KEY (academic_year_id, calendar, credit_category_id),
+    CHECK (end_date >= start_date)
+);
+
+-- Weeks with no teaching (e.g. Christmas, Easter, reading weeks), by the Monday of the week.
+CREATE TABLE semester_week_off (
+    academic_year_id    integer NOT NULL,
+    calendar            text NOT NULL,
+    credit_category_id  integer NOT NULL,
+    week_commencing     date NOT NULL CHECK (EXTRACT(ISODOW FROM week_commencing) = 1),
+    PRIMARY KEY (academic_year_id, calendar, credit_category_id, week_commencing),
+    FOREIGN KEY (academic_year_id, calendar, credit_category_id)
+        REFERENCES semester_dates (academic_year_id, calendar, credit_category_id) ON DELETE CASCADE
+);
+
 -- =============================================================================
 -- 6. COURSES, MODULES, OCCURRENCES
 -- =============================================================================
@@ -400,6 +429,9 @@ CREATE TABLE module (
     owning_staff_group_id  integer NOT NULL REFERENCES staff_group (id) ON DELETE RESTRICT,
     academic_credits       smallint CHECK (academic_credits IN (0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 60, 120, 240)),  -- not workload; 0 = no credit weighting
     subject                text,                                    -- old module.subject
+    -- Which semester dates the module follows: UG or PG semester dates, or NS = a non-standard
+    -- semester (not on the normal timetable, so left out of calendar exports).
+    semester_calendar      text NOT NULL DEFAULT 'UG' CHECK (semester_calendar IN ('UG', 'PG', 'NS')),
     level                  smallint CHECK (level BETWEEN 3 AND 8),
     is_active              boolean NOT NULL DEFAULT true,
     created_at             timestamptz NOT NULL DEFAULT now(),

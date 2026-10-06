@@ -8,7 +8,7 @@
 <style>
 :root{
  --navy:#063d5c;--navy-2:#075479;--cyan:#00a6a6;--lime:#c9df56;--amber:#f2b54b;--red:#cc5b4c;--green:#218a67;--blue:#2673a9;
- --paper:#f4f6f3;--surface:#ffffff;--ink:#102a3b;--heading:#063d5c;--muted:#56666e;--line:#ccd7d9;--line-2:#e3e9e8;
+ --paper:#f4f6f3;--surface:#ffffff;--ink:#102a3b;--ink-soft:rgba(16,42,59,.85);--heading:#063d5c;--muted:#56666e;--line:#ccd7d9;--line-2:#e3e9e8;
  --side:#e8efee;--side-hover:#dce8e6;--chip:#d4e1df;--thead:#eff4f3;--filter:#e4eceb;--hover:#f7faf9;--input:#ffffff;--input-line:#b9c8cb;
  --t-cyan:#e7f3f1;--t-cyan-ink:#136d68;--t-amber:#fff2d9;--t-amber-ink:#8a5a0f;--t-red:#fbe8e6;--t-red-ink:#a54438;
  --t-blue:#e6f0f7;--t-blue-ink:#276b98;--t-gray:#edf0ef;--t-gray-ink:#5d6d74;--t-lime:#f3f8d9;
@@ -20,7 +20,7 @@
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
  color-scheme:dark;
  --primary:#0d6a96;--primary-2:#1479a8;--link:#8cc6f0;--b-cyan:#2c6b68;--b-amber:#7a6027;--b-red:#8a4a42;--seg-on:#23434f;--muted:#9fb3bb;--teal-text:#3cc4bd;
- --paper:#0c1a22;--surface:#12262f;--ink:#dbe7eb;--heading:#e9f2f5;--muted:#8ea3ab;--line:#28414d;--line-2:#1e3540;
+ --paper:#0c1a22;--surface:#12262f;--ink:#dbe7eb;--ink-soft:rgba(219,231,235,.85);--heading:#e9f2f5;--muted:#8ea3ab;--line:#28414d;--line-2:#1e3540;
  --side:#0f2029;--side-hover:#18323e;--chip:#1e3945;--thead:#16303b;--filter:#142b35;--hover:#173440;--input:#0f2029;--input-line:#34505c;
  --t-cyan:#0f3a3b;--t-cyan-ink:#72d8d0;--t-amber:#3b2e12;--t-amber-ink:#f2c878;--t-red:#3e201c;--t-red-ink:#f1a69c;
  --t-blue:#12304a;--t-blue-ink:#8fc4ec;--t-gray:#1d2f38;--t-gray-ink:#a9b8bf;--t-lime:#27301a;--shadow:0 14px 35px rgba(0,0,0,.35);
@@ -28,7 +28,7 @@
 :root[data-theme="dark"]{
  color-scheme:dark;
  --primary:#0d6a96;--primary-2:#1479a8;--link:#8cc6f0;--b-cyan:#2c6b68;--b-amber:#7a6027;--b-red:#8a4a42;--seg-on:#23434f;--muted:#9fb3bb;--teal-text:#3cc4bd;
- --paper:#0c1a22;--surface:#12262f;--ink:#dbe7eb;--heading:#e9f2f5;--muted:#8ea3ab;--line:#28414d;--line-2:#1e3540;
+ --paper:#0c1a22;--surface:#12262f;--ink:#dbe7eb;--ink-soft:rgba(219,231,235,.85);--heading:#e9f2f5;--muted:#8ea3ab;--line:#28414d;--line-2:#1e3540;
  --side:#0f2029;--side-hover:#18323e;--chip:#1e3945;--thead:#16303b;--filter:#142b35;--hover:#173440;--input:#0f2029;--input-line:#34505c;
  --t-cyan:#0f3a3b;--t-cyan-ink:#72d8d0;--t-amber:#3b2e12;--t-amber-ink:#f2c878;--t-red:#3e201c;--t-red-ink:#f1a69c;
  --t-blue:#12304a;--t-blue-ink:#8fc4ec;--t-gray:#1d2f38;--t-gray-ink:#a9b8bf;--t-lime:#27301a;--shadow:0 14px 35px rgba(0,0,0,.35);
@@ -213,7 +213,9 @@ tr.selected td{background:var(--t-cyan)}
 .capacity span{font-size:10px;color:var(--muted);white-space:nowrap}
 .notice{display:flex;gap:12px;align-items:flex-start;padding:13px 16px;border:1px solid var(--b-cyan);background:var(--t-cyan);border-radius:12px;margin-bottom:16px}
 .notice .glyph{width:26px;height:26px;border-radius:8px;background:var(--badge);color:#fff;display:grid;place-items:center;font-weight:900;flex:0 0 auto;font-size:12px}
-.notice p{margin:2px 0 0;color:var(--ink);opacity:.85;font-size:12px;max-width:95ch}
+/* softened with colour, not opacity, so buttons inside a notice keep full contrast */
+.notice p{margin:2px 0 0;color:var(--ink-soft);font-size:12px;max-width:95ch}
+.notice p .btn{margin:4px 4px 0 0}
 .notice strong{color:var(--heading)}
 .notice.amber{background:var(--t-amber);border-color:var(--b-amber)}.notice.amber .glyph{background:var(--amber);color:var(--navy)}
 .notice.red{background:var(--t-red);border-color:var(--b-red)}
@@ -661,15 +663,27 @@ function seed(){
   // teaching dates per timetabled time slot; weeks off are the Mondays of weeks with no teaching
   semesterDates:{UG:{S1:{start:"2026-09-21",end:"2026-12-11",off:[]},S2:{start:"2027-01-25",end:"2027-05-07",off:["2027-03-29","2027-04-05"]}},
                  PG:{S1:{start:"2026-10-05",end:"2027-01-15",off:["2026-12-21","2026-12-28"]},S2:{start:"2027-02-08",end:"2027-05-21",off:["2027-03-29","2027-04-05"]}}}}};
- YEAR_ORDER=["2025-26","2026-27","2027-28"];
- // Start with everything published, as the live system would be.
- const yd=YEARS["2026-27"];
+ YEAR_ORDER=["2026-27","2027-28","2028-29"];
+ // LAUNCH-DAY STATE. 2026-27 is the current year, brought across from the old system: everything published, and
+ // read-only here (until it ends, the old system is where 2026-27 is changed). 2027-28 is the year being resourced,
+ // created as a copy of 2026-27, unpublished, and the year Owner / Heads / PAS Admin open on.
+ const yd=YEARS["2026-27"];yd.readOnly=true;
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,"18 Sep 2026, 16:40"));yd.lastPublished[g.id]="18 Sep 2026, 16:40";});
  yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
- // A sample previous (archived) year, so the "Previous academic year" flag can be seen in the prototype.
- YEARS["2025-26"]=Object.assign(JSON.parse(JSON.stringify(yd)),{status:"archived",changes:[],overrides:{},
-  semesterDates:{UG:{S1:{start:"2025-09-22",end:"2025-12-12",off:[]},S2:{start:"2026-01-26",end:"2026-05-08",off:["2026-03-30","2026-04-06"]}},
-                 PG:{S1:{start:"2025-10-06",end:"2026-01-16",off:["2025-12-22","2025-12-29"]},S2:{start:"2026-02-09",end:"2026-05-22",off:["2026-03-30","2026-04-06"]}}}});
+ YEARS["2027-28"]=nextYearFrom(yd,"2026-27");
+}
+// A new planning year as a copy of the one before: same modules, budgets, allocations, sessions and roles,
+// nothing published, and semester dates moved on 52 weeks (so they still fall on the same weekdays).
+function nextYearFrom(src,srcCode){
+ const copy=JSON.parse(JSON.stringify(src));
+ Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:srcCode,changes:[],published:{},lastPublished:{},overrides:{},cis:null,
+  semesterDates:shiftSemesterDates(src.semesterDates||{},364)});
+ return copy;
+}
+function shiftSemesterDates(sd,days){
+ const mv=iso=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10);};
+ const out={};Object.entries(sd).forEach(([cal,slots])=>{out[cal]={};Object.entries(slots||{}).forEach(([k,v])=>{out[cal][k]={start:mv(v.start),end:mv(v.end),off:(v.off||[]).map(mv)};});});
+ return out;
 }
 
 /* ------------------------------ state ------------------------------ */
@@ -694,6 +708,7 @@ const mondayOf=iso=>{const d=new Date(iso+"T00:00:00Z");d.setUTCDate(d.getUTCDat
 const nextYearCode=code=>{const a=+String(code).slice(0,4);return `${a+1}-${String(a+2).slice(2)}`;};
 const latestYear=()=>YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
 const currentYearCode=()=>YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||latestYear();
+const canMakeCurrent=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="planning"&&y===nextYearCode(currentYearCode());
 const canDeleteYear=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="planning"&&y===latestYear();
 // The selector lists every created year plus the one year that could be created next.
 function tidyYearOrder(){const made=YEAR_ORDER.filter(y=>YEARS[y]);YEAR_ORDER=made.concat([nextYearCode(made[made.length-1])]);}
@@ -765,7 +780,18 @@ const canEditNtEntry=p=>!!me&&(me.role==="owner"||(me.role==="head"&&p.addedBy==
 // Who added a non-teaching role entry, and when - shown to the Owner. Imported entries have no record.
 const addedByText=p=>p.addedBy?`Added by ${p.addedBy===(me&&me.id)?"you":nameOf(p.addedBy)}${p.addedAt?`, ${p.addedAt}`:""}`:"";
 const canOpen=t=>ROLE_TABS[me.role].includes(t)||(HIDDEN_TABS[me.role]||[]).includes(t);
-const canEdit=(t=tab)=>EDIT[me.role]==="all"||EDIT[me.role].includes(t);
+// Read-only years: previous years, and the current year when it was brought across for reference only.
+const yearLocked=(yd=Y())=>!!yd&&(yd.status==="archived"||!!yd.readOnly);
+const lockReason=()=>{const yd=Y();return !yd?"":yd.status==="archived"?`${selYear} is a previous year, kept for reference, so it can't be changed.`
+ :`${selYear} is kept here for reference and as the starting point for the next year. Until it ends, changes for ${selYear} are made in the current system.`;};
+// The year each person opens on: Owner, Heads and PAS Admin open on the year being resourced; staff open on the
+// latest year in which their own timetable has been published.
+function defaultYearFor(m){
+ const made=YEAR_ORDER.filter(y=>YEARS[y]),cur=made.find(y=>YEARS[y].status==="current")||made[made.length-1];
+ if(m&&m.role==="staff"){const pub=made.filter(y=>YEARS[y].published&&YEARS[y].published[m.id]);return pub.length?pub[pub.length-1]:cur;}
+ return made.find(y=>YEARS[y].status==="planning")||cur;
+}
+const canEdit=(t=tab)=>!yearLocked()&&(EDIT[me.role]==="all"||EDIT[me.role].includes(t));
 const isOwner=()=>me.role==="owner";
 
 /* ---------------------------- calculations ---------------------------- */
@@ -947,6 +973,12 @@ function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=
  YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;REPORT_TOTALS=o.REPORT_TOTALS;STATUS_INFO=o.STATUS_INFO;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
 // Run something that may change data; on an editing screen, the first real change starts an unsaved draft.
 function staged(fn){
+ if(yearLocked()){
+  const before=stateJSON();SKIP_STAGE=false;const r=fn();
+  if(SKIP_STAGE){SKIP_STAGE=false;return r;} // a demo reset or a new year is allowed
+  if(stateJSON()!==before){restoreState(before);DRAFT=null;closeModal();toast("This year is read-only",lockReason(),true);render();}
+  return r;
+ }
  if(!stagedHere())return fn();
  const had=!!DRAFT,before=had?null:stateJSON();
  COMMITTED=false;
@@ -1039,8 +1071,11 @@ function yearBanner(){
  const cur=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||"the current year";
  if(yd.status==="planning")return imp+notice("!",`Next academic year: ${selYear}`,me.role==="staff"
    ?`You're looking at ${selYear}, which is still being planned and may change. The current year is ${cur}.`
-   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.${canDeleteYear(selYear)?` <button class="btn small danger" data-act="deleteYear">Delete ${selYear}</button>`:""}`,"amber year-next");
- if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear}`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
+   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.${canMakeCurrent(selYear)?` <button class="btn small" data-act="makeCurrent">Make ${selYear} the current year</button>`:""}${canDeleteYear(selYear)?` <button class="btn small danger" data-act="deleteYear">Delete ${selYear}</button>`:""}`,"amber year-next");
+ if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear} · read-only`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
+ if(yd.readOnly){const nxt=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="planning");
+  return imp+notice("🔒",`${selYear} · read-only here`,me.role==="staff"?`This is your ${selYear} timetable as brought across from the current system.`
+   :`${selYear} was brought across from the current system for reference${nxt?` and as the starting point for ${nxt}`:""}. Until it ends, changes for ${selYear} are made in the current system.${nxt?` <button class="btn small" data-act="goYear" data-year="${nxt}">Go to ${nxt}</button>`:""}`,"slate");}
  return imp;
 }
 // A redraw can make the focused box lose focus, which fires its change event; that must not start a second
@@ -1485,7 +1520,7 @@ function teamName(t,viewer){
 let rowSeq=0;
 // "Allocate" from a staff timetable: Owner and Heads only (staff viewing their own timetable never see it).
 function allocBtn(r,nt){
- if(!me||!["owner","head"].includes(me.role)||!sel.staff)return "";
+ if(!me||!["owner","head"].includes(me.role)||!sel.staff||yearLocked())return "";
  return nt?`<button class="btn small primary" data-act="ntFrom" data-r="${esc(r.rid)}">Allocate</button>`
   :`<button class="btn small primary" data-act="allocFrom" data-module="${esc(r.code)}">Allocate</button>`;
 }
@@ -1982,17 +2017,17 @@ function viewNoYear(){
 }
 
 /* =============================== ACTIONS =============================== */
-function guard(t){if(!canEdit(t)){toast("Not available for your role","This change needs a role with edit access to this screen.",true);return false;}return true;}
+function guard(t){if(!canEdit(t)){if(yearLocked())toast("This year is read-only",lockReason(),true);else toast("Not available for your role","This change needs a role with edit access to this screen.",true);return false;}return true;}
 const ACT={
  signIn(el){const pick=document.getElementById("who-"+el.dataset.role);me={role:el.dataset.role,id:pick?pick.value:el.dataset.id};
   if(pick&&me.role!=="staff")P(me.id).role=me.role;if(P(me.id).theme)applyTheme(P(me.id).theme);tab=ROLE_TABS[me.role][0]||"mine";
   // default views: empty drop-downs until the person chooses (a Head's Staff details opens on their own group)
   Object.assign(sel,{staffKind:"all",module:"",leadCourse:"",nt:"",staff:"",ctCourse:"",ctYear:"",group:me.role==="head"?(SY(me.id)||{}).group||"":"",back:null,ntFocus:null,cisPage:"menu"});
-  if(!YEARS[selYear])selYear="2026-27";
+  selYear=defaultYearFor(me);
   $("#login").classList.add("hidden");render(true);toast(`Signed in as ${nameOf(me.id)}`,ROLE_LABEL[me.role]);},
  signOut(){me=null;applyTheme(null);closeModal();$("#login").classList.remove("hidden");},
  resetDemo(){openModal({title:"Reset the demo?",body:"<p>Every change you've made, in every year, is discarded and the sample data is restored.</p>",ok:"Reset demo",danger:true,
-  onOk(){seed();renderLogin();selYear="2026-27";DRAFT=null;LAST_SAVED=null;SKIP_STAGE=true;
+  onOk(){seed();renderLogin();selYear=defaultYearFor(me);DRAFT=null;LAST_SAVED=null;SKIP_STAGE=true;
    if(!P(me.id))me={role:me.role,id:ROLE_CARDS.find(r=>r.role===me.role).id}; // was previewing imported data: switch to the sample person for this role
   Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"BMGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
  go(el){tab=el.dataset.tab;sel.query=null;sel.back=null;sel.ntFocus=null;render(true);},
@@ -2345,6 +2380,16 @@ const ACT={
    <p class="hint">This is a snapshot: if your timetable changes and is republished, download it again and import the new file.</p>`:""}`,onOk(){}});
   $("#modalOk").previousElementSibling.style.display="none";
  },
+ goYear(el){const y=el.dataset.year;guardNav(()=>{selYear=y;render(true);});},
+ makeCurrent(){
+  const y=selYear,old=currentYearCode();
+  if(!canMakeCurrent(y))return toast("Not available","Only the Owner can do this, for the year straight after the current one.",true);
+  openModal({title:`Make ${y} the current academic year?`,ok:`Make ${y} current`,body:`<p>Usually done when the new academic year starts, on or around 1 September.</p>
+   <ul class="del-list"><li><b>${esc(y)}</b> becomes the <b>current</b> academic year.</li><li><b>${esc(old)}</b> becomes a <b>previous</b> year: kept for reference and read-only.</li>
+   <li>Nothing is deleted, and published timetables stay as they are.</li></ul>`,
+   onOk(){YEARS[old].status="archived";YEARS[y].status="current";YEARS[y].readOnly=false;SKIP_STAGE=true;tidyYearOrder();
+    toast(`${y} is now the current year`,`${old} is now a previous year (read-only).`);}});
+ },
  deleteYear(){
   const y=selYear,yd=YEARS[y];
   if(!canDeleteYear(y))return toast("This year can't be deleted","Only the Owner can delete a year, and only the latest one that is still being planned. The current year and previous years can never be deleted.",true);
@@ -2365,7 +2410,7 @@ const ACT={
  },
  createYear(el){if(!isOwner())return;if(selYear!==nextYearCode(latestYear()))return toast("Create years in order",`The next year to create is ${nextYearCode(latestYear())}.`,true);SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
-  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{}});YEARS[selYear]=copy;
+  Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{}});YEARS[selYear]=copy;
   tidyYearOrder();
   tab="overview";toast(`${selYear} created`,`Copied from ${src}. Changes here don't affect ${src}.`);render(true);}
 };
@@ -2833,6 +2878,9 @@ function applyImport(res,db,tablesFound){
  const yd=YEARS[res.year],when=stamp();
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,when));yd.lastPublished[g.id]=when;});
  yd.cis=buildCIS(yd,when);
+ // As at launch: the imported year is the current year, read-only here; the next year is created from it, ready to resource.
+ yd.status="current";yd.readOnly=true;
+ if(ym){const nxt=YEAR_ORDER[1];YEARS[nxt]=nextYearFrom(yd,res.year);tidyYearOrder();}
  Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],ntMode:"summary",query:null,staffMode:"list"});
  IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound};
 }
@@ -2840,7 +2888,8 @@ function applyImport(res,db,tablesFound){
 function importReportHTML(){
  const c=IMPORT.counts,rows=[["Staff",c.staff],["Modules",c.modules],["Occurrences",c.occurrences],["Category budget lines",c.teachingRoles],["Non-teaching roles",c.nonTeachingRoles],
   ["Additional group memberships",c.additionalMemberships||0],["Credit allocations",c.allocations],["Courses",c.courses],["Course links",c.courseLinks],["Timetabled sessions",c.sessions]];
- return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.</p>
+ const nxt=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="planning");
+ return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.${nxt?` As at launch, ${esc(IMPORT.year)} is read-only here, and <b>${esc(nxt)}</b> has been created from it, ready to resource.`:""}</p>
   <div class="table-wrap"><table><tbody>${rows.map(([l,n])=>`<tr><td>${l}</td><td class="r"><b>${n}</b></td></tr>`).join("")}</tbody></table></div>
   <h3 style="margin:16px 0 6px">Credit categories found</h3><p>${CATS.map(x=>`${esc(x.label)}${x.legacy?` (${esc(x.legacy)})`:""}${x.tt?", timetabled":""}`).join("; ")}</p>
   <h3 style="margin:16px 0 6px">${IMPORT.warnings.length?"Things to check":"No problems found"}</h3>
