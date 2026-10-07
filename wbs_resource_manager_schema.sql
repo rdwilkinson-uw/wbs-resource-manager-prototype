@@ -790,7 +790,7 @@ CREATE FUNCTION copy_academic_year(p_from_year_id     integer,
                                    p_start_date       date,
                                    p_end_date         date,
                                    p_copy_allocations boolean DEFAULT true,
-                                   p_copy_sessions    boolean DEFAULT true)
+                                   p_copy_sessions    boolean DEFAULT false)  -- sessions are added afresh each year
 RETURNS integer
 LANGUAGE plpgsql AS $$
 DECLARE

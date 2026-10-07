@@ -672,12 +672,13 @@ function seed(){
  yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
  YEARS["2027-28"]=nextYearFrom(yd,"2026-27");
 }
-// A new planning year as a copy of the one before: same modules, budgets, allocations, sessions and roles,
-// nothing published, and semester dates moved on 52 weeks (so they still fall on the same weekdays).
+// A new planning year as a copy of the one before: same modules, budgets, allocations and roles, nothing published,
+// semester dates moved on 52 weeks (so they still fall on the same weekdays) and NO module sessions: sessions are
+// added afresh each year, so the new year's timetables start empty.
 function nextYearFrom(src,srcCode){
  const copy=JSON.parse(JSON.stringify(src));
  Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:srcCode,changes:[],published:{},lastPublished:{},overrides:{},cis:null,
-  semesterDates:shiftSemesterDates(src.semesterDates||{},364)});
+  semesterDates:shiftSemesterDates(src.semesterDates||{},364),sessions:{}});
  return copy;
 }
 function shiftSemesterDates(sd,days){
@@ -1361,6 +1362,7 @@ VIEWS.sessions=()=>{
  h+=`<div class="filterbar">${modulePicker(m)}</div>`;
  h+=m.calendar==="NS"?notice("i","Non-Standard Semester","This module isn't on the normal timetable dates, so its sessions aren't included in calendar exports.","amber")
    :`<p class="hint sd-hint">Follows <b>${esc(calLabel(m.calendar||"UG"))}</b>${isOwner()?" (change on Module details)":""}.</p>`;
+ if(Y().copiedFrom&&!Object.values(Y().sessions).some(l=>l.length))h+=notice("i",`No sessions yet for ${selYear}`,`Module sessions aren't carried over from ${esc(Y().copiedFrom)}: they're added afresh for each year. Until they are, timetables for ${selYear} show modules as not timetabled.`);
  if(!m.occs.length)return h+`<article class="card">${empty("This module has no occurrences","Sessions are added per occurrence once one exists.")}</article>`;
  if(ed)h+=`<p class="hint" style="margin:-4px 0 14px">Type or paste days and times. Times like 9, 9:15, 0915 or 2pm all work, and an hour on its own becomes quarter past (9 → 09:15). You can paste a whole line such as <b>Mon 09:15-12:15</b> into the Day box.</p>`;
  return h+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
@@ -2014,7 +2016,7 @@ function viewNoYear(){
  const src=YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
  if(!isOwner())return `<article class="card">${empty(`${selYear} hasn't been set up yet`,"Only the Owner can create a new academic year.")}</article>`;
  return `<article class="card hero-main" style="min-height:0"><div class="bignum" aria-hidden="true">${selYear.replace("20","").replace("-","/")}</div><div class="eyebrow">New academic year</div><h1>${selYear} hasn't been set up yet.</h1>
-  <p>Create it as a copy of ${src}: staff and their targets, modules and occurrences, budgets, allocations, sessions, course links and non-teaching roles. Everything can then be edited without touching ${src}. Nothing is published to staff until you publish it.</p>
+  <p>Create it as a copy of ${src}: staff and their targets, modules and occurrences, budgets, allocations, course links and non-teaching roles. <b>Module sessions are not copied</b>: they're added afresh for each year on Module sessions, so timetables for ${selYear} start empty. Everything can then be edited without touching ${src}. Nothing is published to staff until you publish it.</p>
   <div class="actions"><button class="btn accent" data-act="createYear" data-src="${src}">Create ${selYear} from ${src}</button></div></article>`;
 }
 
@@ -2437,9 +2439,10 @@ const ACT={
  },
  createYear(el){if(!isOwner())return;if(selYear!==nextYearCode(latestYear()))return toast("Create years in order",`The next year to create is ${nextYearCode(latestYear())}.`,true);SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
-  Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{}});YEARS[selYear]=copy;
+  // sessions are never carried into a new year: they're added afresh on Module sessions
+  Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{},sessions:{}});YEARS[selYear]=copy;
   tidyYearOrder();
-  tab="overview";toast(`${selYear} created`,`Copied from ${src}. Changes here don't affect ${src}.`);render(true);}
+  tab="overview";toast(`${selYear} created`,`Copied from ${src}, without module sessions: add those on Module sessions. Changes here don't affect ${src}.`);render(true);}
 };
 function delOccs(m,occs){
  if(!occs.length)return;
