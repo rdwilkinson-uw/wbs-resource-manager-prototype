@@ -1077,6 +1077,8 @@ function yearBanner(){
  if(yd.status==="planning")return imp+notice("!",`Next academic year: ${selYear}`,me.role==="staff"
    ?`You're looking at ${selYear}, which is still being planned and may change. The current year is ${cur}.`
    :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.${canMakeCurrent(selYear)?` <button class="btn small" data-act="makeCurrent">Make ${selYear} the current year</button>`:""}${canDeleteYear(selYear)?` <button class="btn small danger" data-act="deleteYear">Delete ${selYear}</button>`:""}`,"amber year-next");
+ if(yd.status==="current"&&yd.madeCurrent&&me.role==="owner"&&YEARS[yd.madeCurrent.from]&&YEARS[yd.madeCurrent.from].status==="archived")
+  return imp+notice("i",`${selYear} was made the current year on ${esc(yd.madeCurrent.at)}`,`By ${esc(yd.madeCurrent.by)}; ${esc(yd.madeCurrent.from)} became a previous year. Done by mistake? <button class="btn small" data-act="undoCurrent">Undo</button>`);
  if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear} · read-only`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
  if(yd.readOnly){const nxt=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="planning");
   return imp+notice("🔒",`${selYear} · read-only here`,me.role==="staff"?`This is your ${selYear} timetable as brought across from the current system.`
@@ -2416,8 +2418,18 @@ const ACT={
   openModal({title:`Make ${y} the current academic year?`,ok:`Make ${y} current`,body:`<p>Usually done when the new academic year starts, on or around 1 September.</p>
    <ul class="del-list"><li><b>${esc(y)}</b> becomes the <b>current</b> academic year.</li><li><b>${esc(old)}</b> becomes a <b>previous</b> year: kept for reference and read-only.</li>
    <li>Nothing is deleted, and published timetables stay as they are.</li></ul>`,
-   onOk(){YEARS[old].status="archived";YEARS[y].status="current";YEARS[y].readOnly=false;SKIP_STAGE=true;tidyYearOrder();
-    toast(`${y} is now the current year`,`${old} is now a previous year (read-only).`);}});
+   onOk(){YEARS[old].status="archived";YEARS[y].status="current";YEARS[y].readOnly=false;
+    // remembered so the switch can be undone: which year was current before, and when this happened
+    YEARS[y].madeCurrent={from:old,at:stamp(),by:nameOf(me.id)};SKIP_STAGE=true;tidyYearOrder();
+    toast(`${y} is now the current year`,`${old} is now a previous year (read-only). Done by mistake? Undo it from the notice on ${y}.`);}});
+ },
+ undoCurrent(){
+  const y=currentYearCode(),cy=YEARS[y],mc=cy&&cy.madeCurrent;
+  if(!isOwner()||!mc||!YEARS[mc.from]||YEARS[mc.from].status!=="archived")return toast("Nothing to undo","There's no switch-over to undo.",true);
+  openModal({title:`Undo making ${y} the current year?`,ok:"Undo",body:`<ul class="del-list"><li><b>${esc(mc.from)}</b> becomes the <b>current</b> academic year again${YEARS[mc.from].readOnly?" (read-only here, as before)":""}.</li>
+   <li><b>${esc(y)}</b> goes back to being the <b>next academic year</b>.</li><li>Nothing else changes: allocations, sessions and published timetables stay as they are.</li></ul>`,
+   onOk(){YEARS[mc.from].status="current";cy.status="planning";delete cy.madeCurrent;SKIP_STAGE=true;tidyYearOrder();
+    toast("Switch-over undone",`${mc.from} is the current year again, and ${y} is the next academic year.`);}});
  },
  deleteYear(){
   const y=selYear,yd=YEARS[y];
