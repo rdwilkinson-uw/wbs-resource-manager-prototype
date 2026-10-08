@@ -664,10 +664,10 @@ function seed(){
   semesterDates:{UG:{S1:{start:"2026-09-21",end:"2026-12-11",off:[]},S2:{start:"2027-01-25",end:"2027-05-07",off:["2027-03-29","2027-04-05"]}},
                  PG:{S1:{start:"2026-10-05",end:"2027-01-15",off:["2026-12-21","2026-12-28"]},S2:{start:"2027-02-08",end:"2027-05-21",off:["2027-03-29","2027-04-05"]}}}}};
  YEAR_ORDER=["2026-27","2027-28","2028-29"];
- // LAUNCH-DAY STATE. 2026-27 is the current year, brought across from the old system: everything published, and
- // read-only here (until it ends, the old system is where 2026-27 is changed). 2027-28 is the year being resourced,
+ // LAUNCH-DAY STATE. 2026-27 is the current year, brought across from the old system: everything published and
+ // fully editable (the current year can always be changed). 2027-28 is the year being resourced,
  // created as a copy of 2026-27, unpublished, and the year Owner / Heads / PAS Admin open on.
- const yd=YEARS["2026-27"];yd.readOnly=true;
+ const yd=YEARS["2026-27"];
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,"18 Sep 2026, 16:40"));yd.lastPublished[g.id]="18 Sep 2026, 16:40";});
  yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
  YEARS["2027-28"]=nextYearFrom(yd,"2026-27");
@@ -677,7 +677,7 @@ function seed(){
 // added afresh each year, so the new year's timetables start empty.
 function nextYearFrom(src,srcCode){
  const copy=JSON.parse(JSON.stringify(src));
- Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:srcCode,changes:[],published:{},lastPublished:{},overrides:{},cis:null,
+ Object.assign(copy,{status:"planning",copiedFrom:srcCode,changes:[],published:{},lastPublished:{},overrides:{},cis:null,
   semesterDates:shiftSemesterDates(src.semesterDates||{},364),sessions:{}});
  return copy;
 }
@@ -785,10 +785,9 @@ const peopleNotInYear=(yd=Y())=>PEOPLE.filter(p=>!yd.staff[p.id]);
 function lastYearRecord(id){const ys=YEAR_ORDER.filter(y=>YEARS[y]&&y!==selYear&&YEARS[y].staff[id]);
  if(!ys.length)return null;const later=ys.filter(y=>y<selYear),y=(later.length?later:ys).slice(-1)[0];return {year:y,rec:YEARS[y].staff[id]};}
 const canOpen=t=>ROLE_TABS[me.role].includes(t)||(HIDDEN_TABS[me.role]||[]).includes(t);
-// Read-only years: previous years, and the current year when it was brought across for reference only.
-const yearLocked=(yd=Y())=>!!yd&&(yd.status==="archived"||!!yd.readOnly);
-const lockReason=()=>{const yd=Y();return !yd?"":yd.status==="archived"?`${selYear} is a previous year, kept for reference, so it can't be changed.`
- :`${selYear} is kept here for reference and as the starting point for the next year. Until it ends, changes for ${selYear} are made in the current system.`;};
+// Read-only years: previous years only. The current year and planning years can always be changed.
+const yearLocked=(yd=Y())=>!!yd&&yd.status==="archived";
+const lockReason=()=>Y()?`${selYear} is a previous year, kept for reference, so it can't be changed.`:"";
 // The year each person opens on: Owner, Heads and PAS Admin open on the year being resourced; staff open on the
 // latest year in which their own timetable has been published.
 function defaultYearFor(m){
@@ -1080,9 +1079,6 @@ function yearBanner(){
  if(yd.status==="current"&&yd.madeCurrent&&me.role==="owner"&&YEARS[yd.madeCurrent.from]&&YEARS[yd.madeCurrent.from].status==="archived")
   return imp+notice("i",`${selYear} was made the current year on ${esc(yd.madeCurrent.at)}`,`By ${esc(yd.madeCurrent.by)}; ${esc(yd.madeCurrent.from)} became a previous year. Done by mistake? <button class="btn small" data-act="undoCurrent">Undo</button>`);
  if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear} · read-only`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
- if(yd.readOnly){const nxt=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="planning");
-  return imp+notice("🔒",`${selYear} · read-only here`,me.role==="staff"?`This is your ${selYear} timetable as brought across from the current system.`
-   :`${selYear} was brought across from the current system for reference${nxt?` and as the starting point for ${nxt}`:""}. Until it ends, changes for ${selYear} are made in the current system.${nxt?` <button class="btn small" data-act="goYear" data-year="${nxt}">Go to ${nxt}</button>`:""}`,"slate");}
  return imp;
 }
 // A redraw can make the focused box lose focus, which fires its change event; that must not start a second
@@ -2418,7 +2414,7 @@ const ACT={
   openModal({title:`Make ${y} the current academic year?`,ok:`Make ${y} current`,body:`<p>Usually done when the new academic year starts, on or around 1 September.</p>
    <ul class="del-list"><li><b>${esc(y)}</b> becomes the <b>current</b> academic year.</li><li><b>${esc(old)}</b> becomes a <b>previous</b> year: kept for reference and read-only.</li>
    <li>Nothing is deleted, and published timetables stay as they are.</li></ul>`,
-   onOk(){YEARS[old].status="archived";YEARS[y].status="current";YEARS[y].readOnly=false;
+   onOk(){YEARS[old].status="archived";YEARS[y].status="current";
     // remembered so the switch can be undone: which year was current before, and when this happened
     YEARS[y].madeCurrent={from:old,at:stamp(),by:nameOf(me.id)};SKIP_STAGE=true;tidyYearOrder();
     toast(`${y} is now the current year`,`${old} is now a previous year (read-only). Done by mistake? Undo it from the notice on ${y}.`);}});
@@ -2426,7 +2422,7 @@ const ACT={
  undoCurrent(){
   const y=currentYearCode(),cy=YEARS[y],mc=cy&&cy.madeCurrent;
   if(!isOwner()||!mc||!YEARS[mc.from]||YEARS[mc.from].status!=="archived")return toast("Nothing to undo","There's no switch-over to undo.",true);
-  openModal({title:`Undo making ${y} the current year?`,ok:"Undo",body:`<ul class="del-list"><li><b>${esc(mc.from)}</b> becomes the <b>current</b> academic year again${YEARS[mc.from].readOnly?" (read-only here, as before)":""}.</li>
+  openModal({title:`Undo making ${y} the current year?`,ok:"Undo",body:`<ul class="del-list"><li><b>${esc(mc.from)}</b> becomes the <b>current</b> academic year again.</li>
    <li><b>${esc(y)}</b> goes back to being the <b>next academic year</b>.</li><li>Nothing else changes: allocations, sessions and published timetables stay as they are.</li></ul>`,
    onOk(){YEARS[mc.from].status="current";cy.status="planning";delete cy.madeCurrent;SKIP_STAGE=true;tidyYearOrder();
     toast("Switch-over undone",`${mc.from} is the current year again, and ${y} is the next academic year.`);}});
@@ -2452,7 +2448,7 @@ const ACT={
  createYear(el){if(!isOwner())return;if(selYear!==nextYearCode(latestYear()))return toast("Create years in order",`The next year to create is ${nextYearCode(latestYear())}.`,true);SKIP_STAGE=true;const src=el.dataset.src,copy=JSON.parse(JSON.stringify(YEARS[src]));
   // overrides on the Overview are decisions about one year only, so a new year starts without them
   // sessions are never carried into a new year: they're added afresh on Module sessions
-  Object.assign(copy,{status:"planning",readOnly:false,copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{},sessions:{}});YEARS[selYear]=copy;
+  Object.assign(copy,{status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,semesterDates:{},sessions:{}});YEARS[selYear]=copy;
   tidyYearOrder();
   tab="overview";toast(`${selYear} created`,`Copied from ${src}, without module sessions: add those on Module sessions. Changes here don't affect ${src}.`);render(true);}
 };
@@ -2924,8 +2920,8 @@ function applyImport(res,db,tablesFound){
  const yd=YEARS[res.year],when=stamp();
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,when));yd.lastPublished[g.id]=when;});
  yd.cis=buildCIS(yd,when);
- // As at launch: the imported year is the current year, read-only here; the next year is created from it, ready to resource.
- yd.status="current";yd.readOnly=true;
+ // As at launch: the imported year is the current year (editable); the next year is created from it, ready to resource.
+ yd.status="current";
  if(ym){const nxt=YEAR_ORDER[1];YEARS[nxt]=nextYearFrom(yd,res.year);tidyYearOrder();}
  Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],ntMode:"summary",query:null,staffMode:"list"});
  IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound};
@@ -2935,7 +2931,7 @@ function importReportHTML(){
  const c=IMPORT.counts,rows=[["Staff",c.staff],["Modules",c.modules],["Occurrences",c.occurrences],["Category budget lines",c.teachingRoles],["Non-teaching roles",c.nonTeachingRoles],
   ["Additional group memberships",c.additionalMemberships||0],["Credit allocations",c.allocations],["Courses",c.courses],["Course links",c.courseLinks],["Timetabled sessions",c.sessions]];
  const nxt=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="planning");
- return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.${nxt?` As at launch, ${esc(IMPORT.year)} is read-only here, and <b>${esc(nxt)}</b> has been created from it, ready to resource.`:""}</p>
+ return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.${nxt?` As at launch, ${esc(IMPORT.year)} is the current year and can still be changed, and <b>${esc(nxt)}</b> has been created from it, ready to resource.`:""}</p>
   <div class="table-wrap"><table><tbody>${rows.map(([l,n])=>`<tr><td>${l}</td><td class="r"><b>${n}</b></td></tr>`).join("")}</tbody></table></div>
   <h3 style="margin:16px 0 6px">Credit categories found</h3><p>${CATS.map(x=>`${esc(x.label)}${x.legacy?` (${esc(x.legacy)})`:""}${x.tt?", timetabled":""}`).join("; ")}</p>
   <h3 style="margin:16px 0 6px">${IMPORT.warnings.length?"Things to check":"No problems found"}</h3>
