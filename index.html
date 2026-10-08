@@ -144,9 +144,16 @@ input.note-in{display:block;width:100%;min-width:150px;font-size:12px;text-align
 .icon-btn.tiny{width:24px;height:24px;border-radius:6px;font-size:11px;opacity:.75}
 .icon-btn.tiny:hover,.icon-btn.tiny:focus-visible{opacity:1}
 .btn.add-occ{padding:4px 10px;font-size:11px;color:var(--muted);border-style:dashed}
-.occ-picks{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
-.occ-picks label{display:inline-flex;gap:4px;align-items:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--surface);cursor:pointer}
-.occ-picks label:has(input:checked){border-color:var(--accent,#2b6f87);box-shadow:inset 0 0 0 1px var(--accent,#2b6f87)}
+.msel{position:relative;display:inline-block}
+.msel>summary{list-style:none;cursor:pointer;min-width:150px;padding:9px 30px 9px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-size:13px;position:relative;white-space:nowrap;user-select:none}
+.msel>summary::-webkit-details-marker{display:none}
+.msel>summary::after{content:"▾";position:absolute;right:11px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted)}
+.msel>summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.msel-pop{position:absolute;left:0;bottom:calc(100% + 4px);z-index:30;min-width:100%;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px}
+.msel-pop label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap}
+.msel-pop label:hover{background:var(--line)}
+.msel-pop .msel-all{font-weight:800;border-bottom:1px solid var(--line);border-radius:6px 6px 0 0;margin-bottom:2px}
+.alloc-table .row-cmt{min-width:180px;width:22%}
 .spacer{flex:1}
 .segmented{display:inline-flex;background:var(--filter);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
 .segmented button{border:0;background:transparent;padding:7px 11px;border-radius:6px;font-size:11px;font-weight:800;color:var(--muted)}
@@ -1316,6 +1323,19 @@ function catStatus(m,c){
  if(a<t)return {t,a,tag:`<span class="tag amber">${t-a} unallocated</span>`};
  return {t,a,tag:`<span class="tag">Fully allocated</span>`};
 }
+// One comment per person per time slot on a module: shown once at the end of their row and kept on every
+// occurrence they're on (different comments brought across from the old system are shown together).
+function setRowNote(m,c,id,v){m.occs.forEach(o=>{const sl=o.slots[c];if(!(id in sl.alloc)){if(sl.notes)delete sl.notes[id];return;}
+ sl.notes=sl.notes||{};if(v)sl.notes[id]=v;else delete sl.notes[id];});}
+function rowNote(m,c,id){return [...new Set(m.occs.filter(o=>id in o.slots[c].alloc).map(o=>(o.slots[c].notes||{})[id]).filter(Boolean))].join(" / ");}
+// Tick-box dropdown (occurrences): the button shows what's ticked; "Select all" ticks or clears every box.
+function mselSync(d){const boxes=[...d.querySelectorAll('input[type=checkbox]:not([data-msel-all])')],on=boxes.filter(b=>b.checked),all=d.querySelector("[data-msel-all]");
+ if(all){all.checked=on.length===boxes.length;all.indeterminate=on.length>0&&on.length<boxes.length;}
+ d.querySelector("summary").textContent=!on.length?"None selected":on.length===boxes.length?`All selected (${on.length})`:on.map(b=>"Occ "+b.value).join(", ");}
+document.addEventListener("change",e=>{const d=e.target.closest&&e.target.closest("details.msel");if(!d)return;
+ if(e.target.matches("[data-msel-all]"))d.querySelectorAll('input[type=checkbox]:not([data-msel-all])').forEach(b=>b.checked=e.target.checked);mselSync(d);});
+document.addEventListener("click",e=>{document.querySelectorAll("details.msel[open]").forEach(d=>{if(!d.contains(e.target))d.open=false;});});
+document.addEventListener("keydown",e=>{if(e.key!=="Escape")return;const d=e.target.closest&&e.target.closest("details.msel[open]");if(d){e.preventDefault();e.stopPropagation();d.open=false;d.querySelector("summary").focus();}},true);
 VIEWS.alloc=()=>{
  const m=ensureModule(),ed=canEdit("alloc");
  let h=pageHead("Workload","Module allocation",me.role==="head"?"Every module is listed, whichever department owns it, because staff from any department can teach on it. Budgets are set by the Owner.":"Divide each category's budget between named staff, per occurrence.",
@@ -1334,20 +1354,21 @@ VIEWS.alloc=()=>{
   const st=catStatus(m,c);
   const ids=[...new Set(m.occs.flatMap(o=>Object.keys(o.slots[c.id].alloc)))];
   return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.label)}</h2>${st.tag}</div><span class="muted" style="font-size:11px">${st.a} of ${st.t} credits</span></div>
-  <div class="table-wrap"><table class="alloc-table"><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th><th class="cmt-col">Comments</th>`).join("")}<th></th></tr></thead><tbody>
+  <div class="table-wrap"><table class="alloc-table"><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th>`).join("")}<th class="row-cmt">Comment</th><th></th></tr></thead><tbody>
    ${ids.map(id=>`<tr${sel.back&&sel.back.staff===id?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(id))}</span><span class="sub">${esc(gName((SY(id)||{}).group))}</span></td>
-    ${m.occs.map(o=>{const has=id in o.slots[c.id].alloc,note=(o.slots[c.id].notes||{})[id]||"";
+    ${m.occs.map(o=>{const has=id in o.slots[c.id].alloc;
      const who=`${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}`;
      return `<td class="r">${has?`<span class="occ-cell"><input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${who}"${ed?"":" disabled"}>${ed&&m.occs.length>1?`<button class="icon-btn tiny" data-act="rmAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)} on occ ${o.occ} only" title="Remove from occ ${o.occ} only">✕</button>`:""}</span>`
-      :ed?`<button class="btn small add-occ" data-act="addAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Add ${esc(nameOf(id))} to ${esc(c.label)} on occ ${o.occ}" title="Add to occ ${o.occ}">+ Occ ${esc(o.occ)}</button>`:'<span class="muted">—</span>'}</td>
-     <td class="cmt-col">${has&&(ed||note)?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="50" data-chg="allocNote" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:""}</td>`;}).join("")}
+      :ed?`<button class="btn small add-occ" data-act="addAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Add ${esc(nameOf(id))} to ${esc(c.label)} on occ ${o.occ}" title="Add to occ ${o.occ}">+ Occ ${esc(o.occ)}</button>`:'<span class="muted">—</span>'}</td>`;}).join("")}
+    <td class="row-cmt">${(()=>{const note=rowNote(m,c.id,id);return ed||note?`<input class="note-in" value="${esc(note)}" placeholder="Comment"${note.length>50?"":' maxlength="50"'} data-chg="allocNote" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}"${ed?"":" disabled"}>`:"";})()}</td>
     <td class="r">${ed?`<button class="icon-btn" data-act="rmAlloc" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)} on every occurrence" title="Remove from every occurrence">✕</button>`:""}</td></tr>`).join("")
-    ||`<tr><td colspan="${m.occs.length*2+2}" class="muted">No one allocated yet.</td></tr>`}
-   <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td><td></td>`).join("")}<td></td></tr>
-   <tr class="sum"><td>Unallocated</td>${m.occs.map(o=>{const d=o.slots[c.id].total-sumV(o.slots[c.id].alloc);return `<td class="r">${d<0?`<span class="tag red">${d}</span>`:d}</td><td></td>`;}).join("")}<td></td></tr>
+    ||`<tr><td colspan="${m.occs.length+3}" class="muted">No one allocated yet.</td></tr>`}
+   <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td>`).join("")}<td></td><td></td></tr>
+   <tr class="sum"><td>Unallocated</td>${m.occs.map(o=>{const d=o.slots[c.id].total-sumV(o.slots[c.id].alloc);return `<td class="r">${d<0?`<span class="tag red">${d}</span>`:d}</td>`;}).join("")}<td></td><td></td></tr>
   </tbody></table></div>
   ${ed?`<div class="card-foot"><span class="lbl">Add</span>${selectH(`id="add-${c.id}-s" aria-label="Staff to add to ${esc(c.label)}"`,[{v:"",l:"Choose staff…"}].concat(staffOptions(everyone)),"")}
-   ${m.occs.length>1?`<span class="occ-picks" role="group" aria-label="Occurrences to add to">${m.occs.map((o,i)=>`<label><input type="checkbox" name="add-${c.id}-o" value="${esc(o.occ)}"${i?"":" checked"}> Occ ${esc(o.occ)}</label>`).join("")}</span>`
+   ${m.occs.length>1?`<details class="msel"><summary aria-label="Occurrences to add to">Occ ${esc(m.occs[0].occ)}</summary><div class="msel-pop" role="group" aria-label="Occurrences to add to">
+     <label class="msel-all"><input type="checkbox" data-msel-all> Select all</label>${m.occs.map((o,i)=>`<label><input type="checkbox" name="add-${c.id}-o" value="${esc(o.occ)}"${i?"":" checked"}> Occ ${esc(o.occ)}</label>`).join("")}</div></details>`
      :`<input type="hidden" name="add-${c.id}-o" value="${esc(m.occs[0].occ)}"><span class="muted" style="font-size:12px">Occ ${esc(m.occs[0].occ)}</span>`}
    <input id="add-${c.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits for each occurrence" title="Credits on each ticked occurrence"><input id="add-${c.id}-c" maxlength="50" placeholder="Comment (optional)" aria-label="Comment" style="width:190px"><button class="btn small primary" data-act="addAlloc" data-cat="${c.id}">Add</button></div>`:""}
   </article>`;}).join("");
@@ -2270,13 +2291,14 @@ const ACT={
   if(!id)return toast("Choose a member of staff","",true);
   if(!occs.length)return toast("Tick at least one occurrence","",true);
   const m=M(sel.module),cm=mval(`add-${c}-c`).slice(0,50);
-  occs.forEach(occ=>{const o=m.occs.find(x=>x.occ===occ);if(!o)return;o.slots[c].alloc[id]=(o.slots[c].alloc[id]||0)+n;
-   if(cm){o.slots[c].notes=o.slots[c].notes||{};o.slots[c].notes[id]=cm;}});
+  const keep=rowNote(m,c,id);
+  occs.forEach(occ=>{const o=m.occs.find(x=>x.occ===occ);if(o)o.slots[c].alloc[id]=(o.slots[c].alloc[id]||0)+n;});
+  if(cm||keep)setRowNote(m,c,id,cm||keep);
   touch(groupsOf([id],[m.dept]),`${nameOf(id)}: ${n} ${CAT(c).label} credits on ${m.code} occ ${occs.join(", ")}`);render();
  },
  addAllocOcc(el){
   if(!guard("alloc"))return;const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id,o=m.occs.find(x=>x.occ===el.dataset.occ);if(!o||id in o.slots[c].alloc)return;
-  o.slots[c].alloc[id]=0;touch(groupsOf([id],[m.dept]),`Added ${nameOf(id)} to ${m.code} occ ${o.occ} ${CAT(c).label}`);render();
+  const keep=rowNote(m,c,id);o.slots[c].alloc[id]=0;if(keep)setRowNote(m,c,id,keep);touch(groupsOf([id],[m.dept]),`Added ${nameOf(id)} to ${m.code} occ ${o.occ} ${CAT(c).label}`);render();
   const f=document.querySelector(`input[data-chg="alloc"][data-occ="${CSS.escape(o.occ)}"][data-cat="${CSS.escape(c)}"][data-id="${CSS.escape(id)}"]`);if(f){f.focus();f.select();}
  },
  rmAllocOcc(el){
@@ -2585,9 +2607,8 @@ const CHG={
   apply();render();
  },
  allocNote(el){
-  if(!guard("alloc"))return render();const m=M(sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.dataset.id,slot=o.slots[c];
-  slot.notes=slot.notes||{};const v=el.value.trim().slice(0,50);if(v)slot.notes[id]=v;else delete slot.notes[id];
-  touch(groupsOf([id],[m.dept]),`${nameOf(id)}: comment on ${m.code} occ ${o.occ} ${CAT(c).label} ${v?"updated":"cleared"}`);render();
+  if(!guard("alloc"))return render();const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id,v=el.value.trim().slice(0,50);
+  setRowNote(m,c,id,v);touch(groupsOf([id],[m.dept]),`${nameOf(id)}: comment on ${m.code} ${CAT(c).label} ${v?"updated":"cleared"}`);render();
  },
  ntType(el){if(!isOwner()||!el.value)return render();const r=Y().nt.find(x=>x.id===el.dataset.r);const from=r.cat;r.cat=el.value;
   touch(groupsOf(r.people.map(p=>p.s)),`${r.title}: role type set to ${r.cat}`);toast("Role type updated",`${r.title} is now under ${r.cat}.`);
