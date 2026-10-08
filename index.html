@@ -788,12 +788,11 @@ const canOpen=t=>ROLE_TABS[me.role].includes(t)||(HIDDEN_TABS[me.role]||[]).incl
 // Read-only years: previous years only. The current year and planning years can always be changed.
 const yearLocked=(yd=Y())=>!!yd&&yd.status==="archived";
 const lockReason=()=>Y()?`${selYear} is a previous year, kept for reference, so it can't be changed.`:"";
-// The year each person opens on: Owner, Heads and PAS Admin open on the year being resourced; staff open on the
-// latest year in which their own timetable has been published.
+// The year each person opens on, whatever their role: the current year. Other years are one click away in the
+// year menu. (Only if no year is current yet does it fall back to the latest year.)
 function defaultYearFor(m){
- const made=YEAR_ORDER.filter(y=>YEARS[y]),cur=made.find(y=>YEARS[y].status==="current")||made[made.length-1];
- if(m&&m.role==="staff"){const pub=made.filter(y=>YEARS[y].published&&YEARS[y].published[m.id]);return pub.length?pub[pub.length-1]:cur;}
- return made.find(y=>YEARS[y].status==="planning")||cur;
+ const made=YEAR_ORDER.filter(y=>YEARS[y]);
+ return made.find(y=>YEARS[y].status==="current")||made[made.length-1];
 }
 const canEdit=(t=tab)=>!yearLocked()&&(EDIT[me.role]==="all"||EDIT[me.role].includes(t));
 const isOwner=()=>me.role==="owner";
