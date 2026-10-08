@@ -59,10 +59,9 @@ CREATE TABLE academic_year (
     end_date             date NOT NULL,
     status               text NOT NULL DEFAULT 'planning'
                          CHECK (status IN ('planning', 'current', 'archived')),
-    -- Read-only years: 'archived' years always are; is_read_only also locks a year for another reason.
-    -- At launch 2026-27 is brought across from the old system as the current year with is_read_only = true
-    -- (the old system stays the master copy until it ends), and 2027-28 is created from it to resource.
-    is_read_only         boolean NOT NULL DEFAULT false,
+    -- Only 'archived' (previous) years are read-only; the current year can always be changed.
+    -- At launch 2026-27 is brought across from the old system as the current year, and 2027-28 is created
+    -- from it to resource.
     -- Making a year current remembers which year was current before, so the switch-over can be undone
     -- (that year becomes current again; this one goes back to planning). Cleared when undone.
     made_current_from_year_id integer REFERENCES academic_year (id),
