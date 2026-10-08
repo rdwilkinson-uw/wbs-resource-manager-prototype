@@ -140,6 +140,13 @@ input.occ-in{width:52px;text-align:center;font-weight:900;text-transform:upperca
 input.note-in{display:block;width:100%;min-width:150px;font-size:12px;text-align:left}
 .alloc-table td{vertical-align:middle}
 .alloc-table .cmt-col{min-width:170px}
+.occ-cell{display:inline-flex;gap:4px;align-items:center;justify-content:flex-end}
+.icon-btn.tiny{width:24px;height:24px;border-radius:6px;font-size:11px;opacity:.75}
+.icon-btn.tiny:hover,.icon-btn.tiny:focus-visible{opacity:1}
+.btn.add-occ{padding:4px 10px;font-size:11px;color:var(--muted);border-style:dashed}
+.occ-picks{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap}
+.occ-picks label{display:inline-flex;gap:4px;align-items:center;font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:8px;padding:6px 9px;background:var(--surface);cursor:pointer}
+.occ-picks label:has(input:checked){border-color:var(--accent,#2b6f87);box-shadow:inset 0 0 0 1px var(--accent,#2b6f87)}
 .spacer{flex:1}
 .segmented{display:inline-flex;background:var(--filter);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
 .segmented button{border:0;background:transparent;padding:7px 11px;border-radius:6px;font-size:11px;font-weight:800;color:var(--muted)}
@@ -1330,16 +1337,19 @@ VIEWS.alloc=()=>{
   <div class="table-wrap"><table class="alloc-table"><thead><tr><th>Staff</th>${m.occs.map(o=>`<th class="r">Occ ${o.occ}</th><th class="cmt-col">Comments</th>`).join("")}<th></th></tr></thead><tbody>
    ${ids.map(id=>`<tr${sel.back&&sel.back.staff===id?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(id))}</span><span class="sub">${esc(gName((SY(id)||{}).group))}</span></td>
     ${m.occs.map(o=>{const has=id in o.slots[c.id].alloc,note=(o.slots[c.id].notes||{})[id]||"";
-     return `<td class="r">${has||ed?`<input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:"—"}</td>
+     const who=`${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}`;
+     return `<td class="r">${has?`<span class="occ-cell"><input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${who}"${ed?"":" disabled"}>${ed&&m.occs.length>1?`<button class="icon-btn tiny" data-act="rmAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)} on occ ${o.occ} only" title="Remove from occ ${o.occ} only">✕</button>`:""}</span>`
+      :ed?`<button class="btn small add-occ" data-act="addAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Add ${esc(nameOf(id))} to ${esc(c.label)} on occ ${o.occ}" title="Add to occ ${o.occ}">+ Occ ${esc(o.occ)}</button>`:'<span class="muted">—</span>'}</td>
      <td class="cmt-col">${has&&(ed||note)?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="50" data-chg="allocNote" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}"${ed?"":" disabled"}>`:""}</td>`;}).join("")}
-    <td class="r">${ed?`<button class="icon-btn" data-act="rmAlloc" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)}">✕</button>`:""}</td></tr>`).join("")
+    <td class="r">${ed?`<button class="icon-btn" data-act="rmAlloc" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)} on every occurrence" title="Remove from every occurrence">✕</button>`:""}</td></tr>`).join("")
     ||`<tr><td colspan="${m.occs.length*2+2}" class="muted">No one allocated yet.</td></tr>`}
    <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td><td></td>`).join("")}<td></td></tr>
    <tr class="sum"><td>Unallocated</td>${m.occs.map(o=>{const d=o.slots[c.id].total-sumV(o.slots[c.id].alloc);return `<td class="r">${d<0?`<span class="tag red">${d}</span>`:d}</td><td></td>`;}).join("")}<td></td></tr>
   </tbody></table></div>
   ${ed?`<div class="card-foot"><span class="lbl">Add</span>${selectH(`id="add-${c.id}-s" aria-label="Staff to add to ${esc(c.label)}"`,[{v:"",l:"Choose staff…"}].concat(staffOptions(everyone)),"")}
-   ${selectH(`id="add-${c.id}-o" aria-label="Occurrence"`,m.occs.map(o=>({v:o.occ,l:"Occ "+o.occ})),m.occs[0].occ)}
-   <input id="add-${c.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><input id="add-${c.id}-c" maxlength="50" placeholder="Comment (optional)" aria-label="Comment" style="width:190px"><button class="btn small primary" data-act="addAlloc" data-cat="${c.id}">Add</button></div>`:""}
+   ${m.occs.length>1?`<span class="occ-picks" role="group" aria-label="Occurrences to add to">${m.occs.map((o,i)=>`<label><input type="checkbox" name="add-${c.id}-o" value="${esc(o.occ)}"${i?"":" checked"}> Occ ${esc(o.occ)}</label>`).join("")}</span>`
+     :`<input type="hidden" name="add-${c.id}-o" value="${esc(m.occs[0].occ)}"><span class="muted" style="font-size:12px">Occ ${esc(m.occs[0].occ)}</span>`}
+   <input id="add-${c.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits for each occurrence" title="Credits on each ticked occurrence"><input id="add-${c.id}-c" maxlength="50" placeholder="Comment (optional)" aria-label="Comment" style="width:190px"><button class="btn small primary" data-act="addAlloc" data-cat="${c.id}">Add</button></div>`:""}
   </article>`;}).join("");
  const all=shown.map(c=>catStatus(m,c)),T=all.reduce((a,s)=>a+s.t,0),A=all.reduce((a,s)=>a+s.a,0);
  const ledger=`<aside class="card ledger"><div class="eyebrow">${m.code}</div><h3>Allocated of budget</h3><div class="total">${A} <span style="font-size:18px;color:var(--muted)">/ ${T}</span></div>
@@ -1638,7 +1648,7 @@ VIEWS.coursett=()=>{
   return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(list.length,"module")}</span></div>
   ${list.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:33%">Module</th><th style="width:6%">Occ.</th><th style="width:15%">Sessions</th><th class="c" style="width:6%">Grps</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th><th class="c" style="width:6%">More</th></tr></thead><tbody>
   ${list.map(({m,o})=>{const ss=(yd.sessions[skey(m.code,o.occ,k.id)]||[]).slice().sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start),id=`ct${++seq}`;
-   const pos=k2=>Object.keys(o.slots[k2].alloc).filter(id=>hasCredits(o.slots[k2].alloc[id]));
+   const pos=k2=>Object.keys(o.slots[k2].alloc).filter(id=>k2==="ML"||k2==="MO"||hasCredits(o.slots[k2].alloc[id]));
    const who=Object.entries(o.slots[k.id].alloc).filter(([,cr])=>hasCredits(cr)).sort((a,b)=>a[0].localeCompare(b[0])),lead=pos("ML"),mod=pos("MO");
    return `<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}</td><td><span class="occ">${esc(o.occ)}</span></td>
     <td>${ss.length?ss.map(s=>`<div class="ct-line">${s.day} ${fmt(s.start)}–${fmt(s.end)}</div>`).join(""):'<span class="muted">Not timetabled</span>'}</td>
@@ -1867,7 +1877,7 @@ VIEWS.cis=()=>{
    :`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No sessions in ${esc(k.label)}.</p>`}</article>`;}).join("")+foot;
  // By module, with + to drill into the module (leader, moderator, every time slot's staff, total allocation and shortfall)
  let seq=0;
- const drill=(m,o)=>{const pos=k=>Object.keys(o.slots[k].alloc).filter(id=>hasCredits(o.slots[k].alloc[id]));const lead=pos("ML").map(person).join(", ")||"—",mod=pos("MO").map(person).join(", ")||"—";
+ const drill=(m,o)=>{const pos=k=>Object.keys(o.slots[k].alloc).filter(id=>k==="ML"||k==="MO"||hasCredits(o.slots[k].alloc[id]));const lead=pos("ML").map(person).join(", ")||"—",mod=pos("MO").map(person).join(", ")||"—";
   const lines=cats.filter(k=>o.slots[k.id]&&(o.slots[k.id].total||Object.keys(o.slots[k.id].alloc).length)).map(k=>{const sl=o.slots[k.id],given=sumV(sl.alloc),gap=sl.total-given,ss=k.tt?sess(m,o,k):[];
    return `<tr><td class="name-cell">${esc(k.label)}</td><td>${k.tt?(ss.length?ss.map(s=>`${s.day} ${fmt(s.start)}–${fmt(s.end)}`).join("<br>"):'<span class="muted">Not timetabled</span>'):'<span class="muted">–</span>'}</td>
     <td>${Object.entries(sl.alloc).filter(([,cr])=>hasCredits(cr)).sort((a,b)=>b[1]-a[1]).map(([id,cr])=>`${esc(person(id))} <b>${cr}</b>`).join("<br>")||'<span class="muted">Nobody yet</span>'}</td>
@@ -2255,11 +2265,24 @@ const ACT={
 
  /* ---- allocation ---- */
  addAlloc(el){
-  if(!guard("alloc"))return;const c=el.dataset.cat,id=mval(`add-${c}-s`),occ=mval(`add-${c}-o`),n=int(mval(`add-${c}-n`));
+  if(!guard("alloc"))return;const c=el.dataset.cat,id=mval(`add-${c}-s`),n=int(mval(`add-${c}-n`));
+  const box=el.closest(".card-foot"),occs=[...box.querySelectorAll(`input[name="add-${c}-o"]`)].filter(x=>x.type==="hidden"||x.checked).map(x=>x.value);
   if(!id)return toast("Choose a member of staff","",true);
-  const m=M(sel.module),o=m.occs.find(x=>x.occ===occ);o.slots[c].alloc[id]=(o.slots[c].alloc[id]||0)+n;
-  const cm=mval(`add-${c}-c`).slice(0,50);if(cm){o.slots[c].notes=o.slots[c].notes||{};o.slots[c].notes[id]=cm;}
-  touch(groupsOf([id],[m.dept]),`${nameOf(id)}: ${o.slots[c].alloc[id]} ${CAT(c).label} credits on ${m.code} occ ${occ}`);render();
+  if(!occs.length)return toast("Tick at least one occurrence","",true);
+  const m=M(sel.module),cm=mval(`add-${c}-c`).slice(0,50);
+  occs.forEach(occ=>{const o=m.occs.find(x=>x.occ===occ);if(!o)return;o.slots[c].alloc[id]=(o.slots[c].alloc[id]||0)+n;
+   if(cm){o.slots[c].notes=o.slots[c].notes||{};o.slots[c].notes[id]=cm;}});
+  touch(groupsOf([id],[m.dept]),`${nameOf(id)}: ${n} ${CAT(c).label} credits on ${m.code} occ ${occs.join(", ")}`);render();
+ },
+ addAllocOcc(el){
+  if(!guard("alloc"))return;const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id,o=m.occs.find(x=>x.occ===el.dataset.occ);if(!o||id in o.slots[c].alloc)return;
+  o.slots[c].alloc[id]=0;touch(groupsOf([id],[m.dept]),`Added ${nameOf(id)} to ${m.code} occ ${o.occ} ${CAT(c).label}`);render();
+  const f=document.querySelector(`input[data-chg="alloc"][data-occ="${CSS.escape(o.occ)}"][data-cat="${CSS.escape(c)}"][data-id="${CSS.escape(id)}"]`);if(f){f.focus();f.select();}
+ },
+ rmAllocOcc(el){
+  if(!guard("alloc"))return;const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id,o=m.occs.find(x=>x.occ===el.dataset.occ);if(!o)return;
+  delete o.slots[c].alloc[id];if(o.slots[c].notes)delete o.slots[c].notes[id];
+  touch(groupsOf([id],[m.dept]),`Removed ${nameOf(id)} from ${m.code} occ ${o.occ} ${CAT(c).label}`);render();
  },
  rmAlloc(el){
   if(!guard("alloc"))return;const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id;
