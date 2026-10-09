@@ -1470,7 +1470,6 @@ VIEWS.nt=()=>{
  const byTitle=(a,b)=>a.title.localeCompare(b.title);
  const count=cat=>yd.nt.filter(r=>r.cat===cat).length;
  const withRoles=NT_CATS.filter(c=>count(c));
- if(mode==="edit"&&sel.nt==="__all")sel.nt="";
  if(sel.nt&&sel.nt!=="__all"&&!NT_CATS.includes(sel.nt))sel.nt="";
  const owner=isOwner();
  let h=pageHead("Workload","Non-teaching roles",mode==="summary"?"A read-only summary of every role in a role type: who holds it, their credits and comments."
@@ -1483,10 +1482,10 @@ VIEWS.nt=()=>{
    <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"",!owner)}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
  // Role type drop-down: only types that have roles, in the standard order, with the one being viewed at the top.
  // (The type being viewed stays listed even if it has no roles yet, e.g. one just created.)
- const allOpt=mode==="summary"?[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}]:[];
+ const allOpt=[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}];
  const rest=withRoles.filter(c=>c!==sel.nt).map(c=>({v:c,l:`${c} (${count(c)})`}));
- const typeOpts=!sel.nt?[{v:"",l:"Choose a role type…"}].concat(rest,allOpt):sel.nt==="__all"?allOpt.concat(rest):[{v:sel.nt,l:`${sel.nt} (${count(sel.nt)})`}].concat(rest,allOpt);
- h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"&&owner?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
+ const typeOpts=!sel.nt?[{v:"",l:"Choose a role type…"}].concat(allOpt,rest):sel.nt==="__all"?allOpt.concat(rest):[{v:sel.nt,l:`${sel.nt} (${count(sel.nt)})`}].concat(allOpt,rest);
+ h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"&&owner&&sel.nt!=="__all"?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
  if(!sel.nt)return h+choosePrompt("a role type","Pick a role type above, or All role types, to see its roles.");
 
  if(mode==="summary"){
@@ -1505,9 +1504,9 @@ VIEWS.nt=()=>{
    +(sel.nt==="__all"&&cats.length>1?`<div class="bd-total"><span>All role types <b>${grand}</b> credits</span></div>`:"");
  }
 
- const roles=yd.nt.filter(r=>r.cat===sel.nt).sort(byTitle);
+ const roles=sel.nt==="__all"?NT_CATS.flatMap(c=>yd.nt.filter(r=>r.cat===c).sort(byTitle)):yd.nt.filter(r=>r.cat===sel.nt).sort(byTitle);
  if(!roles.length)return h+`<article class="card">${empty("No roles of this type yet","Create one with New role.")}</article>`;
- return h+roles.map(r=>`<article class="card${sel.ntFocus===r.id?" focus-card":""}" id="role-${esc(r.id)}"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
+ return h+roles.map((r,i)=>(sel.nt==="__all"&&(i===0||roles[i-1].cat!==r.cat)?`<div class="section-title"><h2>${esc(r.cat)}</h2><span>${plural(count(r.cat),"role")}</span></div>`:"")+`<article class="card${sel.ntFocus===r.id?" focus-card":""}" id="role-${esc(r.id)}"><div class="card-head"><div class="left"><h2>${esc(r.title)}</h2><span class="tag">${r.people.reduce((a,p)=>a+p.cr,0)} credits</span></div>
   ${owner?`<div class="actions">${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}" style="min-height:32px;padding:5px 8px;font-size:12px"`,NT_CATS.map(c=>({v:c,l:c})),r.cat)}<button class="btn danger small" data-act="ntDelete" data-r="${r.id}">Delete role</button></div>`:""}</div>
   <div class="table-wrap"><table class="nt-edit-table"><thead><tr><th style="width:34%">Staff</th><th class="r" style="width:12%">Credits</th><th style="width:48%">Comments</th><th style="width:6%"></th></tr></thead><tbody>
   ${r.people.map((p,i)=>{const ed=canEditNtEntry(p);return `<tr${sel.back&&sel.back.staff===p.s?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(p.s))}</span>${!owner&&ed?' <span class="tag plain blue">Added by you</span>':""}<span class="sub">${esc(gName((SY(p.s)||{}).group))}${owner&&p.addedBy?` · ${esc(addedByText(p))}`:""}</span></td>
@@ -1585,10 +1584,10 @@ VIEWS.tt=()=>{
  const hg=headGroup(),list=inYear();
  if(sel.staff&&!list.some(p=>p.id===sel.staff))sel.staff="";
  let h=pageHead("Timetables","Staff timetable",hg?"Any member of staff's timetable, grouped by department with yours first.":"Any member of staff's timetable and module involvement.");
- const staffSelect=`<select data-chg="selStaff">${sel.staff?"":`<option value="" selected>Choose a member of staff…</option>`}${visibleGroups().map(g=>{const ps=list.filter(p=>inGroup(p.id,g.id));return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,nameOf(p.id),sel.staff)).join("")}</optgroup>`:"";}).join("")}</select>`;
+ const staffSelect=`<select data-chg="selStaff">${sel.staff?"":`<option value="" selected>Choose a member of staff…</option>`}${visibleGroups().map(g=>{const ps=list.filter(p=>(SY(p.id)||{}).group===g.id);return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,nameOf(p.id),sel.staff)).join("")}</optgroup>`:"";}).join("")}</select>`;
  if(!sel.staff)return h+`<div class="filterbar"><label class="field grow">Member of staff${staffSelect}</label></div>`+choosePrompt("a member of staff","Pick someone above to see their timetable and module involvement.");
  const items=staffItems(sel.staff),cl=clashPairs(items),s=SY(sel.staff),last=Y().lastPublished[s.group];
- h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>inGroup(p.id,g.id));return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,nameOf(p.id),sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
+ h+=`<div class="filterbar"><label class="field grow">Member of staff<select data-chg="selStaff">${visibleGroups().map(g=>{const ps=list.filter(p=>(SY(p.id)||{}).group===g.id);return ps.length?`<optgroup label="${esc(g.name+(g.id===hg?" (your department)":""))}">${ps.map(p=>opt(p.id,nameOf(p.id),sel.staff)).join("")}</optgroup>`:"";}).join("")}</select></label>${ttSeg("ttView",sel.ttView)}</div>`;
  h+=notice("i","Live view",`This includes changes that haven't been published yet. ${esc(P(sel.staff).forename)} sees the version published ${last?`on ${last}`:"when their department is first published"}.`);
  if(cl.length)h+=notice("!",plural(cl.length,"timetable clash","timetable clashes"),cl.map(([a,b])=>`${DAY_NAME[a.day]} semester ${a.sem}: ${a.module}-${a.occ} ${fmt(a.start)}–${fmt(a.end)} overlaps ${b.module}-${b.occ} ${fmt(b.start)}–${fmt(b.end)}`).join(". ")+".","red");
  if(sel.ttView==="module")return h+breakdownHTML(staffBreakdown(sel.staff),null);
