@@ -787,7 +787,7 @@ const TABS=[["mine","My timetable","MT"],["overview","Overview","OV"],["modules"
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
  ["courses","Course details","CO"],["coursett","Course timetables","CT"],["cis","Course Information Site","CI"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
 const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","leaders","nt","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
-const EDIT={owner:"all",head:["alloc","leaders","publish","nt"],pas:["sessions"],staff:[]};
+const EDIT={owner:"all",head:["alloc","leaders","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
 const HIDDEN_TABS={};
 // Non-teaching role entries: the Owner can change any; a Head only the ones they added themselves.
@@ -1033,7 +1033,7 @@ function guardNav(go){
 /* ------------------------------ shell ------------------------------ */
 const ROLE_CARDS=[
  {role:"owner",id:"odum1",letter:"O",title:"Owner",persona:"Martin Oduya, Resourcing Lead",text:"Everything: modules and credit budgets, courses, staff roles, reports and new academic years."},
- {role:"head",id:"farh1",letter:"H",title:"Head",persona:"Helen Faraday, Management & Finance",text:"Allocates staff and credits on any module and sets module leaders. Views sessions and their own department's staff, and publishes its timetables."},
+ {role:"head",id:"farh1",letter:"H",title:"Head",persona:"Helen Faraday, Management & Finance",text:"Allocates staff and credits on any module and sets module leaders. Views sessions and their own department's staff, and can see what's waiting to be published."},
  {role:"pas",id:"okon1",letter:"P",title:"PAS Admin",persona:"Nadia Okonkwo",text:"Edits module sessions. Can view staff and course timetables, module leaders and publishing without changing them."},
  {role:"staff",id:"andf1",letter:"S",title:"Academic staff",persona:"Felix Andrade, Computing",text:"Sees only their own published timetable, read-only, and who else teaches each of their modules."}];
 function renderLogin(){
@@ -1076,8 +1076,9 @@ function renderNav(){
    <div class="progress${pct>100?" over":""}"><i style="width:${Math.min(100,pct)}%"></i></div><p class="foot-note">As published ${esc(snap.at)}</p>`;
   return;
  }
- if(me.role==="head"){ // a Head: their own department's modules and staff
-  const g=headGroup(),gn=gName(g).replace(/^Dept\.? of /,""),b=yearBudget(yd,m=>m.dept===g),pct=b.budget?Math.round(b.assigned/b.budget*100):0;
+ const hd=me.role==="head"?headGroup():null;
+ if(hd&&(G(hd)||{}).dept){ // a Head of a Department-flagged group: its modules and staff (SMT, Other or no group: school-wide figures below)
+  const g=hd,gn=gName(g).replace(/^Dept\.? of /,""),b=yearBudget(yd,m=>m.dept===g),pct=b.budget?Math.round(b.assigned/b.budget*100):0;
   const staff=inYear().filter(p=>SY(p.id).group===g),target=staff.reduce((a,p)=>a+(SY(p.id).target||0),0),used=staff.reduce((a,p)=>a+breakdown(p.id).total,0),sp=target?Math.round(used/target*100):0;
   $("#sideFoot").innerHTML=`<b>${pct}% allocated</b><p>${b.assigned.toLocaleString()} of ${b.budget.toLocaleString()} budgeted credits on ${esc(gn)} modules are assigned to staff in ${selYear}.</p><div class="progress"><i style="width:${Math.min(100,pct)}%"></i></div>
    <p class="foot-note">Your staff: ${used.toLocaleString()} of ${target.toLocaleString()} target credits used (${sp}%).</p>`;
@@ -1805,11 +1806,12 @@ function queryPane(q){
 
 /* ------------------------------- Publish ------------------------------- */
 VIEWS.publish=()=>{
- const yd=Y(),ed=canEdit("publish"),hg=headGroup();
- const groups=hg?[G(hg)]:GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
+ const yd=Y(),ed=canEdit("publish");
+ // Heads and PAS Admin see every department, read-only; only the Owner publishes.
+ const groups=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
  const pend=g=>yd.changes.filter(c=>c.groups.includes(g.id));
  const total=groups.reduce((a,g)=>a+pend(g).length,0);
- let h=pageHead("Release","Publish",hg?"Publish your department's changes so staff see them.":"Publish changes by department so staff see them.",
+ let h=pageHead("Release","Publish","Publish changes by department so staff see them.",
   isOwner()?`<button class="btn primary" data-act="publishAll"${total?"":" disabled"}>Publish all departments</button>`:"");
  if(!ed)h+=readOnlyNote();
  {const pend=cisPending(yd);
