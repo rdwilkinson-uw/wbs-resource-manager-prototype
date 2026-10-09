@@ -966,12 +966,17 @@ function findModule(v){
 // and doesn't shift anything; a foundation year is Year 0 and doesn't shift anything either.
 // On postgraduate courses level 7 (4xxx) is Year 1. Anything else has no year ("Year not set").
 function levelDigit(code){const m=/^[A-Za-z]+\s*(\d)/.exec(String(code||""));return m?+m[1]:null;}
+// Undergraduate course: 0 = Year 0 (foundation), 1-3 = Years 1-3, 4 or above = a postgraduate-level module ("pg").
+// Postgraduate course: 4 = Year 1, 5 = Year 2…; a lower number is an undergraduate-level module ("ug").
 function linkYear(o,modCode,course){const d=levelDigit(modCode);if(d==null||!course)return null;
- if(course.level==="PG")return d>=4?d-3:null;
- return d<=3?d:null;}
+ if(course.level==="PG")return d>=4?d-3:"ug";
+ return d<=3?d:"pg";}
+const yearKey=v=>v==="none"?null:v==="pg"||v==="ug"?v:+v;
+const yearLabel=y=>y==null?"Year not set":y==="pg"?"Postgraduate-level modules":y==="ug"?"Undergraduate-level modules":`Year ${y}${y===0?" (foundation)":""}`;
 // The years shown for a course: Years 1 to 3 for undergraduate (a placement year adds no year), or
 // Years 1 to N for postgraduate; plus Year 0 when the course has foundation modules.
-function courseYearsShown(course,hasYear0){const n=course.level==="PG"?Math.max(1,course.years):Math.min(3,Math.max(1,course.years));
+function courseYearsShown(course,hasYear0,used=[]){let n=course.level==="PG"?Math.max(1,course.years):Math.min(3,Math.max(1,course.years));
+ used.forEach(y=>{if(typeof y==="number"&&y>n)n=y;}); // a module beyond the course's length still gets its year
  return (hasYear0?[0]:[]).concat(Array.from({length:n},(_,i)=>i+1));}
 // No module is chosen until the user picks one (default view: an empty drop-down).
 function ensureModule(){if(sel.module&&!M(sel.module))sel.module="";return sel.module?M(sel.module):null;}
@@ -1303,7 +1308,7 @@ VIEWS.modules=()=>{
   ${m.occs.map(o=>`<tr><td><input class="occ-in" value="${esc(o.occ)}" maxlength="3" data-chg="occLetter" data-occ="${esc(o.occ)}" aria-label="Occurrence letter (currently ${esc(o.occ)})"></td>
    <td class="r"><input class="num sm" type="number" min="1" value="${o.groups}" data-chg="occGroups" data-occ="${o.occ}" aria-label="Groups for occurrence ${o.occ}"></td>
    <td style="min-width:230px">${o.courses.map(c=>{const co=C(c),y=co?linkYear(o,m.code,co):null;
-     return `<span class="course-link"><span class="tag plain" title="${esc(co?co.title:c)}${y!=null?` · Year ${y}`:""}">${esc(c)}<button class="x" data-act="rmCourse" data-occ="${o.occ}" data-course="${esc(c)}" aria-label="Unlink ${esc(co?co.title:c)}">×</button></span></span>`;}).join("")}
+     return `<span class="course-link"><span class="tag plain" title="${esc(co?co.title:c)}${y!=null?` · ${y==="pg"?"Postgraduate-level":y==="ug"?"Undergraduate-level":"Year "+y}`:""}">${esc(c)}<button class="x" data-act="rmCourse" data-occ="${o.occ}" data-course="${esc(c)}" aria-label="Unlink ${esc(co?co.title:c)}">×</button></span></span>`;}).join("")}
     ${COURSES.some(c=>!o.courses.includes(c.code))?selectH(`data-chg="addCourse" data-occ="${o.occ}" aria-label="Link a course" style="min-height:28px;padding:3px 6px;font-size:11px;margin-top:3px;width:150px"`,[{v:"",l:"Link course…"}].concat(courseOptions(COURSES.filter(c=>!o.courses.includes(c.code)))),""):""}</td>
    <td>${namesOrNone(o,"ML","None")}</td><td>${namesOrNone(o,"MO","None")}</td>
    ${CATS.map(c=>`<td class="r"><input class="num sm" type="number" min="0" value="${o.slots[c.id].total}" data-chg="budget" data-occ="${o.occ}" data-cat="${c.id}" aria-label="${esc(c.label)} budget, occurrence ${o.occ}"></td>`).join("")}
@@ -1379,6 +1384,8 @@ VIEWS.alloc=()=>{
 };
 
 /* ---------------------------- Module sessions ---------------------------- */
+// A semester is offered for sessions only if it has a budget or credits allocated on that occurrence, or already has sessions.
+const semsOpen=(m,o)=>CATS.filter(c=>c.tt&&(o.slots[c.id].total>0||sumV(o.slots[c.id].alloc)>0||(Y().sessions[skey(m.code,o.occ,c.id)]||[]).length));
 VIEWS.sessions=()=>{
  const m=ensureModule(),ed=canEdit("sessions");
  let h=pageHead("Timetabling","Module sessions","Day and time of each occurrence's timetabled teaching. Everyone allocated to that semester sees these sessions on their timetable.",
@@ -1394,8 +1401,8 @@ VIEWS.sessions=()=>{
  if(ed)h+=`<p class="hint" style="margin:-4px 0 14px">Type or paste days and times. Times like 9, 9:15, 0915 or 2pm all work, and an hour on its own becomes quarter past (9 → 09:15). You can paste a whole line such as <b>Mon 09:15-12:15</b> into the Day box.</p>`;
  return h+m.occs.map(o=>`<article class="card"><div class="card-head"><div class="left"><span class="occ">${o.occ}</span><h2>Occurrence ${o.occ}</h2>${o.courses.map(c=>`<span class="tag gray">${esc(c)}</span>`).join("")}</div>
   ${ed&&m.occs.length>1?`<button class="btn small" data-act="copyOcc" data-occ="${o.occ}">Copy to other occurrences</button>`:""}</div>
-  ${CATS.filter(c=>c.tt).map(c=>{
-   const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).filter(id=>hasCredits(o.slots[c.id].alloc[id])).map(nameOf),otherSems=CATS.filter(x=>x.tt&&x.id!==c.id).length;
+  ${(semsOpen(m,o).map(c=>{
+   const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).filter(id=>hasCredits(o.slots[c.id].alloc[id])).map(nameOf),otherSems=semsOpen(m,o).filter(x=>x.id!==c.id).length;
    return `<div class="sem-block"><div class="sem-head"><div><h3>${esc(c.label)}</h3><span class="sub">${who.length?"Taught by "+esc(who.join(", ")):"No staff allocated to this semester yet"}</span></div>
     ${ed?`<div class="actions">${list.length&&otherSems?`<button class="btn small" data-act="copySem" data-occ="${esc(o.occ)}" data-cat="${c.id}">Copy to other semesters</button>`:""}<button class="btn small" data-act="addSess" data-key="${key}">Add session</button></div>`:""}</div>
     ${list.length?`<div class="session-row headrow"><span>Day</span><span>Start</span><span>End</span><span>Notes</span><span></span></div>`+list.map((s,i)=>`<div class="session-row">
@@ -1404,7 +1411,7 @@ VIEWS.sessions=()=>{
      <input value="${fmt(s.end)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="end" aria-label="End time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
      <input value="${esc(s.c)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="c" placeholder="e.g. Seminar group 1" aria-label="Notes"${ed?"":" disabled"}>
      ${ed?`<button class="icon-btn" data-act="rmSess" data-key="${key}" data-i="${i}" aria-label="Delete session">✕</button>`:"<span></span>"}</div>`).join("")
-    :`<p class="muted" style="font-size:12px;margin:6px 0 0">No sessions yet.</p>`}</div>`;}).join("")}
+    :`<p class="muted" style="font-size:12px;margin:6px 0 0">No sessions yet.</p>`}</div>`;}).join("")||`<div class="sem-block"><p class="muted" style="font-size:12px;margin:0">No semester has credits budgeted for this occurrence yet, so there's nothing to timetable. Budgets are set on Module details.</p></div>`)}
  </article>`).join("");
 };
 
@@ -1448,17 +1455,23 @@ VIEWS.leaders=()=>{
   ${list.map(({m,o})=>{const mc=moreCell(m,o);return `<tr><td><span class="name-cell">${esc(m.code)}</span> ${esc(m.title)}<span class="sub">${esc(gName(m.dept))}${sel.leadCourse==="__all"&&o.courses.length?" · "+esc(o.courses.map(x=>(C(x)||{title:x}).title).join(", ")):""}</span></td>
    <td><span class="occ">${esc(o.occ)}</span></td><td>${cell(m,o,"ML")}</td><td>${cell(m,o,"MO")}</td><td class="c">${mc.btn}</td></tr>${mc.row}`;}).join("")}</tbody></table></div>`;
  if(!rows.length)return h+`<article class="card"><div class="card-head"><h2>${esc(title)}</h2></div>${empty("No modules on this course yet",isOwner()?"Link module occurrences to it on Module details.":"")}</article>`;
- const hint=`<p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits; to share them, adjust them on Module allocation. A module's year is the first digit of its code: 0xxx Year 0 (foundation), 1xxx Year 1, 2xxx Year 2, 3xxx Year 3; on postgraduate courses 4xxx is Year 1. Placement years aren't counted.</p>`;
+ const hint=`<p class="hint">Choosing a person gives them that occurrence's Module Leader or Moderation credits; to share them, adjust them on Module allocation. A module's year comes from the first digit of its code: on undergraduate courses 0xxx is Year 0 (foundation), 1xxx to 3xxx Years 1 to 3, and 4xxx or above is listed under Postgraduate-level modules. On postgraduate courses 4xxx is Year 1, 5xxx Year 2, and modules with a lower number are listed under Undergraduate-level modules. Placement years aren't counted.</p>`;
  if(!c)return h+`<article class="card"><div class="card-head"><div class="left"><h2>${esc(title)}</h2><span class="tag gray">${plural(rows.length,"module occurrence")}</span>${gaps(rows)}</div></div>${table(rows)}</article>`+hint;
  // one section per year of the course, then anything whose year isn't known
- const years=courseYearsShown(c,rows.some(r=>r.y===0));
+ const years=courseYearsShown(c,rows.some(r=>r.y===0),rows.map(r=>r.y));
  let out=`<div class="course-banner"><div><div class="eyebrow">${esc(c.level==="PG"?"Postgraduate":"Undergraduate")}</div><h2>${esc(c.title)}</h2></div><div class="actions">${`<span class="tag gray">${plural(rows.length,"module occurrence")}</span>`+gaps(rows)}</div></div>`;
  years.forEach(y=>{const list=rows.filter(r=>r.y===y);
   out+=`<article class="card year-card"><div class="card-head"><div class="left"><h2>Year ${y}${y===0?" (foundation)":""}</h2><span class="tag gray">${plural(list.length,"module")}</span>${gaps(list)}</div></div>
    ${list.length?table(list):`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">No modules linked to Year ${y} of this course.</p>`}</article>`;});
+ const pgl=rows.filter(r=>r.y==="pg");
+ if(pgl.length)out+=`<article class="card year-card"><div class="card-head"><div class="left"><h2>Postgraduate-level modules</h2><span class="tag gray">${plural(pgl.length,"module")}</span>${gaps(pgl)}</div></div>${table(pgl)}
+  <p class="hint" style="padding:0 18px 14px">Modules coded 4 or above (postgraduate level) linked to this undergraduate course.</p></article>`;
+ const ugl=rows.filter(r=>r.y==="ug");
+ if(ugl.length)out+=`<article class="card year-card"><div class="card-head"><div class="left"><h2>Undergraduate-level modules</h2><span class="tag gray">${plural(ugl.length,"module")}</span>${gaps(ugl)}</div></div>${table(ugl)}
+  <p class="hint" style="padding:0 18px 14px">Modules coded 0 to 3 (undergraduate level) linked to this postgraduate course.</p></article>`;
  const unknown=rows.filter(r=>r.y==null);
  if(unknown.length)out+=`<article class="card year-card"><div class="card-head"><div class="left"><h2>Year not set</h2><span class="tag amber">${plural(unknown.length,"module")}</span></div></div>${table(unknown)}
-  <p class="hint" style="padding:0 18px 14px">These module codes don't give a year for this course: undergraduate years come from a first digit of 0 to 3, and postgraduate Year 1 from 4. Check the module code.</p></article>`;
+  <p class="hint" style="padding:0 18px 14px">These module codes have no number to take a year from. Check the module code.</p></article>`;
  return h+out+hint;
 };
 
@@ -1639,14 +1652,15 @@ VIEWS.coursett=()=>{
  if(!c)return h+`<div class="filterbar"><label class="field grow">Course${selectH('data-chg="selCtCourse"',[{v:"",l:"Choose a course…"}].concat(courseOptions()),"")}</label></div>`+choosePrompt("a course","Pick a course above, then a year, to see its timetable semester by semester.");
  // occurrences on this course, each with its year (from the module code's first digit)
  const linked=[];yd.modules.forEach(m=>m.occs.filter(o=>o.courses.includes(c.code)).forEach(o=>linked.push({m,o,y:linkYear(o,m.code,c)})));
- const years=courseYearsShown(c,linked.some(r=>r.y===0)),count=y=>linked.filter(r=>r.y===y).length;
- const yearOpts=years.map(y=>({v:String(y),l:`Year ${y}${y===0?" (foundation)":""} (${count(y)})`})).concat(linked.some(r=>r.y==null)?[{v:"none",l:`Year not set (${count(null)})`}]:[]);
- if(!yearOpts.some(o=>o.v===sel.ctYear))sel.ctYear=(yearOpts.find(o=>count(o.v==="none"?null:+o.v))||yearOpts[0]).v;
- const yr=sel.ctYear==="none"?null:+sel.ctYear;
+ const years=courseYearsShown(c,linked.some(r=>r.y===0),linked.map(r=>r.y)),count=y=>linked.filter(r=>r.y===y).length;
+ const yearOpts=years.map(y=>({v:String(y),l:`${yearLabel(y)} (${count(y)})`})).concat(linked.some(r=>r.y==="pg")?[{v:"pg",l:`Postgraduate-level (${count("pg")})`}]:[]).concat(linked.some(r=>r.y==="ug")?[{v:"ug",l:`Undergraduate-level (${count("ug")})`}]:[])
+  .concat(linked.some(r=>r.y==null)?[{v:"none",l:`Year not set (${count(null)})`}]:[]);
+ if(!yearOpts.some(o=>o.v===sel.ctYear))sel.ctYear=(yearOpts.find(o=>count(yearKey(o.v)))||yearOpts[0]).v;
+ const yr=yearKey(sel.ctYear);
  h+=`<div class="filterbar"><label class="field grow">Course${selectH('data-chg="selCtCourse"',courseOptions(),c.code)}</label>
   <label class="field" style="min-width:150px;flex:0 0 190px">Year${selectH('data-chg="selCtYear"',yearOpts,sel.ctYear)}</label>${ttSeg("ctView",sel.ctView)}</div>`;
  const rows=linked.filter(r=>r.y===yr).sort((a,b)=>a.m.code.localeCompare(b.m.code)||a.o.occ.localeCompare(b.o.occ));
- const yLabel=yr==null?"Year not set":`Year ${yr}${yr===0?" (foundation)":""}`;
+ const yLabel=yearLabel(yr);
  if(!rows.length)return h+`<article class="card">${empty(`No modules in ${yLabel} of this course`,isOwner()?"Link module occurrences to the course on Module details.":"")}</article>`;
  // sessions for just these occurrences
  const items=[];rows.forEach(({m,o})=>CATS.filter(x=>x.tt).forEach(k=>(yd.sessions[skey(m.code,o.occ,k.id)]||[]).forEach(s=>items.push({...s,module:m.code,title:m.title,occ:o.occ,sem:k.sem,cat:k.label}))));
@@ -1871,7 +1885,7 @@ VIEWS.cis=()=>{
   <article class="card">${shown.map(c=>{const occ=occsFor(c);
     const btns=!occ.length?`<span class="muted" style="font-size:12px">No modules listed yet</span>`
      :single(c)?`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="all">Module timetable</button>`
-     :courseYearsShown(c,occ.some(r=>r.y===0)).map(y=>`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="${y}">Year ${y}${y===0?" (foundation)":""}</button>`).join("");
+     :courseYearsShown(c,occ.some(r=>r.y===0),occ.map(r=>r.y)).concat(occ.some(r=>r.y==="pg")?["pg"]:[]).concat(occ.some(r=>r.y==="ug")?["ug"]:[]).map(y=>`<button class="btn small" data-act="cisOpen" data-course="${esc(c.code)}" data-year="${y}">${y==="pg"?"Postgraduate-level":y==="ug"?"Undergraduate-level":yearLabel(y)}</button>`).join("");
     return `<div class="cis-course"><div><b>${esc(c.title)}</b><span class="sub">${c.level==="PG"?"Postgraduate":"Undergraduate"}</span></div><div class="actions">${btns}</div></div>`;}).join("")||empty("No courses are shown on the site","")}
    </article>${foot}`;
  }
@@ -1880,8 +1894,8 @@ VIEWS.cis=()=>{
  // ---- one course (and year)
  const live=C(sel.cisCourse),c=live&&live.cis?{...(S.courses.find(x=>x.code===live.code)||{}),...live}:null;
  if(!c){sel.cisPage="menu";return VIEWS.cis();}
- const yr=sel.cisYear==="all"?null:+sel.cisYear,all=occsFor(c),rows=yr==null?all:all.filter(r=>r.y===yr);
- const title=`${c.title}${yr==null?"":` – Year ${yr}${yr===0?" (foundation)":""}`}`;
+ const yr=sel.cisYear==="all"?null:yearKey(sel.cisYear),all=occsFor(c),rows=sel.cisYear==="all"?all:all.filter(r=>r.y===yr);
+ const title=`${c.title}${sel.cisYear==="all"?"":` – ${yearLabel(yr)}`}`;
  const sess=(m,o,k)=>(S.sessions[skey(m.code,o.occ,k.id)]||[]).slice().sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
  const semCats=cats.filter(k=>k.tt&&(k.sem===1||k.sem===2||rows.some(({m,o})=>(o.slots[k.id]||{}).total||sess(m,o,k).length)));
  h+=`<div class="course-banner"><div><div class="eyebrow">${esc(selYear)} · ${c.level==="PG"?"Postgraduate":"Undergraduate"}</div><h2>${esc(title)}</h2></div>
@@ -2320,7 +2334,7 @@ const ACT={
   if(!guard("sessions"))return;
   const m=M(sel.module),o=m&&m.occs.find(x=>x.occ===el.dataset.occ),from=CAT(el.dataset.cat);if(!o||!from)return;
   const src=Y().sessions[skey(m.code,o.occ,from.id)]||[];if(!src.length)return;
-  const targets=CATS.filter(c=>c.tt&&c.id!==from.id);
+  const targets=semsOpen(m,o).filter(c=>c.id!==from.id);if(!targets.length)return;
   const line=s=>`${DAY_NAME[s.day]} ${fmt(s.start)}–${fmt(s.end)}${s.c?" · "+esc(s.c):""}`;
   openModal({title:`Copy ${from.label} sessions`,ok:"Copy sessions",body:`<p>Copy ${plural(src.length,"session")} from <b>${esc(m.code)} occurrence ${esc(o.occ)}, ${esc(from.label)}</b>:</p>
    <ul class="del-list">${src.map(s=>`<li>${line(s)}</li>`).join("")}</ul>
