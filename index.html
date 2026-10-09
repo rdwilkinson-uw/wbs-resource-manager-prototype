@@ -1239,10 +1239,9 @@ function staffDetails(g,list,ed,owner){
    <label class="field">Kind of group${selectH('data-chg="groupField" data-f="dept"',[{v:"1",l:"Department"},{v:"0",l:"Non-department (e.g. SMT, Associate Lecturers)"}],g.dept?"1":"0",!owner)}</label>
   </div></div></article>
  <article class="card"><div class="card-head head-stack"><div><h2>Staff in ${esc(g.name)}</h2>${staffKindSelect()}</div><span class="tag gray">${plural(list.length,"person","people")}${staffKindNote()?" · "+staffKindNote():""}</span></div>
-  <div class="table-wrap"><table><thead><tr><th>Staff ID</th><th>Staff member</th>${owner?"<th>Main group</th>":""}<th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
+  <div class="table-wrap"><table><thead><tr><th>Staff member</th>${owner?"<th>Main group</th>":""}<th>Contract</th><th class="r">FTE</th><th class="r">Target</th><th>Allocated</th><th>Name shown to staff</th><th>Sign-in role</th><th>Room</th><th></th></tr></thead><tbody>
   ${list.map(p=>{const s=SY(p.id),b=breakdown(p.id),isMain=s.group===g.id,others=(s.extra||[]).filter(x=>x!==g.id);
    return `<tr data-name="${esc((p.id+" "+nameOf(p.id)+" "+p.email).toLowerCase())}"${isMain?"":' class="addl-row"'}>
-    <td class="name-cell">${esc(p.id)}</td>
     <td><span class="name-cell">${esc(p.surname)}, ${esc(p.forename)}</span><span class="sub">${esc(p.email)||"No email address"}</span>
      ${isMain?(others.length?`<span class="chips">Also in ${others.map(x=>`<span class="tag plain gray">${esc(x)}${owner?`<button class="x" data-act="rmExtra" data-id="${p.id}" data-g="${esc(x)}" aria-label="Remove ${esc(nameOf(p.id))} from ${esc(gName(x))}">×</button>`:""}</span>`).join(" ")}</span>`:"")
       :`<span class="chips"><span class="tag blue plain">Additional member</span> main group ${esc(s.group)}</span>`}</td>
@@ -1256,8 +1255,8 @@ function staffDetails(g,list,ed,owner){
     <td>${selectH(`data-chg="role" data-id="${p.id}" aria-label="Sign-in role"`,roleOpts,p.role,!owner)}</td>
     <td><input style="width:72px" value="${esc(s.room)}" data-chg="staffField" data-id="${p.id}" data-f="room" aria-label="Room"${ed?"":" disabled"}></td>
     <td class="r" style="white-space:nowrap"><button class="linkish" data-act="goto" data-tab="tt" data-set="staff=${p.id}">Timetable</button> ${owner&&isMain?`<button class="icon-btn" title="Remove from ${selYear}" aria-label="Remove ${esc(nameOf(p.id))}" data-act="removeStaff" data-id="${p.id}">✕</button>`:""}</td></tr>`;}).join("")
-   ||`<tr><td colspan="${owner?11:10}">${empty("No staff in this group yet",owner?"Add someone with New staff.":"")}</td></tr>`}
- ${list.length?"":`<tr><td colspan="${owner?11:10}" class="muted">${esc(staffKindEmpty())}</td></tr>`}</tbody></table></div>
+   ||`<tr><td colspan="${owner?10:9}">${empty("No staff in this group yet",owner?"Add someone with New staff.":"")}</td></tr>`}
+ ${list.length?"":`<tr><td colspan="${owner?10:9}" class="muted">${esc(staffKindEmpty())}</td></tr>`}</tbody></table></div>
  </article>
  <p class="hint"><b>Main group</b> decides who publishes a person's timetable. People can also be <b>additional members</b> of other groups (for example SMT) without leaving their department; group totals count main members only.
  <b>Name shown to staff</b> controls what colleagues see when they open a module on their own timetable. Owner, Heads and PAS Admin always see real names.
