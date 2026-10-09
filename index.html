@@ -1629,11 +1629,11 @@ VIEWS.courses=()=>{
  if(!C(sel.course))sel.course=(COURSES[0]||{}).code;
  const c=C(sel.course);
  let h=pageHead("Curriculum","Course details","Courses, their level and length, and whether they appear on the Course Information Site. The order here is used in every course list and on the Course Information Site.",`<button class="btn primary" data-act="newCourse">New course</button>`);
- h+=`<article class="card"><div class="table-wrap"><table><thead><tr><th style="width:120px">Order</th><th>Code</th><th>Title</th><th>Department</th><th>Level</th><th class="r">Years</th><th>Course leader</th><th>On CIS</th><th class="r">Modules</th><th class="r">Occurrences</th></tr></thead><tbody>
+ h+=`<article class="card"><div class="table-wrap"><table><thead><tr><th style="width:120px">Order</th><th>Code</th><th>Title</th><th>Department</th><th>Level</th><th class="r">Years</th><th>Course leader</th><th>On CIS</th><th class="r">Modules</th></tr></thead><tbody>
   ${COURSES.map((x,i)=>`<tr class="clickable${x.code===sel.course?" selected":""}" data-act="selCourse" data-code="${esc(x.code)}" tabindex="0">
    <td style="white-space:nowrap"><input class="num pos-in" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" value="${i+1}" data-chg="coursePos" data-code="${esc(x.code)}" aria-label="Position of ${esc(x.title)} (1 to ${COURSES.length})">
     <button class="icon-btn move-btn" data-act="courseMove" data-code="${esc(x.code)}" data-d="-1" aria-label="Move ${esc(x.title)} up"${i===0?" disabled":""}>↑</button><button class="icon-btn move-btn" data-act="courseMove" data-code="${esc(x.code)}" data-d="1" aria-label="Move ${esc(x.title)} down"${i===COURSES.length-1?" disabled":""}>↓</button></td>
-   <td class="name-cell">${esc(x.code)}</td><td>${esc(x.title)}</td><td>${esc(gName(x.dept))}</td><td>${x.level}</td><td class="r">${x.years}</td><td>${esc(x.leader?nameOf(x.leader):"—")}</td><td>${x.cis?'<span class="tag">Shown</span>':'<span class="tag gray">Hidden</span>'}</td><td class="r">${linkedMods(x.code)}</td><td class="r">${linkedOccs(x.code)}</td></tr>`).join("")||`<tr><td colspan="10">${empty("No courses","")}</td></tr>`}
+   <td class="name-cell">${esc(x.code)}</td><td>${esc(x.title)}</td><td>${esc(gName(x.dept))}</td><td>${x.level}</td><td class="r">${x.years}</td><td>${esc(x.leader?nameOf(x.leader):"—")}</td><td>${x.cis?'<span class="tag">Shown</span>':'<span class="tag gray">Hidden</span>'}</td><td class="r">${linkedMods(x.code)}</td></tr>`).join("")||`<tr><td colspan="9">${empty("No courses","")}</td></tr>`}
  </tbody></table></div></article>`;
  if(c)h+=`<article class="card"><div class="card-head"><div class="left"><h2>${esc(c.code)} ${esc(c.title)}</h2></div><button class="btn danger small" data-act="deleteCourse">Delete course</button></div>
   <div style="padding:18px"><div class="form-grid">
@@ -2421,7 +2421,7 @@ const ACT={
   render();commitDraft();},
  deleteCourse(){if(!isOwner())return;const c=C(sel.course);
   const n=Object.values(YEARS).reduce((a,yd)=>a+linkedOccs(c.code,yd),0);
-  if(n)return toast(`Can't delete ${c.code}`,`It's linked to ${plural(n,"module occurrence")}. Unlink them on Module details first.`,true);
+  if(n)return toast(`Can't delete ${c.code}`,"Modules are still linked to it. Unlink them on Module details first.",true);
   openModal({title:`Delete ${c.title}?`,ok:"Delete course",danger:true,body:"<p>No modules are linked to it, so nothing else changes.</p>",
    onOk(){COURSES=COURSES.filter(x=>x!==c);sel.course=(COURSES[0]||{}).code;toast("Course deleted",c.title);}});},
 
