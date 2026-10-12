@@ -810,7 +810,9 @@ const TABS=[["mine","My timetable","MT"],["overview","Overview","OV"],["modules"
  ["leaders","Module leaders","ML"],["nt","Non-teaching roles","NT"],["staff","Staff details","ST"],["tt","Staff timetable","TT"],
  ["courses","Course details","CO"],["coursett","Course timetables","CT"],["cis","Course Information Site","CI"],["reports","Reports and queries","RP"],["publish","Publish","PB"]];
 // My timetable: academic staff, and (release 0.7.5) the Owner and Heads too: their own published timetable with Add to Outlook.
-const ROLE_TABS={owner:TABS.map(t=>t[0]),head:["mine","staff","alloc","leaders","nt","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
+// The Owner and Heads have My timetable just below Staff timetable; academic staff have it first.
+const afterTt=l=>{l=l.filter(t=>t!=="mine");l.splice(l.indexOf("tt")+1,0,"mine");return l;};
+const ROLE_TABS={owner:afterTt(TABS.map(t=>t[0])),head:["staff","alloc","leaders","nt","tt","mine","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
 const EDIT={owner:"all",head:["alloc","leaders","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
 const HIDDEN_TABS={};
