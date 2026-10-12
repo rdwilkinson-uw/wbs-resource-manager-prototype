@@ -327,8 +327,6 @@ tr.selected td{background:var(--t-cyan)}
 .event.c2{border-color:var(--blue);background:var(--t-blue);color:var(--t-blue-ink)}
 .event.c3{border-color:var(--green);background:var(--t-lime);color:var(--t-cyan-ink)}
 .event.clash{border-color:var(--red);background:var(--t-red);color:var(--t-red-ink)}
-.event.half{right:auto;width:calc(50% - 7px)}
-.event.half.second{left:auto;right:5px}
 .module-block{border-bottom:1px solid var(--line)}
 .module-block:last-child{border-bottom:0}
 .module-summary{font-size:13px;color:var(--ink);display:grid;grid-template-columns:110px minmax(0,1fr) 150px 90px 30px;gap:12px;align-items:center;padding:13px 16px;cursor:pointer;width:100%;border:0;background:none;text-align:left}
@@ -1549,15 +1547,35 @@ function ttRange(items){
  items.forEach(i=>{while(i.start<a&&a>7.25)a-=1;while(Math.max(i.end,i.start+1/12)>b&&b<22.25)b+=1;});
  return [a,Math.round(b-a)];
 }
-function eventsFor(list,t0=DAY0){
- list=[...list].sort((a,b)=>a.start-b.start);
- return list.map((e,i)=>{
-  const before=list.slice(0,i).some(x=>x.start<e.end&&e.start<x.end),after=list.slice(i+1).some(x=>x.start<e.end&&e.start<x.end);
-  const cls=["event","c"+colorIdx(e.module)];if(before||after)cls.push("clash","half");if(before)cls.push("second");
-  return `<div class="${cls.join(" ")}" style="top:${(e.start-t0)*ROW+3}px;height:${(e.end-e.start)*ROW-6}px" title="${esc(`${e.module}-${e.occ} ${e.title||""}, ${fmt(e.start)} to ${fmt(e.end)}${e.c?", "+e.c:""}`)}"><div>${e.module}-${e.occ}</div><small>${fmt(e.start)}–${fmt(e.end)}${e.c?"<br>"+esc(e.c):""}</small></div>`;
+// Side-by-side columns for overlapping sessions in one day. Sessions that overlap (directly or through a chain) form a
+// group; each takes the first column free at its start, and every session in the group is drawn 1/n wide, where n is
+// the group's number of columns (at most MAX_LANES; beyond that they share). Returns [{e,lane,n}] in start order.
+const MAX_LANES=10;
+function laneLayout(list){
+ list=[...list].sort((a,b)=>a.start-b.start||a.end-b.end);
+ const out=[];let group=[],lanes=[],end=-Infinity;
+ const close=()=>{const n=Math.min(lanes.length,MAX_LANES);group.forEach(g=>{g.n=n;g.lane%=MAX_LANES;});group=[];lanes=[];};
+ list.forEach(e=>{
+  if(group.length&&e.start>=end){close();end=-Infinity;} // nothing still running: a new group starts
+  let l=lanes.findIndex(t=>t<=e.start);if(l<0){l=lanes.length;lanes.push(e.end);}else lanes[l]=e.end;
+  const g={e,lane:l,n:1};group.push(g);out.push(g);end=Math.max(end,e.end);});
+ close();return out;
+}
+// Columns a day needs (its most crowded group). A day with overlapping sessions is widened (100px a column, enough for
+// "BMGT1400-A" on one line) so names stay readable; the chart then scrolls sideways instead of squashing.
+const dayLanes=list=>Math.max(1,...laneLayout(list).map(g=>g.n));
+const dayWidth=n=>n>1?n*100:120;
+// Session blocks for one day column. clashRed: overlaps are clashes (a person's timetable) and drawn red; on course
+// timetables parallel sessions (options, groups) are normal, so they keep their module colour.
+function eventsFor(list,t0=DAY0,clashRed=true){
+ return laneLayout(list).map(({e,lane,n})=>{
+  const cls=["event","c"+colorIdx(e.module)];if(n>1&&clashRed)cls.push("clash");
+  const side=n>1?`;right:auto;left:calc(${(lane*100/n).toFixed(4)}% + 3px);width:calc(${(100/n).toFixed(4)}% - 6px)`:"";
+  return `<div class="${cls.join(" ")}" style="top:${(e.start-t0)*ROW+3}px;height:${(e.end-e.start)*ROW-6}px${side}" title="${esc(`${e.module}-${e.occ} ${e.title||""}, ${fmt(e.start)} to ${fmt(e.end)}${e.c?", "+e.c:""}`)}"><div>${e.module}-${e.occ}</div><small>${fmt(e.start)}–${fmt(e.end)}${e.c?"<br>"+esc(e.c):""}</small></div>`;
  }).join("");
 }
-function chartHTML(items){
+// Weekly chart(s), one per semester. clashRed=false on course timetables and the Course Information Site.
+function chartHTML(items,clashRed=true){
  // Semester 1 and 2 are always drawn; any other timetabled category only when it has sessions here,
  // so unused time slots (e.g. an old "New Time Slot" placeholder) don't show as empty timetables.
  const sems=[...new Set(CATS.filter(c=>c.tt).map(c=>c.sem))].filter(s=>s===1||s===2||items.some(i=>i.sem===s)).sort((a,b)=>a-b);
@@ -1565,9 +1583,9 @@ function chartHTML(items){
  const [t0,hrs]=ttRange(items),tall=hrs!==12; // the same hours for every semester on the page
  return sems.map(sem=>{const its=items.filter(i=>i.sem===sem);
   return `<div class="section-title"><h2>${esc(semTitle(sem))}</h2><span>${plural(its.length,"session")} a week</span></div>
-  <div class="tt-wrap"><div class="timetable"><div class="tt-corner"></div>${DAYS.map(d=>`<div class="day-head">${DAY_NAME[d]}</div>`).join("")}
+  ${(()=>{const ws=DAYS.map(d=>dayWidth(dayLanes(its.filter(i=>i.day===d))));return `<div class="tt-wrap"><div class="timetable"${ws.some(w=>w>120)?` style="grid-template-columns:64px ${ws.map(w=>`minmax(${w}px,1fr)`).join(" ")};min-width:${64+ws.reduce((a,w)=>a+w,0)}px"`:""}>`;})()}<div class="tt-corner"></div>${DAYS.map(d=>`<div class="day-head">${DAY_NAME[d]}</div>`).join("")}
    <div class="tt-times"${tall?` style="grid-template-rows:repeat(${hrs},${ROW}px)"`:""}>${Array.from({length:hrs},(_,i)=>`<div>${fmt(t0+i)}</div>`).join("")}</div>
-   ${DAYS.map(d=>`<div class="tt-day"${tall?` style="height:${hrs*ROW}px"`:""}>${eventsFor(its.filter(i=>i.day===d),t0)}</div>`).join("")}</div></div>`;}).join("");
+   ${DAYS.map(d=>`<div class="tt-day"${tall?` style="height:${hrs*ROW}px"`:""}>${eventsFor(its.filter(i=>i.day===d),t0,clashRed)}</div>`).join("")}</div></div>`;}).join("");
 }
 function timeHTML(items){
  if(!items.length)return `<article class="card">${empty("No timetabled sessions","")}</article>`;
@@ -1684,7 +1702,7 @@ VIEWS.coursett=()=>{
  // semesters to show: Semester 1 and 2 always, any other timetabled slot only when this year uses it
  const semCats=CATS.filter(k=>k.tt&&(k.sem===1||k.sem===2||rows.some(({m,o})=>o.slots[k.id].total||(yd.sessions[skey(m.code,o.occ,k.id)]||[]).length)));
  const banner=`<div class="course-banner"><div><div class="eyebrow">${esc(c.level==="PG"?"Postgraduate":"Undergraduate")} · ${esc(yLabel)}</div><h2>${esc(c.title)}</h2></div><div class="actions"><span class="tag gray">${plural(rows.length,"module occurrence")}</span></div></div>`;
- if(sel.ctView==="chart")return h+banner+chartHTML(items);
+ if(sel.ctView==="chart")return h+banner+chartHTML(items,false);
  if(sel.ctView==="time")return h+banner+semCats.map(k=>{
    const its=items.filter(i=>i.cat===k.label).sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
    return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(its.length,"session")}</span></div>
@@ -1922,7 +1940,7 @@ VIEWS.cis=()=>{
   <div class="actions"><button class="btn small" data-act="cisMenu">← Back to courses</button>${upd}${segmented("cisView",sel.cisView,[["module","By module"],["time","By time"],["chart","Chart"]])}</div></div>`;
  if(!rows.length)return h+`<article class="card">${empty("No modules listed","")}</article>${foot}`;
  const items=[];rows.forEach(({m,o})=>cats.filter(k=>k.tt).forEach(k=>sess(m,o,k).forEach(s=>items.push({...s,module:m.code,title:m.title,occ:o.occ,sem:k.sem,cat:k.label}))));
- if(sel.cisView==="chart")return h+chartHTML(items)+foot;
+ if(sel.cisView==="chart")return h+chartHTML(items,false)+foot;
  if(sel.cisView==="time")return h+semCats.map(k=>{const its=items.filter(i=>i.cat===k.label).sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day)||a.start-b.start);
    return `<article class="card sem-card"><div class="card-head"><h2>${esc(k.label)}</h2><span class="tag gray">${plural(its.length,"session")}</span></div>
    ${its.length?`<div class="table-wrap"><table class="ct-table"><thead><tr><th style="width:13%">Day</th><th style="width:9%">Start</th><th style="width:9%">End</th><th style="width:40%">Module</th><th style="width:7%">Occ.</th><th style="width:22%">Comments</th></tr></thead><tbody>
