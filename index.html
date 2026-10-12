@@ -584,7 +584,8 @@ const DAYS=["Mon","Tue","Wed","Thu","Fri"];
 const DAY_NAME={Mon:"Monday",Tue:"Tuesday",Wed:"Wednesday",Thu:"Thursday",Fri:"Friday"};
 const DAY0=9.25, ROW=46;                       // timetable starts 09:15, 46px per hour
 const TIMES=[];for(let t=9.25;t<=21.25001;t+=0.5)TIMES.push(+t.toFixed(2));
-const fmt=t=>{const h=Math.floor(t+1e-9),m=Math.round((t-h)*60);return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");};
+// Rounded to whole minutes first, so a time just under the hour shows as e.g. "11:00", never "10:60" (release 0.7.3)
+const fmt=t=>{const all=Math.round(t*60),h=Math.floor(all/60),m=all%60;return String(h).padStart(2,"0")+":"+String(m).padStart(2,"0");};
 const stamp=()=>new Date().toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"});
 const int=v=>Math.max(0,Math.round(parseFloat(v)||0));
 const sumV=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
@@ -900,8 +901,14 @@ function groupsOf(ids,extra){return [...new Set(ids.map(i=>(SY(i)||{}).group).co
 function touch(groups,text){
  Y().changes.unshift({id:Math.random().toString(36).slice(2),groups:[...new Set(groups.filter(Boolean))],text,when:stamp(),who:nameOf(me.id)});
 }
+// Departments with staff (main members) in the year that have never been published in it, so their staff see
+// "Not published yet" on My timetable (unpublished_groups() on the server, release 0.7.3)
+const unpublishedGroups=(yd=Y())=>GROUPS.filter(g=>!yd.lastPublished[g.id]&&inYear(yd).some(p=>SY(p.id).group===g.id)).map(g=>g.id);
 function publishGroup(gid){
  const yd=Y(),when=stamp();
+ // People taken out of the year belong to no department, so no publish would ever replace their copy: remove it now
+ // (on whichever department is published first after they leave), as publish_group() on the server (release 0.7.3)
+ Object.keys(yd.published).forEach(id=>{if(!yd.staff[id])delete yd.published[id];});
  inYear().filter(p=>SY(p.id).group===gid).forEach(p=>yd.published[p.id]=snapshot(p.id,yd,when));
  yd.lastPublished[gid]=when;
  yd.changes.forEach(c=>c.groups=c.groups.filter(g=>g!==gid));
@@ -1365,7 +1372,7 @@ VIEWS.alloc=()=>{
      const who=`${esc(nameOf(id))}, ${esc(c.label)}, occ ${o.occ}`;
      return `<td class="r">${has?`<span class="occ-cell"><input class="num" type="number" min="0" value="${o.slots[c.id].alloc[id]||0}" data-chg="alloc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="${who}"${ed?"":" disabled"}>${ed&&m.occs.length>1?`<button class="icon-btn tiny" data-act="rmAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)} on occ ${o.occ} only" title="Remove from occ ${o.occ} only">✕</button>`:""}</span>`
       :ed?`<button class="btn small add-occ" data-act="addAllocOcc" data-occ="${o.occ}" data-cat="${c.id}" data-id="${id}" aria-label="Add ${esc(nameOf(id))} to ${esc(c.label)} on occ ${o.occ}" title="Add to occ ${o.occ}">+ Occ ${esc(o.occ)}</button>`:'<span class="muted">—</span>'}</td>`;}).join("")}
-    <td class="row-cmt">${(()=>{const note=rowNote(m,c.id,id);return ed||note?`<input class="note-in" value="${esc(note)}" placeholder="Comment"${note.length>50?"":' maxlength="50"'} data-chg="allocNote" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}"${ed?"":" disabled"}>`:"";})()}</td>
+    <td class="row-cmt">${(()=>{const note=rowNote(m,c.id,id);return ed||note?`<input class="note-in" value="${esc(note)}" placeholder="Comment" maxlength="${Math.max(50,note.length)}" data-chg="allocNote" data-cat="${c.id}" data-id="${id}" aria-label="Comment for ${esc(nameOf(id))}, ${esc(c.label)}"${ed?"":" disabled"}>`:"";})()}</td>
     <td class="r">${ed?`<button class="icon-btn" data-act="rmAlloc" data-cat="${c.id}" data-id="${id}" aria-label="Remove ${esc(nameOf(id))} from ${esc(c.label)} on every occurrence" title="Remove from every occurrence">✕</button>`:""}</td></tr>`).join("")
     ||`<tr><td colspan="${m.occs.length+3}" class="muted">No one allocated yet.</td></tr>`}
    <tr class="sum"><td>Budget</td>${m.occs.map(o=>`<td class="r">${o.slots[c.id].total}</td>`).join("")}<td></td><td></td></tr>
@@ -1525,7 +1532,7 @@ VIEWS.nt=()=>{
   <div class="table-wrap"><table class="nt-edit-table"><thead><tr><th style="width:34%">Staff</th><th class="r" style="width:12%">Credits</th><th style="width:48%">Comments</th><th style="width:6%"></th></tr></thead><tbody>
   ${r.people.map((p,i)=>{const ed=canEditNtEntry(p);return `<tr${sel.back&&sel.back.staff===p.s?' class="focus-row"':""}><td><span class="name-cell">${esc(nameOf(p.s))}</span>${!owner&&ed?' <span class="tag plain blue">Added by you</span>':""}<span class="sub">${esc(gName((SY(p.s)||{}).group))}${owner&&p.addedBy?` · ${esc(addedByText(p))}`:""}</span></td>
    <td class="r"><input class="num" type="number" min="0" value="${p.cr}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="cr" aria-label="Credits"${ed?"":" disabled"}></td>
-   <td><input style="width:100%" maxlength="50" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"${ed?"":" disabled"}></td>
+   <td><input style="width:100%" maxlength="${Math.max(50,(p.note||"").length)}" value="${esc(p.note)}" data-chg="ntField" data-r="${r.id}" data-i="${i}" data-f="note" aria-label="Comments"${ed?"":" disabled"}></td>
    <td class="r">${ed?`<button class="icon-btn" data-act="ntRm" data-r="${r.id}" data-i="${i}" aria-label="Remove ${esc(nameOf(p.s))}">✕</button>`:""}</td></tr>`;}).join("")||`<tr><td colspan="4" class="muted">No one holds this role yet.</td></tr>`}
   </tbody></table></div>
   <div class="card-foot"><span class="lbl">Add</span>${selectH(`id="nt-${r.id}-s" aria-label="Staff"`,[{v:"",l:"Choose staff…"}].concat(staffOptions()),"")}
@@ -1535,12 +1542,19 @@ VIEWS.nt=()=>{
 
 /* ------------------------------ timetables ------------------------------ */
 const colorIdx=code=>[...code].reduce((a,c)=>a+c.charCodeAt(0),0)%4;
-function eventsFor(list){
+// The hours a chart covers: [start, number of hours]. Normally 09:15 for 12 hours; whole hours are added before or
+// after while any session starts earlier or ends later, up to 07:15–22:15 (as tt_range() on the server, release 0.7.3).
+function ttRange(items){
+ let a=DAY0,b=DAY0+12;
+ items.forEach(i=>{while(i.start<a&&a>7.25)a-=1;while(Math.max(i.end,i.start+1/12)>b&&b<22.25)b+=1;});
+ return [a,Math.round(b-a)];
+}
+function eventsFor(list,t0=DAY0){
  list=[...list].sort((a,b)=>a.start-b.start);
  return list.map((e,i)=>{
   const before=list.slice(0,i).some(x=>x.start<e.end&&e.start<x.end),after=list.slice(i+1).some(x=>x.start<e.end&&e.start<x.end);
   const cls=["event","c"+colorIdx(e.module)];if(before||after)cls.push("clash","half");if(before)cls.push("second");
-  return `<div class="${cls.join(" ")}" style="top:${(e.start-DAY0)*ROW+3}px;height:${(e.end-e.start)*ROW-6}px" title="${esc(`${e.module}-${e.occ} ${e.title||""}, ${fmt(e.start)} to ${fmt(e.end)}${e.c?", "+e.c:""}`)}"><div>${e.module}-${e.occ}</div><small>${fmt(e.start)}–${fmt(e.end)}${e.c?"<br>"+esc(e.c):""}</small></div>`;
+  return `<div class="${cls.join(" ")}" style="top:${(e.start-t0)*ROW+3}px;height:${(e.end-e.start)*ROW-6}px" title="${esc(`${e.module}-${e.occ} ${e.title||""}, ${fmt(e.start)} to ${fmt(e.end)}${e.c?", "+e.c:""}`)}"><div>${e.module}-${e.occ}</div><small>${fmt(e.start)}–${fmt(e.end)}${e.c?"<br>"+esc(e.c):""}</small></div>`;
  }).join("");
 }
 function chartHTML(items){
@@ -1548,11 +1562,12 @@ function chartHTML(items){
  // so unused time slots (e.g. an old "New Time Slot" placeholder) don't show as empty timetables.
  const sems=[...new Set(CATS.filter(c=>c.tt).map(c=>c.sem))].filter(s=>s===1||s===2||items.some(i=>i.sem===s)).sort((a,b)=>a-b);
  const semTitle=s=>s===1||s===2?`Semester ${s}`:(CATS.find(c=>c.tt&&c.sem===s)||{label:"Other"}).label;
+ const [t0,hrs]=ttRange(items),tall=hrs!==12; // the same hours for every semester on the page
  return sems.map(sem=>{const its=items.filter(i=>i.sem===sem);
   return `<div class="section-title"><h2>${esc(semTitle(sem))}</h2><span>${plural(its.length,"session")} a week</span></div>
   <div class="tt-wrap"><div class="timetable"><div class="tt-corner"></div>${DAYS.map(d=>`<div class="day-head">${DAY_NAME[d]}</div>`).join("")}
-   <div class="tt-times">${Array.from({length:12},(_,i)=>`<div>${fmt(DAY0+i)}</div>`).join("")}</div>
-   ${DAYS.map(d=>`<div class="tt-day">${eventsFor(its.filter(i=>i.day===d))}</div>`).join("")}</div></div>`;}).join("");
+   <div class="tt-times"${tall?` style="grid-template-rows:repeat(${hrs},${ROW}px)"`:""}>${Array.from({length:hrs},(_,i)=>`<div>${fmt(t0+i)}</div>`).join("")}</div>
+   ${DAYS.map(d=>`<div class="tt-day"${tall?` style="height:${hrs*ROW}px"`:""}>${eventsFor(its.filter(i=>i.day===d),t0)}</div>`).join("")}</div></div>`;}).join("");
 }
 function timeHTML(items){
  if(!items.length)return `<article class="card">${empty("No timetabled sessions","")}</article>`;
@@ -1810,18 +1825,20 @@ VIEWS.publish=()=>{
  // Heads and PAS Admin see every department, read-only; only the Owner publishes.
  const groups=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
  const pend=g=>yd.changes.filter(c=>c.groups.includes(g.id));
- const total=groups.reduce((a,g)=>a+pend(g).length,0);
+ const total=groups.reduce((a,g)=>a+pend(g).length,0),never=unpublishedGroups(yd);
+ // Publish all: disabled when nothing is waiting, every department with staff has been published and the site is up to date
  let h=pageHead("Release","Publish","Publish changes by department so staff see them.",
-  isOwner()?`<button class="btn primary" data-act="publishAll"${total?"":" disabled"}>Publish all departments</button>`:"");
+  isOwner()?`<button class="btn primary" data-act="publishAll"${total||never.length||cisPending(yd)?"":" disabled"}>Publish all departments</button>`:"");
  if(!ed)h+=readOnlyNote();
  {const pend=cisPending(yd);
   h+=`<article class="card"><div class="card-head"><div class="left"><h2>Course Information Site</h2>${pend?'<span class="tag amber">Changes not yet on the site</span>':'<span class="tag">Up to date</span>'}</div>
    <div class="actions"><span class="muted" style="font-size:11px;align-self:center">Updated ${yd.cis?esc(yd.cis.at):"never"}</span>${isOwner()?`<button class="btn small primary" data-act="publishCIS"${pend?"":" disabled"}>Update the site</button>`:""}</div></div>
    <p class="muted" style="margin:0;padding:12px 18px;font-size:12px">The course timetables everyone sees on the Course Information Site. ${isOwner()?"Updating it publishes every course at once; Publish all departments also updates it.":"The Owner updates it."}</p></article><div style="height:16px"></div>`;}
  h+=notice("i","Staff only see published timetables","Heads and the Owner can make changes as they go. Each change is listed under every department whose staff it affects, until that department is published.");
- return h+groups.map(g=>{const list=pend(g);
-  return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(g.name)}</h2>${list.length?`<span class="tag amber">${plural(list.length,"change")} waiting</span>`:`<span class="tag">Up to date</span>`}</div>
-   <div class="actions"><span class="muted" style="font-size:11px;align-self:center">Last published ${yd.lastPublished[g.id]||"never"}</span><button class="btn small primary" data-act="publish" data-g="${g.id}"${ed&&list.length?"":" disabled"}>Publish</button></div></div>
+ // a department with staff never published can be published even with nothing waiting (its staff see "Not published yet")
+ return h+groups.map(g=>{const list=pend(g),unpub=never.includes(g.id);
+  return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(g.name)}</h2>${list.length?`<span class="tag amber">${plural(list.length,"change")} waiting</span>`:unpub?'<span class="tag amber">Not published yet</span>':`<span class="tag">Up to date</span>`}</div>
+   <div class="actions"><span class="muted" style="font-size:11px;align-self:center">Last published ${yd.lastPublished[g.id]||"never"}</span><button class="btn small primary" data-act="publish" data-g="${g.id}"${ed&&(list.length||unpub)?"":" disabled"}>Publish</button></div></div>
    ${list.length?list.map(c=>`<div class="publish-item"><span class="change-icon" aria-hidden="true">✎</span><div><b>${esc(c.text)}</b><p>by ${esc(c.who)}</p></div><span class="when">${esc(c.when)}</span></div>`).join(""):`<p class="muted" style="margin:0;padding:14px 18px;font-size:12px">Nothing waiting to publish.</p>`}</article>`;}).join("");
 };
 
@@ -2431,9 +2448,11 @@ const ACT={
  publish(el){if(!guard("publish"))return;const g=el.dataset.g;
   const hg=headGroup();if(hg&&hg!==g)return;
   const n=Y().changes.filter(c=>c.groups.includes(g)).length;publishGroup(g);toast(`Published ${gName(g)}`,`${plural(n,"change")} now visible to its staff.`);render();},
- publishAll(){if(!isOwner())return;const gs=[...new Set(Y().changes.flatMap(c=>c.groups))];
-  openModal({title:"Publish all departments?",ok:"Publish all",body:`<p>${plural(Y().changes.length,"change")} across ${plural(gs.length,"group")} become visible to staff.</p>`,
-   onOk(){gs.forEach(publishGroup);Y().cis=buildCIS(Y());toast("Published",`${plural(gs.length,"group")} and the Course Information Site updated.`);}});},
+ // every department with waiting changes, and every department with staff never published (so all staff end up with
+ // a timetable); and the site (as the server, release 0.7.3)
+ publishAll(){if(!isOwner())return;const gs=[...new Set(Y().changes.flatMap(c=>c.groups).concat(unpublishedGroups()))];
+  openModal({title:"Publish all departments?",ok:"Publish all",body:`<p>${plural(Y().changes.length,"change")} across ${plural(gs.length,"department")} become visible to staff, and the Course Information Site is updated.</p>`,
+   onOk(){gs.forEach(publishGroup);Y().cis=buildCIS(Y());toast("Published",`Published ${plural(gs.length,"department")} and updated the Course Information Site.`);}});},
  publishCIS(){if(!isOwner())return;Y().cis=buildCIS(Y());toast("Course Information Site updated",`Everyone now sees ${selYear} as it stands.`);render();},
  cisMenu(){sel.cisPage="menu";render(true);},
  cisOther(){sel.cisPage="menu";render(true);},
@@ -2519,6 +2538,11 @@ function delOccs(m,occs){
   onOk(){occs.forEach(o=>{CATS.forEach(c=>delete Y().sessions[skey(m.code,o.occ,c.id)]);});m.occs=m.occs.filter(o=>!occs.includes(o));
    touch(staff,`Deleted ${m.code} occurrence${occs.length>1?"s":""} ${letters}`);toast("Deleted",`${m.code} occurrence${occs.length>1?"s":""} ${letters}`);}});
 }
+// "BMGT1234 occ A, Semester 1", for a session's messages (as the server's)
+const sessLabel=key=>{const [code,occ,c]=key.split("|");return `${code} occ ${occ}, ${CAT(c).label}`;};
+// Comment limit when editing one: 50 as on Add, or the original's length when a longer imported comment is being
+// edited, never more than 100 (as the server, release 0.7.3)
+const noteMax=was=>Math.min(100,Math.max(50,String(was||"").trim().length));
 function sessTouch(key,what){
  const [code,occ,c]=key.split("|"),m=M(code),o=m.occs.find(x=>x.occ===occ);
  touch(groupsOf(Object.keys(o.slots[c].alloc),[m.dept]),`${what}: ${code} occ ${occ}, ${CAT(c).label}`);
@@ -2590,16 +2614,24 @@ const CHG={
    // a whole pasted line, e.g. "Mon 09:15-12:15" or "Tuesday 2pm to 4pm"
    const line=/^\s*([a-z]+)[\s,]+([\d:.]+\s*(?:am|pm)?)\s*(?:-|–|—|to)\s*([\d:.]+\s*(?:am|pm)?)\s*$/i.exec(v);
    if(line){const d=parseDay(line[1]),a=parseTime(line[2]),b=parseTime(line[3]);
-    if(d&&a!=null&&b!=null&&b>a){s.day=d;s.start=a;s.end=b;sessTouch(key,"Changed a session");toast("Session filled in",`${DAY_NAME[d]} ${fmt(a)}–${fmt(b)}`);return render();}}
+    if(d&&a!=null&&b!=null&&b>a){
+     // the same 08:00–22:00 limit as times typed into Start and End (as the server, release 0.7.3)
+     if(a<8||b>22){toast("Nothing was saved",`${sessLabel(key)}: “${v.trim()}” is outside the teaching day (type times between 08:00 and 22:00).`,true);return render();}
+     s.day=d;s.start=a;s.end=b;sessTouch(key,"Changed a session");toast("Session filled in",`${DAY_NAME[d]} ${fmt(a)}–${fmt(b)}`);return render();}}
    const d=parseDay(v);
    if(!d){toast("Day not recognised","Use Monday to Friday, for example Mon or Tuesday.",true);return render();}
    s.day=d;
   }else if(f==="start"||f==="end"){
    const t=parseTime(v);
    if(t==null||t<8||t>22){toast("Time not recognised","Type a time between 08:00 and 22:00, such as 9, 9:15, 0915 or 2pm. An hour on its own becomes quarter past.",true);return render();}
-   s[f]=t;
+   // a session has to end after it starts: move the other time; if there's still no time between them (a start of
+   // 22:00 or an end of 08:00, the ends of the day) save nothing, with the server's message (release 0.7.3)
+   const n={start:s.start,end:s.end,[f]:t};
+   if(n.end<=n.start){if(f==="start")n.end=Math.min(22,n.start+1);else n.start=Math.max(8,n.end-1);
+    if(n.end<=n.start){toast("Nothing was saved",`${sessLabel(key)}: a session has to end after it starts, so it can't ${f==="start"?"start at 22:00":"end at 08:00"} (sessions run between 08:00 and 22:00).`,true);return render();}
+    toast("Times adjusted","A session has to end after it starts.");}
+   s.start=n.start;s.end=n.end;
   }else s[f]=v;
-  if(s.end<=s.start){if(f==="start")s.end=Math.min(22,s.start+1);else s.start=Math.max(8,s.end-1);toast("Times adjusted","A session has to end after it starts.");}
   sessTouch(key,"Changed a session");render();
  },
  leader(el){
@@ -2622,7 +2654,7 @@ const CHG={
   apply();render();
  },
  allocNote(el){
-  if(!guard("alloc"))return render();const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id,v=el.value.trim().slice(0,50);
+  if(!guard("alloc"))return render();const m=M(sel.module),c=el.dataset.cat,id=el.dataset.id,v=el.value.trim().slice(0,noteMax(rowNote(m,c,id)));
   setRowNote(m,c,id,v);touch(groupsOf([id],[m.dept]),`${nameOf(id)}: comment on ${m.code} ${CAT(c).label} ${v?"updated":"cleared"}`);render();
  },
  ntType(el){if(!isOwner()||!el.value)return render();const r=Y().nt.find(x=>x.id===el.dataset.r);const from=r.cat;r.cat=el.value;
@@ -2643,7 +2675,7 @@ const CHG={
   $("#modalErr").textContent="";c.label=n;toast("Time slot renamed",n);
  },
  ntField(el){const r=Y().nt.find(x=>x.id===el.dataset.r),p=r&&r.people[+el.dataset.i];if(!p||!canEditNtEntry(p))return render();
-  if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value;render();}
+  if(el.dataset.f==="cr"){p.cr=int(el.value);touch(groupsOf([p.s]),`${nameOf(p.s)}: ${p.cr} credits for ${r.title}`);}else p.note=el.value.trim().slice(0,noteMax(p.note));render();}
 };
 
 /* ---------------------------- Type-in dropdowns ----------------------------
@@ -2874,7 +2906,7 @@ function buildFromLegacy(T,dbName){
   modules.push(m);modBy[code]=m;});
  const occBy={};
  rows("occurrence").forEach(r=>{const code=str(r.module_code),occ=str(r.occurrence).toUpperCase();if(!code||!occ)return;
-  let m=modBy[code];if(!m){m={code,title:code,dept:"",credit:0,occs:[]};modules.push(m);modBy[code]=m;warn("orphanocc","occurrences belong to a module that isn't in the module table; a placeholder module was created");eg("orphanocc",code);}
+  let m=modBy[code];if(!m){m={code,title:code,dept:"",credit:0,calendar:defaultCalendar(code),occs:[]};modules.push(m);modBy[code]=m;warn("orphanocc","occurrences belong to a module that isn't in the module table; a placeholder module was created");eg("orphanocc",code);}
   const o={occ,groups:num(r.no_of_groups)||1,courses:[],slots:blankSlots(),_leader:str(r.leader_id),_moderator:str(r.moderator_id)};
   m.occs.push(o);occBy[code+"|"+occ]=o;});
  counts.modules=modules.length;counts.occurrences=Object.keys(occBy).length;
@@ -2909,7 +2941,7 @@ function buildFromLegacy(T,dbName){
  let allocs=0;
  rows("activity_allocation").forEach(r=>{const no=str(r.activity_no),sid=str(r.staff_id),cr=num(r.staff_allocation);
   if(!staff[sid]){warn("allocstaff","allocations are for a staff_id that isn't in the staff table and were skipped");eg("allocstaff",sid);return;}
-  if(trBy[no]){const s=trBy[no].o.slots[trBy[no].cid];s.alloc[sid]=(s.alloc[sid]||0)+cr;const cm=str(r.comments);if(cm)s.notes[sid]=cm;allocs++;}
+  if(trBy[no]){const s=trBy[no].o.slots[trBy[no].cid];s.alloc[sid]=(s.alloc[sid]||0)+cr;const cm=str(r.comments),was=s.notes[sid];if(cm&&!was)s.notes[sid]=cm;else if(cm&&!was.split(" / ").includes(cm))s.notes[sid]=was+" / "+cm;allocs++;}
   else if(ntBy[no]){ntBy[no].people.push({s:sid,cr,note:str(r.comments)});allocs++;}
   else{warn("allocact","allocations point at an activity that is neither a teaching nor a non-teaching role and were skipped");eg("allocact",no);}});
  counts.allocations=allocs;
@@ -2946,7 +2978,8 @@ function buildFromLegacy(T,dbName){
   const d=str(r.day).slice(0,3),day=d.charAt(0).toUpperCase()+d.slice(1).toLowerCase(),start=toH(r.start_time),end=toH(r.end_time);
   if(!DAYS.includes(day)){warn("sessday","sessions have a day that isn't Monday to Friday and were skipped");eg("sessday",`${tr.m} ${tr.occ}: ${str(r.day)||"blank"}`);return;}
   if(start==null||end==null||end<=start){warn("sesstime","sessions have a missing time, or end before they start, and were skipped");eg("sesstime",`${tr.m} ${tr.occ} ${day}`);return;}
-  if(start<9||end>21.5){warn("sessrange","sessions fall partly outside the 09:15 to 21:15 timetable grid (kept, but may be clipped on charts)");eg("sessrange",`${tr.m} ${tr.occ} ${day} ${fmt(start)}`);}
+  // outside the chart's usual 09:15 to 21:15 hours is only a warning (as convert.js, release 0.7.3)
+  if(start<DAY0||end>DAY0+12){warn("sessrange",`sessions fall partly outside the ${fmt(DAY0)} to ${fmt(DAY0+12)} timetable grid (kept, but may be clipped on charts)`);eg("sessrange",`${tr.m} ${tr.occ} ${day} ${fmt(start)}`);}
   const key=skey(tr.m,tr.occ,tr.cid);(sessions[key]=sessions[key]||[]).push({day,start:+start.toFixed(4),end:+end.toFixed(4),c:str(r.comments)});sess++;});
  counts.sessions=sess;
  // Leave out time slots nothing uses: no budget, allocation or session on any module (e.g. an unnamed
