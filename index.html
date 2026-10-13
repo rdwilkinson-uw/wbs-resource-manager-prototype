@@ -539,6 +539,33 @@ tr.addl-row:hover td{background:var(--t-lime)}
 .hero-main .copy-list .check-row:hover{background:rgba(255,255,255,.1)}
 .copy-list .check-row:has(input:disabled){opacity:.5;cursor:default}
 .copy-list .check-row:has(input:disabled):hover{background:none}
+/* ---------- release 0.8.1 ---------- */
+/* amber "roles need a role type" cards (Non-teaching roles, Overview) and the line under their heading */
+.attention-card{border-color:var(--b-amber)}.attention-card>.card-head{background:var(--t-amber)}
+.attention-card .attention-note{margin:0;padding:10px 18px 4px;font-size:12px;color:var(--muted)}
+/* Activity breakdown: the warning about roles without a role type */
+.notice.report-notice{margin:12px 18px}.notice.report-notice ul{margin:6px 0 0;padding-left:18px;font-size:12px}.notice.report-notice li small{color:var(--muted)}
+/* Academic years (Administration): the table, then the Manage box (summary line, one row per action) */
+.years-table td small{display:block;color:var(--muted);font-size:11px;white-space:nowrap}
+.years-table td:first-child b{white-space:nowrap}
+.years-table td.act-cell{white-space:nowrap;text-align:right}
+.year-sum{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}
+.year-acts{border-top:1px solid var(--line-2);margin:12px 0}
+.year-act{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 14px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-2)}
+.year-act p{margin:2px 0 0;font-size:13px;color:var(--muted)}
+.year-act .why{display:block;margin-top:3px;color:var(--t-amber-ink);font-weight:700}
+.year-act-btn{text-align:right}
+@media (max-width:480px){.year-act{grid-template-columns:1fr}.year-act-btn{text-align:left}}
+@media (max-width:640px){
+ .years-table thead{display:none}
+ .years-table tr{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 12px;padding:12px 4px;border-bottom:1px solid var(--line-2)}
+ .years-table td{display:block;padding:0;border:0}
+ .years-table td.act-cell{grid-row:1;grid-column:2}
+ .years-table td[data-label]:before{content:attr(data-label) ": ";color:var(--muted);font-size:11px;font-weight:700}
+ .years-table td[data-label]:empty{display:none}
+}
+/* an Undo button in a toast */
+.toast .btn{margin-top:8px}
 </style>
 </head>
 <body>
@@ -613,7 +640,7 @@ const int=v=>Math.max(0,Math.round(parseFloat(v)||0));
 const sumV=o=>Object.values(o).reduce((a,b)=>a+(+b||0),0);
 const plural=(n,w,p)=>`${n} ${n===1?w:(p||w+"s")}`;
 
-let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null,REPORT_TOTALS,STATUS_INFO;
+let CATS,GROUPS,PEOPLE,COURSES,NT_CATS,YEARS,YEAR_ORDER,STATUSES,IMPORT=null,STATUS_INFO;
 // Contract statuses are data, not code: each has a label and an "associate" flag (hourly-paid Associate Lecturers,
 // formerly HPL). Everything that treats associates differently checks the flag, never the word, so a future
 // rename is just an edit to the status.
@@ -629,11 +656,10 @@ function staffKindFilter(list){const k=sel.staffKind||"all";return k==="perm"?li
 const staffKindSelect=()=>`<label class="kind-filter">Show${selectH('data-chg="staffKind" aria-label="Show which staff"',staffKindOptions(),sel.staffKind||"all")}</label>`;
 const staffKindEmpty=()=>({perm:"No permanent staff in this group.",assoc:`No Associate Lecturers (${alCode()}s) in this group.`})[sel.staffKind]||"No staff in this group.";
 const staffKindNote=()=>({perm:"permanent staff only",assoc:`${alCode()}s only`})[sel.staffKind]||"";
-// Role types with no display order (0 or empty) are not role types: they are total lines on the Activity breakdown
-// report. A name containing "non" totals non-teaching roles whose type does NOT start with "Management"; otherwise
-// a name containing "management" totals those whose type DOES start with "Management".
-const DEFAULT_REPORT_TOTALS=[{label:"Total Management",kind:"mgmt"},{label:"Total Non-Management",kind:"nonmgmt"}];
-const totalKind=name=>/non/i.test(name)?"nonmgmt":/manag/i.test(name)?"mgmt":"other";
+// (Release 0.8.1: the Activity breakdown's old total lines, "Total Management" / "Total Non-Management", are gone; the
+// report adds up its own Total.) Every non-teaching role must have a role type; the import puts a role that arrives
+// without one under UNASSIGNED_TYPE (RM_UNASSIGNED_TYPE on the server).
+const UNASSIGNED_TYPE="Unassigned";
 const isMgmtType=cat=>/^\s*management\b/i.test(String(cat||""));
 // Role types for non-teaching roles, in the order of the old role_type table.
 const DEFAULT_NT_CATS=["Management - General","Management - Programmes","Management - Recruitment & International","Management - Learning & Teaching",
@@ -664,7 +690,7 @@ function seed(){
   {code:"MGT-ENTM",title:"BA Enterprise Management",dept:"MGT",level:"UG",years:3,leader:"farh1",cis:true},
   {code:"MKT-BRND",title:"BA Brand & Promotion",dept:"MKT",level:"UG",years:3,leader:"doym1",cis:true},
   {code:"COMP-SWD",title:"BSc Software Development",dept:"COMP",level:"UG",years:3,leader:"odum1",cis:true}];
- NT_CATS=DEFAULT_NT_CATS.slice();REPORT_TOTALS=DEFAULT_REPORT_TOTALS.map(t=>({...t}));
+ NT_CATS=DEFAULT_NT_CATS.slice();
  STATUS_INFO=DEFAULT_STATUS_INFO();STATUSES=Object.keys(STATUS_INFO);IMPORT=null;
  const sy=(group,status,fte,target,room,publish=true)=>({group,status,fte,target,room,phone:"",publish});
  YEARS={"2026-27":{status:"current",
@@ -708,13 +734,20 @@ function seed(){
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,"18 Sep 2026, 16:40"));yd.lastPublished[g.id]="18 Sep 2026, 16:40";});
  yd.cis=buildCIS(yd,"18 Sep 2026, 16:40");
  YEARS["2027-28"]=nextYearFrom(yd,"2026-27");
+ Object.values(YEARS).forEach(initYearFlags);
+}
+// Release 0.8.1: each year's Published and Listed flags, first set as database release 007 does: current and archived
+// years published; a planning year only if something in it has been published (a department or the Course
+// Information Site); every year listed. A year created later starts unpublished and listed.
+function initYearFlags(yd){
+ yd.isPublished=yd.status!=="planning"||Object.keys(yd.published||{}).length>0||!!yd.cis;yd.isListed=true;
 }
 // A new planning year as a copy of the one before: same modules, budgets, allocations and roles, nothing published,
 // semester dates moved on 52 weeks (so they still fall on the same weekdays) and NO module sessions: sessions are
 // added afresh each year, so the new year's timetables start empty.
 function nextYearFrom(src,srcCode){
  const copy=JSON.parse(JSON.stringify(src));
- Object.assign(copy,{status:"planning",copiedFrom:srcCode,changes:[],published:{},lastPublished:{},overrides:{},cis:null,
+ Object.assign(copy,{status:"planning",isPublished:false,isListed:true,copiedFrom:srcCode,changes:[],published:{},lastPublished:{},overrides:{},cis:null,
   semesterDates:shiftSemesterDates(src.semesterDates||{},364),sessions:{}});
  return copy;
 }
@@ -748,6 +781,31 @@ const latestYear=()=>YEAR_ORDER.filter(y=>YEARS[y]).slice(-1)[0];
 const currentYearCode=()=>YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||latestYear();
 const canMakeCurrent=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="planning"&&y===nextYearCode(currentYearCode());
 const canDeleteYear=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="planning"&&y===latestYear();
+// ---- release 0.8.1: Published and Listed years (years.php: year_published(), year_listed(), year_visible() ...) ----
+// Published: academic staff may open the year (choose it in the year menu; My timetable and the Course Information
+// Site show its published copies). Listed: the year is in the year menu, for every role. The current year is always
+// treated as both.
+const yearPublished=y=>{const yd=YEARS[y];return !!yd&&(yd.status==="current"||yd.isPublished!==false);};
+const yearListed=y=>{const yd=YEARS[y];return !!yd&&(yd.status==="current"||yd.isListed!==false);};
+// May this role open the year? Owner: any year (an unlisted one from Academic years). Heads and PAS Admin: listed
+// years. Academic staff: listed and published years.
+const yearVisible=(y,role=me&&me.role)=>!!YEARS[y]&&(role==="owner"||yearListed(y)&&(role!=="staff"||yearPublished(y)));
+// Is the year in this role's year menu? Listed years (staff: listed and published), for the Owner too.
+const yearInMenu=(y,role=me&&me.role)=>!!YEARS[y]&&yearListed(y)&&(role!=="staff"||yearPublished(y));
+// Academic staff see published copies only in a published year (a second check after the year menu).
+const yearOpenTo=(y=selYear)=>!me||me.role!=="staff"||yearPublished(y);
+// A year earlier than the current one: archived, or unarchived by the Owner to correct it (status planning).
+const yearBeforeCurrent=y=>{const cur=YEAR_ORDER.find(k=>YEARS[k]&&YEARS[k].status==="current");return !!cur&&y<cur;};
+// current | next | previous (an unarchived earlier year is still a previous year)
+const yearKind=y=>{const yd=YEARS[y];return !yd?"none":yd.status==="current"?"current":yd.status==="archived"||yearBeforeCurrent(y)?"previous":"next";};
+// The Owner can archive an earlier year that was unarchived, and unarchive any archived year.
+const canArchiveYear=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="planning"&&yearBeforeCurrent(y);
+const canUnarchiveYear=y=>!!me&&me.role==="owner"&&!!YEARS[y]&&YEARS[y].status==="archived";
+// The year made current by the switch-over that can still be undone: the year it replaced, while that is still archived.
+const canUndoCurrent=y=>{const yd=YEARS[y],mc=yd&&yd.madeCurrent;return !!me&&me.role==="owner"&&!!yd&&yd.status==="current"&&!!mc&&!!YEARS[mc.from]&&YEARS[mc.from].status==="archived"?mc:null;};
+// The year's state when a page or toast was drawn (year_ver()), so an out-of-date button changes nothing.
+const yearVer=y=>{const yd=YEARS[y];return yd?`${yd.status}-${yearPublishedRaw(yd)}${yd.isListed===false?0:1}`:"";};
+const yearPublishedRaw=yd=>yd.isPublished===false?0:1;
 // The selector lists every created year plus the one year that could be created next.
 function tidyYearOrder(){const made=YEAR_ORDER.filter(y=>YEARS[y]);YEAR_ORDER=made.concat([nextYearCode(made[made.length-1])]);}
 const P=id=>PEOPLE.find(p=>p.id===id);
@@ -814,7 +872,10 @@ const TABS=[["mine","My timetable","MT"],["overview","Overview","OV"],["modules"
 const ROLE_TABS={owner:TABS.map(t=>t[0]).filter(t=>t!=="mine"),head:["staff","alloc","leaders","nt","tt","coursett","cis","publish"],pas:["sessions","leaders","tt","coursett","cis","publish"],staff:["mine","cis"]};
 const EDIT={owner:"all",head:["alloc","leaders","nt"],pas:["sessions"],staff:[]};
 // Screens a role can open (from buttons elsewhere) without having them in their menu.
-const HIDDEN_TABS={};
+const HIDDEN_TABS={owner:["years"]};
+// Owner only (release 0.8.1): the Administration section of the menu. The other server pages there (Home, People and
+// access, Import, Maintenance, Health check) aren't part of the prototype.
+const ADMIN_TABS=[["years","Academic years","AY"]];
 // Non-teaching role entries: the Owner can change any; a Head only the ones they added themselves.
 const canEditNtEntry=p=>!!me&&(me.role==="owner"||(me.role==="head"&&p.addedBy===me.id));
 // Who added a non-teaching role entry, and when - shown to the Owner. Imported entries have no record.
@@ -832,10 +893,12 @@ const lockReason=()=>Y()?`${selYear} is a previous year, kept for reference, so 
 // The year each person opens on, whatever their role: the current year. Other years are one click away in the
 // year menu. (Only if no year is current yet does it fall back to the latest year.)
 function defaultYearFor(m){
- const made=YEAR_ORDER.filter(y=>YEARS[y]);
- return made.find(y=>YEARS[y].status==="current")||made[made.length-1];
+ const made=YEAR_ORDER.filter(y=>YEARS[y]),may=made.filter(y=>!m||yearVisible(y,m.role));
+ // (release 0.8.1) with no current year, the latest year this person may see
+ return made.find(y=>YEARS[y].status==="current")||may[may.length-1]||made[made.length-1];
 }
-const canEdit=(t=tab)=>!yearLocked()&&(EDIT[me.role]==="all"||EDIT[me.role].includes(t));
+// (an earlier year the Owner has unarchived for corrections can only be changed by the Owner, 0.8.1)
+const canEdit=(t=tab)=>!yearLocked()&&!(me.role!=="owner"&&yearBeforeCurrent(selYear))&&(EDIT[me.role]==="all"||EDIT[me.role].includes(t));
 const isOwner=()=>me.role==="owner";
 
 /* ---------------------------- calculations ---------------------------- */
@@ -947,6 +1010,7 @@ function openModal({title,body,ok="Save",danger=false,onOk,onCancel=null}){
  modalCancelCb=onCancel;
  $("#modalTitle").textContent=title;$("#modalBody").innerHTML=body;$("#modalErr").textContent="";
  const b=$("#modalOk");b.textContent=ok;b.className="btn "+(danger?"danger":"primary");modalCb=onOk;b.previousElementSibling.textContent="Cancel";
+ b.style.display="";b.previousElementSibling.style.display=""; // a dialog replacing one that hid a button (e.g. Manage 2027-28 → Publish?)
  $("#modalBg").classList.add("open");
  // focus the first field straight away (never later, which could steal focus from a field already being typed in)
  const f=$("#modalBody input:not([disabled]),#modalBody select:not([disabled])");(f||b).focus();
@@ -954,10 +1018,11 @@ function openModal({title,body,ok="Save",danger=false,onOk,onCancel=null}){
 function closeModal(){$("#modalBg").classList.remove("open");modalCb=null;modalCancelCb=null;if(typeof dpClose==="function")dpClose();
  if(PENDING_NAV){PENDING_NAV=null;if(me)renderTop();} // chose to stay: put the year selector back
 }
-function toast(title,detail="",err=false){
+// action: optional HTML for a button in the toast (e.g. Undo, release 0.8.1), which keeps it up longer
+function toast(title,detail="",err=false,action=""){
  const n=document.createElement("div");n.className="toast"+(err?" err":"");
- n.innerHTML=`<b>${esc(title)}</b>${detail?`<span>${esc(detail)}</span>`:""}`;
- $("#toasts").appendChild(n);setTimeout(()=>n.remove(),err?5200:3600);
+ n.innerHTML=`<b>${esc(title)}</b>${detail?`<span>${esc(detail)}</span>`:""}${action}`;
+ $("#toasts").appendChild(n);setTimeout(()=>n.remove(),err?5200:action?9000:3600);
 }
 const mval=id=>{const e=document.getElementById(id);return e?e.value.trim():"";};
 
@@ -1023,9 +1088,9 @@ const segmented=(act,cur,items)=>`<div class="segmented" role="group">${items.ma
 const STAGED_TABS=["modules","alloc","sessions","leaders","nt","staff","courses"];
 let DRAFT=null,LAST_SAVED=null,SKIP_STAGE=false,PENDING_NAV=null,COMMITTED=false;
 const stagedHere=()=>!!me&&me.role!=="staff"&&STAGED_TABS.includes(tab)&&canEdit(tab)&&!!Y();
-const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,STATUS_INFO,YEAR_ORDER,REPORT_TOTALS});
+const stateJSON=()=>JSON.stringify({YEARS,CATS,GROUPS,PEOPLE:PEOPLE.map(({theme,...p})=>p),COURSES,NT_CATS,STATUSES,STATUS_INFO,YEAR_ORDER});
 function restoreState(j){const o=JSON.parse(j),th={};PEOPLE.forEach(p=>th[p.id]=p.theme);
- YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;REPORT_TOTALS=o.REPORT_TOTALS;STATUS_INFO=o.STATUS_INFO;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
+ YEARS=o.YEARS;CATS=o.CATS;GROUPS=o.GROUPS;STATUS_INFO=o.STATUS_INFO;PEOPLE=o.PEOPLE.map(p=>({...p,theme:th[p.id]}));COURSES=o.COURSES;NT_CATS=o.NT_CATS;STATUSES=o.STATUSES;YEAR_ORDER=o.YEAR_ORDER;}
 // Run something that may change data; on an editing screen, the first real change starts an unsaved draft.
 function staged(fn){
  if(yearLocked()){
@@ -1056,7 +1121,7 @@ function paintSaveBar(){const b=document.getElementById("saveBar");if(!b)return;
 // Before navigating away: if there are unsaved changes, ask first.
 function guardNav(go){
  if(!DRAFT){go();return;}
- PENDING_NAV=go;const where=(TABS.find(t=>t[0]===tab)||[,"this screen"])[1];
+ PENDING_NAV=go;const where=(TABS.concat(ADMIN_TABS).find(t=>t[0]===tab)||[,"this screen"])[1];
  openModal({title:"Save your changes?",ok:"Save and continue",body:`<p>You have unsaved changes on <b>${esc(where)}</b>.</p>
   <p><button class="btn danger small" data-act="discardAndGo">Discard changes and continue</button></p>`,
   onOk(){commitDraft();const g=PENDING_NAV;PENDING_NAV=null;if(g)g();}});
@@ -1065,7 +1130,7 @@ function guardNav(go){
 
 /* ------------------------------ shell ------------------------------ */
 const ROLE_CARDS=[
- {role:"owner",id:"odum1",letter:"O",title:"Owner",persona:"Martin Oduya, Resourcing Lead",text:"Everything: modules and credit budgets, courses, staff roles, reports and new academic years."},
+ {role:"owner",id:"odum1",letter:"O",title:"Owner",persona:"Martin Oduya, Resourcing Lead",text:"Everything: modules and credit budgets, courses, staff roles, reports and academic years."},
  {role:"head",id:"farh1",letter:"H",title:"Head",persona:"Helen Faraday, Management & Finance",text:"Allocates staff and credits on any module and sets module leaders. Views sessions and their own department's staff, and can see what's waiting to be published."},
  {role:"pas",id:"okon1",letter:"P",title:"PAS Admin",persona:"Nadia Okonkwo",text:"Edits module sessions. Can view staff and course timetables, module leaders and publishing without changing them."},
  {role:"staff",id:"andf1",letter:"S",title:"Academic staff",persona:"Felix Andrade, Computing",text:"Sees only their own published timetable, read-only, and who else teaches each of their modules."}];
@@ -1082,13 +1147,16 @@ function renderLogin(){
  $("#roleCards").innerHTML=ROLE_CARDS.map(r=>`<button class="role-card" data-act="signIn" data-role="${r.role}" data-id="${r.id}"><span class="role-letter">${r.letter}</span><b>${r.title}</b><span class="persona">${esc(r.persona)}</span><small>${esc(r.text)}</small></button>`).join("");
 }
 function renderTop(){
- const years=me.role==="staff"?YEAR_ORDER.filter(y=>YEARS[y]):YEAR_ORDER;
- $("#yearSel").innerHTML=years.map(y=>opt(y,y+(YEARS[y]?"":" (not created)"),selYear)).join("");
+ // Release 0.8.1: only the years this person's menu holds (listed years; staff: listed and published), plus the year
+ // on screen, marked "(unlisted)" when it isn't in their menu (the Owner opening one from Academic years)
+ const years=YEAR_ORDER.filter(y=>YEARS[y]?y===selYear||yearInMenu(y):me.role!=="staff");
+ $("#yearSel").innerHTML=years.map(y=>opt(y,y+(!YEARS[y]?" (not created)":!yearInMenu(y)?" (unlisted)":""),selYear)).join("")
+  +(isOwner()?opt("manage","Manage years…",""):"");
  $("#yearSel").dataset.chg="year";
  const yd=Y();
  // The year flag: Current (green), NEXT (amber, bold, capitals) or Previous (slate) academic year.
- const kind=!yd?"none":yd.status==="current"?"current":yd.status==="archived"?"previous":"next";
- const ys=$("#yearState");ys.textContent={current:"Current academic year",next:"Next academic year",previous:"Previous academic year",none:"Not created yet"}[kind];
+ const kind=yearKind(selYear);
+ const ys=$("#yearState");ys.textContent=kind==="previous"&&yd.status==="planning"?"Previous academic year · unarchived":{current:"Current academic year",next:"Next academic year",previous:"Previous academic year",none:"Not created yet"}[kind];
  ys.className="year-flag "+kind;
  $("#cycleDot").className="cycle-dot "+kind;
  const p=P(me.id);
@@ -1097,12 +1165,13 @@ function renderTop(){
  $("#whoRole").textContent=ROLE_LABEL[me.role]+" · switch";
 }
 function renderNav(){
- $("#nav").innerHTML=ROLE_TABS[me.role].map(k=>TABS.find(t=>t[0]===k)).map(([k,l,i])=>
-  `<button data-act="go" data-tab="${k}" class="${tab===k?"active":""}"${tab===k?' aria-current="page"':""}><span class="nav-icon">${i}</span><span>${l}</span></button>`).join("");
+ const link=([k,l,i])=>`<button data-act="go" data-tab="${k}" class="${tab===k?"active":""}"${tab===k?' aria-current="page"':""}><span class="nav-icon">${i}</span><span>${l}</span></button>`;
+ $("#nav").innerHTML=ROLE_TABS[me.role].map(k=>TABS.find(t=>t[0]===k)).map(link).join("")
+  +(isOwner()?`<div class="nav-label">Administration</div>${ADMIN_TABS.map(link).join("")}`:"");
  const yd=Y();
  if(!yd){$("#sideFoot").innerHTML="";return;}
  if(me.role==="staff"){ // their own credits against target, from their published timetable
-  const snap=(yd.published||{})[me.id],bd=snap&&snap.breakdown;
+  const snap=yearOpenTo()&&(yd.published||{})[me.id],bd=snap&&snap.breakdown;
   if(!bd){$("#sideFoot").innerHTML=`<b>My credits</b><p>Your ${selYear} timetable hasn't been published yet.</p>`;return;}
   const t=bd.target,u=bd.total,rem=t-u,pct=t?Math.round(u/t*100):0;
   $("#sideFoot").innerHTML=`<b>${t?`${pct}% of target`:"My credits"}</b><p>${t?`Target ${t} · used ${u} · ${rem>=0?`${rem} remaining`:`<span class="over-txt">${-rem} over</span>`}`:`${u} credits used · no target set`}</p>
@@ -1120,17 +1189,32 @@ function renderNav(){
  const b=yearBudget(),pct=b.budget?Math.round(b.assigned/b.budget*100):0;
  $("#sideFoot").innerHTML=`<b>${pct}% allocated</b><p>${b.assigned.toLocaleString()} of ${b.budget.toLocaleString()} budgeted credits are assigned to staff in ${selYear}.</p><div class="progress"><i style="width:${pct}%"></i></div>`;
 }
+// Release 0.8.1 (year_flag_note()): for the Owner, Heads and PAS Admin, when academic staff can't see the year (not
+// published) and, for the Owner, when it isn't in the year menu (not listed), with a link to Academic years.
+function yearFlagNote(y=selYear){
+ if(!me||me.role==="staff"||!YEARS[y])return "";
+ let out="";
+ if(!yearPublished(y))out+=` <b>Not published:</b> academic staff can't see ${esc(y)} yet.`;
+ if(!yearListed(y)&&isOwner())out+=` <b>Unlisted:</b> it isn't in the year menu.`;
+ if(out&&isOwner())out+=` <button class="linkish" data-act="manageYear" data-year="${esc(y)}">Manage ${esc(y)}</button>`;
+ return out;
+}
+// A year action button (Publish, Archive …) for yearAct, carrying the year's state when drawn (stale check).
+const yearActBtn=(op,y,label,cls="btn small",extra="")=>`<button class="${cls}" data-act="yearAct" data-op="${op}" data-year="${esc(y)}" data-ver="${esc(yearVer(y))}"${extra}>${esc(label)}</button>`;
 function yearBanner(){
  const yd=Y();
  const imp=IMPORT&&me.role!=="staff"?`<div class="notice"><div class="glyph">⇪</div><div style="flex:1"><strong>Your own data: ${esc(IMPORT.db)}</strong><p>Held only in this browser tab. Nothing has been uploaded or saved; reloading or closing the tab discards it.</p></div><button class="btn small" data-act="importReport">Import report</button></div>`:"";
- if(!yd)return imp;
- const cur=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||"the current year";
+ if(!yd||tab==="years")return imp; // (Academic years has no year notice, as on the server)
+ const cur=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="current")||"the current year",note=yearFlagNote();
+ // an earlier year the Owner has unarchived to correct it (release 0.8.1): it can be changed until archived again
+ if(yd.status==="planning"&&yearBeforeCurrent(selYear))return imp+notice("⟲",`Previous academic year: ${selYear} · unarchived`,
+   `Opened again by the Owner for corrections, so it can be changed until it is archived again. The current year is ${cur}.${note}${canArchiveYear(selYear)?` ${yearActBtn("archive_year",selYear,`Archive ${selYear}`)}`:""}`,"slate");
  if(yd.status==="planning")return imp+notice("!",`Next academic year: ${selYear}`,me.role==="staff"
    ?`You're looking at ${selYear}, which is still being planned and may change. The current year is ${cur}.`
-   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.${canMakeCurrent(selYear)?` <button class="btn small" data-act="makeCurrent">Make ${selYear} the current year</button>`:""}${canDeleteYear(selYear)?` <button class="btn small danger" data-act="deleteYear">Delete ${selYear}</button>`:""}`,"amber year-next");
+   :`You're working in ${selYear}, which is still being planned. Changes here don't affect ${yd.copiedFrom||cur}.${note}${canMakeCurrent(selYear)?` <button class="btn small" data-act="makeCurrent">Make ${selYear} the current year</button>`:""}${canDeleteYear(selYear)?` <button class="btn small danger" data-act="deleteYear">Delete ${selYear}</button>`:""}`,"amber year-next");
  if(yd.status==="current"&&yd.madeCurrent&&me.role==="owner"&&YEARS[yd.madeCurrent.from]&&YEARS[yd.madeCurrent.from].status==="archived")
   return imp+notice("i",`${selYear} was made the current year on ${esc(yd.madeCurrent.at)}`,`By ${esc(yd.madeCurrent.by)}; ${esc(yd.madeCurrent.from)} became a previous year. Done by mistake? <button class="btn small" data-act="undoCurrent">Undo</button>`);
- if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear} · read-only`,`You're looking at a past year, kept for reference. The current year is ${cur}.`,"slate");
+ if(yd.status==="archived")return imp+notice("⟲",`Previous academic year: ${selYear} · read-only`,`You're looking at a past year, kept for reference. The current year is ${cur}.${note}`,"slate");
  return imp;
 }
 // A redraw can make the focused box lose focus, which fires its change event; that must not start a second
@@ -1143,6 +1227,8 @@ function render(anim=false){
 }
 function renderNow(anim){
  if(typeof comboClose==="function")comboClose(false);
+ // Release 0.8.1 (sel_year()): the year on screen only while this person may still see it, otherwise the current year
+ if(me&&YEARS[selYear]&&!yearVisible(selYear))selYear=defaultYearFor(me);
  const main=$("#main"),scroll=main.scrollTop;
  const a=document.activeElement,fk=a&&main.contains(a)?[a.tagName,...Object.entries(a.dataset).map(e=>e.join("="))].join("|"):null;
  renderTop();
@@ -1216,7 +1302,7 @@ VIEWS.overview=()=>{
   <td class="r"><button class="btn small" data-act="unoverride" data-key="${esc(i.key)}">Undo override</button></td></tr>`;
  return `<div class="hero">
   <article class="card hero-main"><div class="bignum" aria-hidden="true">${selYear.replace("20","").replace("-","/")}</div>
-   <div class="eyebrow">${selYear} · ${yd.status==="current"?"current year":"planning"}</div>
+   <div class="eyebrow">${selYear} · ${yd.status==="current"?"current year":yearKind(selYear)==="previous"?"previous year":"planning"}</div>
    <h1>${b.unalloc.toLocaleString()} budgeted credits still to allocate.</h1>
    <p>Across ${plural(yd.modules.length,"module")} and ${plural(nOcc,"occurrence")}. ${b.budget?Math.round(b.assigned/b.budget*100):0}% of this year's teaching budget is assigned to named staff.</p>
    <div class="actions"><button class="btn accent" data-act="go" data-tab="alloc">Open module allocation</button><button class="btn" data-act="go" data-tab="publish">Review unpublished changes</button></div>
@@ -1232,12 +1318,34 @@ VIEWS.overview=()=>{
   ${metric("Timetable clashes",clashes,`needing attention${overridden.some(i=>i.key.startsWith("clash:"))?`, ${overridden.filter(i=>i.key.startsWith("clash:")).length} overridden`:""}`,"var(--red)")}
  </div>
  ${semesterDatesCard()}
+ ${untypedRolesCard()}
  <div class="section-title"><h2>Needs attention</h2><span>Override anything that's acceptable; it comes back only if something about that item changes</span></div>
  <article class="card">${active.length?`<div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail</th><th class="r"></th></tr></thead><tbody>${(sel.showAllIssues?active:active.slice(0,ISSUE_LIMIT)).map(row).join("")}</tbody></table></div>${active.length>ISSUE_LIMIT?`<div class="card-foot issue-foot"><span class="muted">${sel.showAllIssues?`Showing all ${active.length}`:`Showing ${ISSUE_LIMIT} of ${active.length}`} · ${issueCounts(active)}</span><button class="btn small" data-act="toggleAllIssues">${sel.showAllIssues?"Show fewer":`Show all ${active.length}`}</button></div>`:""}`
   :empty("Nothing needs attention",overridden.length?"Everything outstanding has been overridden as acceptable.":"Every budget is fully allocated and within limits, every occurrence has a leader and moderator, and there are no clashes.")}</article>
  ${overridden.length?`<div class="section-title"><h2>Overridden</h2><button class="btn small" data-act="toggleOverridden" aria-expanded="${!!sel.showOverridden}">${sel.showOverridden?"Hide":"Show"} ${overridden.length}</button></div>
   ${sel.showOverridden?`<article class="card"><div class="table-wrap"><table><thead><tr><th>Issue</th><th>Detail and reason</th><th class="r"></th></tr></thead><tbody>${overridden.map(orow).join("")}</tbody></table></div></article>`:""}`:""}`;
 };
+
+/* "Roles without a role type" (release 0.8.1, untyped_roles_card() in overview.php): every non-teaching role in ANY
+   year without a role type, with a button that opens Non-teaching roles in that year (a previous year is read-only),
+   then a note when roles of this year sit under Unassigned (where the import puts roles that arrived without a type).
+   Not an issue that can be overridden: every role must have a type. */
+function untypedRolesCard(){
+ const yd=Y(),list=[];
+ YEAR_ORDER.filter(y=>YEARS[y]).sort().forEach(y=>YEARS[y].nt.filter(r=>!NT_CATS.includes(r.cat)).sort((a,b)=>a.title.localeCompare(b.title)).forEach(r=>list.push({y,r})));
+ let out="";
+ if(list.length)out+=`<div class="section-title"><h2>Roles without a role type</h2><span>Every non-teaching role must have a role type; until it has one its credits are on no line of the Activity breakdown</span></div>
+  <article class="card attention-card"><div class="card-head"><div class="left"><h2>${plural(list.length,"role needs","roles need")} a role type</h2></div></div>
+  <p class="attention-note">Choose role type opens Non-teaching roles in that year, where you pick the type for each one.</p>
+  <div class="table-wrap"><table><thead><tr><th>Year</th><th>Role</th><th>Held by</th><th></th></tr></thead><tbody>
+  ${list.map(({y,r})=>`<tr><td style="white-space:nowrap">${esc(y)}</td><td class="name-cell">${esc(r.title)}</td><td>${esc(r.people.slice().sort((a,b)=>byStaffId({id:a.s},{id:b.s})).map(p=>nameOf(p.s)).join(", ")||"Nobody")}</td>
+   <td class="r" style="white-space:nowrap">${YEARS[y].status==="archived"?'<span class="hint">Previous year, read-only</span>':`<button class="btn small" data-act="fixRoleType" data-year="${esc(y)}">Choose role type</button>`}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
+ const n=NT_CATS.includes(UNASSIGNED_TYPE)?yd.nt.filter(r=>r.cat===UNASSIGNED_TYPE).length:0;
+ if(n)out+=notice("!",`${plural(n,"role is","roles are")} under ${UNASSIGNED_TYPE}`,`The import puts roles that arrived without a role type there. ${!yearLocked()
+  ?`<button class="linkish" data-act="goto" data-tab="nt" data-set="nt=${UNASSIGNED_TYPE};ntMode=edit">Move ${n===1?"it":"them"} to the right role types</button>, then delete the ${UNASSIGNED_TYPE} role type.`
+  :`<button class="linkish" data-act="goto" data-tab="nt" data-set="nt=${UNASSIGNED_TYPE};ntMode=summary">See ${n===1?"it":"them"} on Non-teaching roles</button>.`}`,"amber");
+ return out;
+}
 
 /* ---------------------------- Staff details ---------------------------- */
 // Heads can view every group (read-only totals), with their own department listed first.
@@ -1523,7 +1631,9 @@ VIEWS.nt=()=>{
    :owner?"Create and edit roles, and set who holds them.":"Add staff to an existing role, and correct or remove the entries you added. Roles, role types and everyone else's entries are managed by the Owner.",
   backBtn()+(owner?`<button class="btn" data-act="ntTypeNew">New role type</button>`+(mode==="edit"?`<button class="btn primary" data-act="ntNew">New role</button>`:""):""));
  const untyped=yd.nt.filter(r=>!NT_CATS.includes(r.cat));
- if(untyped.length)h+=`<article class="card" style="border-color:var(--b-amber)"><div class="card-head" style="background:var(--t-amber)"><div class="left"><h2>${plural(untyped.length,"role needs","roles need")} a role type</h2></div></div>
+ // the line under the heading says why (every role must have a type since 0.8.1) and, in a previous year, that it can't change
+ if(untyped.length)h+=`<article class="card attention-card"><div class="card-head"><div class="left"><h2>${plural(untyped.length,"role needs","roles need")} a role type</h2></div></div>
+  <p class="attention-note">Every non-teaching role must have a role type. Until it has one, its credits are on no line of the Activity breakdown.${owner&&yearLocked()?` ${esc(selYear)} is a previous year, so it can't be changed.`:""}</p>
   <div class="table-wrap"><table><thead><tr><th>Role</th><th>Held by</th><th>Role type</th></tr></thead><tbody>
   ${untyped.map(r=>`<tr><td class="name-cell">${esc(r.title)}</td><td>${esc(r.people.map(p=>p.s).join(", ")||"Nobody")}</td>
    <td>${selectH(`data-chg="ntType" data-r="${r.id}" aria-label="Role type for ${esc(r.title)}"`,[{v:"",l:"Choose a role type…"}].concat(NT_CATS.map(c=>({v:c,l:c}))),"",!owner)}</td></tr>`).join("")}</tbody></table></div></article><div style="height:16px"></div>`;
@@ -1686,7 +1796,7 @@ function viewMine(){
  const p=P(me.id),yd=Y();
  let h=pageHead(selYear,"My timetable","Read-only. Use + on any row to see who else teaches on that module or holds that role.");
  if(!yd)return h+`<article class="card">${empty("No timetable for this year","")}</article>`;
- const snap=yd.published[me.id];
+ const snap=yearOpenTo()?yd.published[me.id]:null; // (release 0.8.1: nothing for staff from an unpublished year)
  if(!snap)return h+`<article class="card">${empty("Not published yet",`Your department hasn't published a ${selYear} timetable yet.`)}</article>`;
  h+=notice("i","Your published timetable",`Last published ${snap.at}. It changes only when your department publishes updates, not while they're being drafted.`);
  h+=`<div class="filterbar"><span class="muted" style="align-self:center;font-size:12px">Signed in as <b>${esc(nameOf(p.id))}</b> (${esc(p.email)})</span><span class="spacer"></span>${ttSeg("myView",sel.myView)}<button class="btn primary" data-act="exportIcs">Add to Outlook (.ics)</button></div>`;
@@ -1773,25 +1883,29 @@ const REPORTS=[["activity","Activity breakdown"],["target","Staff against target
 VIEWS.reports=()=>{
  let h=pageHead("Analysis","Reports and queries","Fixed reports and saved, read-only queries for this year. Nothing here can change data, nobody can type SQL, and exports go to your own computer.");
  const menu=`<nav class="card report-menu" aria-label="Reports and queries"><div class="menu-label">Reports</div>${REPORTS.map(([k,l])=>`<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${l}</button>`).join("")}
-  <div class="menu-label">Saved queries</div>${QUERIES.map(q=>{const k="q:"+q.id;return `<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}><span class="q-no">${q.id}</span> ${esc(q.name)}</button>`;}).join("")}</nav>`;
+  <div class="menu-label">Saved queries</div>${QUERIES.map(q=>{const k="q:"+q.id;return `<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${esc(q.name)}</button>`;}).join("")}</nav>`;
  if(String(sel.report).startsWith("q:")){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(q)return h+`<div class="report-grid">${menu}${queryPane(q)}</div>`;sel.report="activity";}
  let body="";
  if(sel.report==="activity"){
+  // every time slot, then every role type (in role type order, whether or not it has credits); release 0.8.1: the old
+  // total lines are gone and only the computed Total remains. Roles without a role type are on no line (see the warning).
   const gs=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
   const rows=CATS.map(c=>({l:c.label,f:id=>breakdown(id)[c.id]})).concat(NT_CATS.map(cat=>({l:cat,f:id=>Y().nt.filter(r=>r.cat===cat).reduce((a,r)=>a+r.people.filter(p=>p.s===id).reduce((x,p)=>x+p.cr,0),0)})));
   const val=(r,g)=>inYear().filter(p=>SY(p.id).group===g.id).reduce((a,p)=>a+r.f(p.id),0);
-  // total lines (role types with no display order): Total Management / Total Non-Management, by main department
-  const ntFor=(id,test)=>Y().nt.filter(r=>NT_CATS.includes(r.cat)&&test(r.cat)).reduce((a,r)=>a+r.people.filter(p=>p.s===id).reduce((x,p)=>x+p.cr,0),0);
-  const totals=(REPORT_TOTALS||[]).map(t=>({l:t.label,kind:t.kind,f:t.kind==="mgmt"?id=>ntFor(id,isMgmtType):t.kind==="nonmgmt"?id=>ntFor(id,c=>!isMgmtType(c)):null}));
-  body=`<div class="card-head"><h2>Activity breakdown</h2><span class="muted" style="font-size:11px">Allocated credits by each person's main department</span></div><div class="table-wrap"><table><thead><tr><th>Activity</th>${gs.map(g=>`<th class="r">${g.id}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>
+  body=`<div class="card-head"><h2>Activity breakdown</h2><span class="muted" style="font-size:11px">Allocated credits by each person's main department</span></div>${reportUntypedWarning()}<div class="table-wrap"><table><thead><tr><th>Activity</th>${gs.map(g=>`<th class="r">${g.id}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>
    ${rows.map(r=>{const v=gs.map(g=>val(r,g));return `<tr><td>${esc(r.l)}</td>${v.map(x=>`<td class="r">${x}</td>`).join("")}<td class="r"><b>${v.reduce((a,b)=>a+b,0)}</b></td></tr>`;}).join("")}
-   ${totals.map(t=>{const v=gs.map(g=>t.f?val(t,g):null);return `<tr class="subtotal"><td>${esc(t.l)}</td>${v.map(x=>`<td class="r">${x==null?"—":x}</td>`).join("")}<td class="r">${t.f?v.reduce((a,b)=>a+b,0):"—"}</td></tr>`;}).join("")}
    <tr class="sum"><td>Total</td>${gs.map(g=>`<td class="r">${rows.reduce((a,r)=>a+val(r,g),0)}</td>`).join("")}<td class="r">${rows.reduce((a,r)=>a+gs.reduce((x,g)=>x+val(r,g),0),0)}</td></tr></tbody></table></div>
-   <p class="hint" style="padding:0 18px 14px">${totals.length?`${totals.map(t=>esc(t.l)).join(" and ")} are included for information and aren't added into the overall Total. `:""}Credits are shown under each person's main department.</p>`;
+   <p class="hint" style="padding:0 18px 14px">Credits are shown under each person's main department.</p>`;
  }else if(sel.report==="target"){
-  const rows=inYear().map(p=>({p,t:SY(p.id).target,a:breakdown(p.id).total})).sort((x,y)=>(y.t?y.a/y.t:0)-(x.t?x.a/x.t:0));
-  body=`<div class="card-head"><h2>Staff against target</h2><span class="muted" style="font-size:11px">Highest percentage first</span></div><div class="bars">
-   ${rows.map(r=>{const pct=r.t?Math.round(r.a/r.t*100):0;return `<div class="bar-row"><b>${esc(nameOf(r.p.id))}</b><div class="bar-track"><i class="${pct>100?"over":""}" style="width:${Math.min(100,pct)}%"></i></div><span>${r.a} / ${r.t||"no target"}${r.t?` (${pct}%)`:""}</span></div>`;}).join("")}</div>`;
+  // Show filter (release 0.8.1): the same rule as Staff details' (Associate Lecturers by their contract status's flag;
+  // everyone else, placeholders included, counts as permanent); nobody left gives an empty state naming the filter
+  const show=TARGET_SHOW[sel.targetShow]?sel.targetShow:"all";
+  const rows=inYear().filter(p=>show==="all"||isAssoc(SY(p.id).status)===(show==="assoc")).map(p=>({p,t:SY(p.id).target,a:breakdown(p.id).total})).sort((x,y)=>(y.t?y.a/y.t:0)-(x.t?x.a/x.t:0));
+  body=`<div class="card-head"><h2>Staff against target</h2><span class="muted" style="font-size:11px">Highest percentage first</span></div>
+   <div class="filterbar" style="margin:12px 18px 0"><label class="field">Show${selectH('data-chg="targetShow" aria-label="Show which staff"',Object.entries(TARGET_SHOW).map(([v,l])=>({v,l})),show)}</label></div>
+   ${rows.length?`<div class="bars">
+   ${rows.map(r=>{const pct=r.t?Math.round(r.a/r.t*100):0;return `<div class="bar-row"><b>${esc(nameOf(r.p.id))}</b><div class="bar-track"><i class="${pct>100?"over":""}" style="width:${Math.min(100,pct)}%"></i></div><span>${r.a} / ${r.t||"no target"}${r.t?` (${pct}%)`:""}</span></div>`;}).join("")}</div>`
+   :empty("No staff to show",esc({all:"Nobody is on the staff list for this year.",perm:"Everyone this year is an Associate Lecturer.",assoc:"Nobody this year is an Associate Lecturer."}[show]))}`;
  }else{
   const rows=[];Y().modules.forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const s=o.slots[c.id],a=sumV(s.alloc);if(s.total||a)rows.push({m,o,c,t:s.total,a});})));
   body=`<div class="card-head"><h2>Module budgets</h2><span class="muted" style="font-size:11px">Every category with a budget or allocation</span></div><div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Category</th><th class="r">Budget</th><th class="r">Allocated</th><th class="r">Unallocated</th></tr></thead><tbody>
@@ -1800,7 +1914,19 @@ VIEWS.reports=()=>{
  return h+`<div class="report-grid">${menu}<article class="card">${body}</article></div>`;
 };
 
-/* ---------------------------- Ad hoc queries ---------------------------- */
+// Staff against target's Show filter (RM_TARGET_SHOW on the server, release 0.8.1)
+const TARGET_SHOW={all:"All staff",perm:"Permanent staff only",assoc:"Associate Lecturers only"};
+// The Activity breakdown's warning about this year's roles without a role type (report_untyped_warning(), 0.8.1):
+// their credits are on no line and not in the Total, so it lists each (title, holders with credits) and links to
+// Non-teaching roles to choose a type (a previous year is read-only, which it says). '' when there are none.
+function reportUntypedWarning(){
+ const list=Y().nt.filter(r=>!NT_CATS.includes(r.cat)).sort((a,b)=>a.title.localeCompare(b.title));if(!list.length)return "";
+ let credits=0;
+ const li=list.map(r=>{const who=r.people.map(p=>{credits+=p.cr;return `${nameOf(p.s)} ${p.cr}`;});return `<li><b>${esc(r.title)}</b> <small>${who.length?esc(who.join(", ")):"Nobody holds it"}</small></li>`;}).join("");
+ const fix=yearLocked()?`${esc(selYear)} is a previous year, so they can't be changed now.`:`<button class="linkish" data-act="go" data-tab="nt">Choose a role type for ${list.length===1?"it":"each"} on Non-teaching roles</button>.`;
+ return `<div class="notice amber report-notice"><div class="glyph">!</div><div><strong>${plural(list.length,"role has","roles have")} no role type</strong><p>${credits?`Their ${credits} credits are`:"Any credits they get would be"} on no line below and not in the Total. ${fix}</p><ul>${li}</ul></div></div>`;
+}
+
 /* ---------------------------- Ad hoc queries ----------------------------
    Saved, read-only reports replacing the old free-text SQL. Parameters are plain values that are
    matched in code (in the real system: bound parameters), never run as SQL. No query can change data. */
@@ -1827,7 +1953,7 @@ const QUERIES=[
   params:[{id:"which",label:"Show",type:"select",opts:()=>["All role types","Management only","Non-management only"],def:"All role types"}],
   run:p=>{const keep=c=>p.which==="Management only"?isMgmtType(c):p.which==="Non-management only"?!isMgmtType(c):true;
    return {cols:["Role type","Role","Holders","Total credits"],num:[2,3],rows:NT_CATS.filter(keep).flatMap(cat=>Y().nt.filter(r=>r.cat===cat).sort((a,b)=>a.title.localeCompare(b.title)).map(r=>[cat,r.title,r.people.length,r.people.reduce((a,x)=>a+x.cr,0)]))};}},
- {id:"06",name:"Leaders and moderators",desc:"Every occurrence with the semesters it's taught in, its leader and its moderator (replaces the old queries 06 and 07). Gaps are shown, not dropped.",
+ {id:"06",name:"Leaders and moderators",desc:"Every occurrence with the semesters it's taught in, its leader and its moderator (replaces the old module leaders and moderators queries). Gaps are shown, not dropped.",
   run:()=>({cols:["Module","Title","Occ.","Credits","Taught in","Leader","Moderator"],num:[3],
    rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.map(o=>[m.code,m.title,o.occ,m.credit,semestersOf(m,o)||"(not timetabled)",
     Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"(none)",Object.keys(o.slots.MO.alloc).map(nameOf).join(", ")||"(none)"]))})},
@@ -1866,15 +1992,14 @@ function queryPane(q){
  const form=(q.params||[]).map(p=>`<label class="field${p.type==="text"?" grow":""}">${esc(p.label)}${p.type==="select"
    ?selectH(`data-chg="qParam" data-q="${q.id}" data-p="${p.id}"`,p.opts().map(o=>({v:o,l:o})),pv[p.id])
    :`<input value="${esc(pv[p.id])}" maxlength="60" data-chg="qParam" data-q="${q.id}" data-p="${p.id}" autocomplete="off">`}</label>`).join("");
- return `<article class="card"><div class="card-head"><div class="left"><h2>${q.id} · ${esc(q.name)}</h2>${r?`<span class="tag gray">${plural(r.rows.length,"row")}</span>`:""}</div>
+ return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(q.name)}</h2>${r?`<span class="tag gray">${plural(r.rows.length,"row")}</span>`:""}</div>
   ${r&&r.rows.length?`<button class="btn small primary" data-act="exportQuery">Export CSV</button>`:""}</div>
   <p class="muted" style="margin:0;padding:12px 18px 0;font-size:12px">${esc(q.desc)}</p>
   ${form?`<div class="filterbar" style="margin:12px 18px 0">${form}</div>`:""}
   ${err?notice("!","Check the value",esc(err),"amber").replace('class="notice amber"','class="notice amber" style="margin:12px 18px"')
    :r.rows.length?`<div class="table-wrap" style="margin-top:12px"><table><thead><tr>${r.cols.map((c,i)=>`<th${(r.num||[]).includes(i)?' class="r"':""}>${esc(c)}</th>`).join("")}</tr></thead><tbody>
     ${r.rows.map(row=>`<tr>${row.map((v,i)=>`<td${(r.num||[]).includes(i)?' class="r"':""}>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`
-   :empty("No results","Nothing matches right now.")}
-  <p class="hint" style="padding:0 18px 14px">Query numbers match the old system. 07 (Moderators) is part of 06, and 99 (delete all sessions) has been removed.</p></article>`;
+   :empty("No results","Nothing matches right now.")}</article>`;
 }
 
 /* ------------------------------- Publish ------------------------------- */
@@ -1947,7 +2072,7 @@ function slotManagerHTML(){
 VIEWS.cis=()=>{
  const yd=Y();
  let h=pageHead("Published","Course Information Site","Course timetables by year, with who teaches each module. This is the published version everyone sees.");
- if(!yd||!yd.cis)return h+`<article class="card">${empty("Not published yet",`The Course Information Site for ${selYear} appears once it has been published.`)}</article>`;
+ if(!yd||!yd.cis||!yearOpenTo())return h+`<article class="card">${empty("Not published yet",`The Course Information Site for ${selYear} appears once it has been published.`)}</article>`;
  const S=yd.cis,cats=S.cats,page=sel.cisPage||"menu";
  const upd=`<span class="tag gray">Updated ${esc(S.at)}</span>`;
  const person=id=>{const p=S.people[id];if(!p)return nameOf(id);if(me.role==="staff"&&id===me.id)return p.name+" (you)";if(me.role==="staff"&&p.hidden)return p.assoc||(p.hpl?"AL":"TBC");return p.name;};
@@ -2129,6 +2254,46 @@ function dpPick(iso){
  dpClose();inp.dispatchEvent(new Event("change",{bubbles:true}));inp.focus();
 }
 
+/* ---------------------------- Academic years (release 0.8.1) ----------------------------
+   Owner only, under Administration (page_years() in years.php): every year in a table (Year, Status, Based on,
+   Published, Listed, Action) and a "Not created" row for the year that can be created next. Manage opens a box per
+   year with the actions that apply to it, each disabled with the reason when it doesn't apply. */
+const yearTag=y=>{const yd=YEARS[y];return yd.status==="current"?'<span class="tag">Current</span>':yd.status==="archived"?'<span class="tag gray">Archived</span>':'<span class="tag amber">Planning</span>'+(yearBeforeCurrent(y)?"<small>Unarchived</small>":"");};
+const yearBasedOn=y=>{const f=YEARS[y].copiedFrom;return f&&YEARS[f]?f:"";};
+VIEWS.years=()=>{
+ const made=YEAR_ORDER.filter(y=>YEARS[y]),n=nextYearCode(latestYear());
+ const rows=made.map(y=>`<tr><td><b>${esc(y)}</b>${y===selYear?"<small>Open now</small>":""}</td><td>${yearTag(y)}</td><td data-label="Based on">${esc(yearBasedOn(y))}</td><td data-label="Published">${yearPublished(y)?"Yes":"No"}</td><td data-label="Listed">${yearListed(y)?"Yes":"No"}</td><td class="act-cell"><button class="btn small" data-act="manageYear" data-year="${esc(y)}">Manage</button></td></tr>`).join("")
+  +(isOwner()?`<tr><td><b>${esc(n)}</b></td><td><span class="hint">Not created</span></td><td data-label="Based on"></td><td data-label="Published">No</td><td data-label="Listed">No</td><td class="act-cell"><button class="btn small primary" data-act="createFromYears" data-year="${esc(n)}">Create</button></td></tr>`:"");
+ return pageHead("Administration","Academic years","Every academic year: which is current, which are being planned or archived, and whether academic staff can see them.")
+  +`<article class="card"><div class="card-head"><h2>Academic years</h2></div><div class="table-wrap"><table class="years-table"><thead><tr><th>Year</th><th>Status</th><th>Based on</th><th>Published</th><th>Listed</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div>
+  <p class="hint" style="padding:0 18px 14px"><b>Published</b>: academic staff can choose the year and see what has been published in it (Publish still decides which department timetables they see). <b>Listed</b>: the year is in the year menu at the top. The current year is always published and listed. Archived years are read-only for everyone. A new year starts unpublished.</p></article>`;
+};
+// The rows of a year's Manage box (year_manage_rows()): [heading, explanation (HTML), button (or a disabled one with the reason)]
+function yearManageRows(y){
+ const yd=YEARS[y],c=esc(y),isCur=yd.status==="current",cur=esc(YEAR_ORDER.find(k=>YEARS[k]&&YEARS[k].status==="current")||"the current year");
+ const off=l=>`<button class="btn small" type="button" disabled>${esc(l)}</button>`,why=t=>`<small class="why">${t}</small>`;
+ const pub=yearPublished(y),lis=yearListed(y),mc=canUndoCurrent(y),rows=[];
+ rows.push([`Published: ${pub?"Yes":"No"}`,(pub?`Academic staff can choose ${c} and see what has been published in it.`:`Academic staff can't see ${c}. The Owner, Heads and PAS Admin work on it as usual.`)+(isCur?why("The current year must stay published."):""),
+  isCur?off("Unpublish"):yearActBtn(pub?"unpublish_year":"publish_year",y,pub?"Unpublish":"Publish",pub?"btn small":"btn small primary")]);
+ rows.push([`Listed: ${lis?"Yes":"No"}`,(lis?`In the year menu at the top${pub?"":" (for academic staff only once it's published)"}.`:"Not in the year menu. Only you can open it, from here.")+(isCur?why("The current year must stay listed."):""),
+  isCur?off("Unlist"):yearActBtn(lis?"unlist_year":"list_year",y,lis?"Unlist":"List")]);
+ if(canMakeCurrent(y))rows.push(["Current year",`Make ${c} the current year: everyone opens on it when they sign in, and ${cur} becomes a previous year (archived).`,yearActBtn("make_current",y,"Make current","btn small primary")]);
+ else if(mc)rows.push(["Current year",`${c} was made current on ${esc(mc.at)}. Undo puts ${esc(mc.from)} back as the current year and returns ${c} to planning.`,yearActBtn("undo_current",y,"Undo make current")]);
+ else rows.push(["Current year",isCur?"This is the current year.":`Only the year straight after the current year (${cur}) can be made current.`,off("Make current")]);
+ if(canUnarchiveYear(y))rows.push(["Archived","Read-only for everyone. Unarchive it to make corrections: it can be changed again, stays a previous year and never becomes current.",yearActBtn("unarchive_year",y,"Unarchive")]);
+ else if(canArchiveYear(y))rows.push(["Archived: No (unarchived)","A previous year opened again for corrections. Archive it to make it read-only again.",yearActBtn("archive_year",y,"Archive")]);
+ else rows.push(["Archived: No",why(isCur?"The current year can't be archived. Making the next year current archives it.":"Only years before the current year can be archived. A year being planned can be deleted instead while it's the latest."),off("Archive")]);
+ rows.push(["Delete",canDeleteYear(y)?`Permanently removes ${c} and everything in it. You type ${c} to confirm.`:why("Only the latest year, while it's still being planned, can be deleted. The current year and previous years never can."),
+  canDeleteYear(y)?yearActBtn("delete_year",y,"Delete…","btn small danger"):off("Delete…")]);
+ return rows;
+}
+// The Manage box: status and where the year came from, Open (switches the year being looked at, even an unlisted
+// one), then one row per action
+function yearManageHTML(y){const b=yearBasedOn(y);
+ return `<p class="year-sum">${yearTag(y)} ${b?`Based on ${esc(b)}`:"Not copied from another year"}</p>
+  <p><button class="btn small" data-act="openYear" data-year="${esc(y)}">Open ${esc(y)}</button> <span class="hint">Switches the year you're looking at${yearListed(y)?"":", even though it's unlisted"}.</span></p>
+  <div class="year-acts">${yearManageRows(y).map(([h,t,c])=>`<div class="year-act"><div><b>${esc(h)}</b><p>${t}</p></div><div class="year-act-btn">${c}</div></div>`).join("")}</div>`;}
+
 /* ---------------------------- Year not created ---------------------------- */
 // The parts of a year the Owner can choose to copy into the next year (release 0.7.5; YEAR_COPY_PARTS in years.php),
 // in the order they are copied. needs: parts that must be copied too; on: ticked by default (as always copied before 0.7.5).
@@ -2171,7 +2336,7 @@ function viewNoYear(){
   <fieldset class="copy-list" id="copyList"><legend>Copy from ${src}</legend>${rows}</fieldset>
   <p>Anything not copied starts empty in ${selYear}, ready to add afresh. Overview overrides are never copied.</p>
   <p>${selYear} starts as the <b>next academic year</b>. Changes there don't affect ${src} or any other year, and it can be deleted again while it's still being planned. The new year stays unpublished until you publish it.</p>
-  <div class="actions"><button class="btn accent" data-act="createYear" data-src="${src}">Create ${selYear}</button><button class="btn" data-act="goYear" data-year="${src}">Cancel</button></div></article>`;
+  <div class="actions"><button class="btn accent" data-act="createYear" data-src="${src}">Create ${selYear}</button><button class="btn" data-act="goYear" data-year="${src}"${sel.createBack==="years"?' data-tab="years"':""}>Cancel</button></div></article>`;
 }
 
 /* =============================== ACTIONS =============================== */
@@ -2188,7 +2353,7 @@ const ACT={
   onOk(){seed();renderLogin();selYear=defaultYearFor(me);DRAFT=null;LAST_SAVED=null;SKIP_STAGE=true;
    if(!P(me.id))me={role:me.role,id:ROLE_CARDS.find(r=>r.role===me.role).id}; // was previewing imported data: switch to the sample person for this role
   Object.assign(sel,{ntMode:"summary",nt:"Management - Programmes",module:"BMGX2140",group:me.role==="head"?"MGT":"COMP",staff:"andf1",course:"MGT-ENTM",query:null,staffMode:"list"});toast("Demo reset","Sample data restored.");}});},
- go(el){tab=el.dataset.tab;sel.query=null;sel.back=null;sel.ntFocus=null;render(true);},
+ go(el){tab=el.dataset.tab;sel.createBack=null;sel.query=null;sel.back=null;sel.ntFocus=null;render(true);},
  allocFrom(el){if(!["owner","head"].includes(me.role))return;sel.back={tab:"tt",staff:sel.staff,view:sel.ttView};sel.module=el.dataset.module;tab="alloc";render(true);},
  ntFrom(el){if(!["owner","head"].includes(me.role))return;const r=Y().nt.find(x=>x.id===el.dataset.r);if(!r)return;
   sel.back={tab:"tt",staff:sel.staff,view:sel.ttView};sel.nt=r.cat;sel.ntMode="edit";sel.ntFocus=r.id;tab="nt";render(true);},
@@ -2199,7 +2364,9 @@ const ACT={
   const cancel=el&&el.closest&&el.closest(".modal-foot")?modalCancelCb:null;
   closeModal();if(cancel)cancel();if(me)render();
  },
- modalOk(){const cb=modalCb,r=cb?staged(()=>cb()):undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}closeModal();if(me)render();},
+ modalOk(){const cb=modalCb,r=cb?staged(()=>cb()):undefined;if(typeof r==="string"){$("#modalErr").textContent=r;return;}
+  if(modalCb&&modalCb!==cb)return; // the action opened another dialog (e.g. a confirmation after "Save and continue"): leave it open
+  closeModal();if(me)render();},
  toggleRow(el){const r=document.getElementById(el.dataset.row);if(!r)return;const open=r.hidden;r.hidden=!open;el.setAttribute("aria-expanded",open);el.textContent=open?"−":"+";},
  override(el){
   if(!isOwner())return;const i=ISSUE_INDEX[el.dataset.key];if(!i)return;
@@ -2224,9 +2391,9 @@ const ACT={
  report(el){sel.report=el.dataset.v;render();},
  query(el){sel.report=el.dataset.v?"q:"+el.dataset.v:"activity";tab="reports";render(true);},
  exportQuery(){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(!q)return;const r=q.run(qParams(q)),csv=toCSV(r);
-  openModal({title:`Export: ${q.id} ${q.name}`,ok:"Done",body:`<p>${plural(r.rows.length,"row")} as CSV. In the live system this downloads straight to your computer; nothing is saved on the server. Here, copy it below (it's already selected) or try the download.</p>
+  openModal({title:`Export: ${q.name}`,ok:"Done",body:`<p>${plural(r.rows.length,"row")} as CSV. In the live system this downloads straight to your computer; nothing is saved on the server. Here, copy it below (it's already selected) or try the download.</p>
    <textarea id="csvOut" readonly style="width:100%;height:220px;font:12px/1.4 monospace">${esc(csv)}</textarea>
-   <p style="margin-top:10px"><a class="btn small" id="csvDl" download="${esc(`query-${q.id}-${q.name.toLowerCase().replace(/[^a-z0-9]+/g,"-")}.csv`)}" href="data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+csv)}">Download CSV</a></p>`,onOk(){}});
+   <p style="margin-top:10px"><a class="btn small" id="csvDl" download="${esc(`${q.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")}-${selYear.replace(/[^0-9-]/g,"")}.csv`)}" href="data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+csv)}">Download CSV</a></p>`,onOk(){}});
   $("#modalOk").previousElementSibling.style.display="none";const t=$("#csvOut");t.focus();t.select();},
 
  /* ---- staff ---- */
@@ -2506,16 +2673,23 @@ const ACT={
  },
  ntTypeDelete(){
   if(!isOwner())return;const t=sel.nt,n=Object.values(YEARS).reduce((a,yd)=>a+yd.nt.filter(r=>r.cat===t).length,0);
-  if(n)return toast(`Can't delete ${t}`,`${plural(n,"role still uses","roles still use")} it. Move ${n===1?"it":"them"} to another role type first.`,true);
-  if(NT_CATS.length<=1)return toast("At least one role type is needed","",true);
+  // refused while any role, in any year, uses it (as the server, release 0.8.1 wording)
+  if(n)return toast(`Can't delete ${t}:`,`${plural(n,"role still uses","roles still use")} it (counting every academic year). Move ${n===1?"it":"them"} to another role type first.`,true);
+  if(NT_CATS.length<=1)return toast("At least one role type is needed.","",true);
   openModal({title:`Delete ${t}?`,ok:"Delete role type",danger:true,body:"<p>No roles use it, so nothing else changes.</p>",
    onOk(){NT_CATS=NT_CATS.filter(c=>c!==t);sel.nt=NT_CATS[0];toast("Role type deleted",t);}});
  },
  ntNew(){
   if(!isOwner())return;
-  openModal({title:"New non-teaching role",ok:"Create role",body:`<div class="form-grid"><label class="field wide">Role title<input id="nrT" placeholder="e.g. Admissions Tutor"></label>
-   <label class="field wide">Role type${selectH('id="nrC"',NT_CATS.map(c=>({v:c,l:c})),NT_CATS.includes(sel.nt)?sel.nt:NT_CATS[0])}</label></div>`,
+  // Release 0.8.1: every role must have a role type. The type being viewed is preselected; otherwise (All role types)
+  // "Choose a role type…" comes first and must be changed. With no role types at all, it asks for one first.
+  if(!NT_CATS.length){openModal({title:"New non-teaching role",ok:"",body:"<p>Every role belongs to a role type, and there are none yet. Add one with <b>New role type</b> first.</p>",onOk(){}});$("#modalOk").style.display="none";return;}
+  const viewing=NT_CATS.includes(sel.nt);
+  openModal({title:"New non-teaching role",ok:"Create role",body:`<div class="form-grid"><label class="field wide">Role title<input id="nrT" maxlength="200" required placeholder="e.g. Admissions Tutor"></label>
+   <label class="field wide">Role type${selectH('id="nrC" required',(viewing?[]:[{v:"",l:"Choose a role type…"}]).concat(NT_CATS.map(c=>({v:c,l:c}))),viewing?sel.nt:"")}</label></div>
+   <p class="hint">Every role belongs to a role type.</p>`,
    onOk(){const t=mval("nrT");if(!t)return "Give the role a title.";const cat=mval("nrC");
+    if(!NT_CATS.includes(cat))return `Choose a role type for ${t}: every non-teaching role must have one. Nothing was created.`;
     if(Y().nt.some(r=>r.cat===cat&&r.title.toLowerCase()===t.toLowerCase()))return "A role with that title already exists in this role type.";
     Y().nt.push({id:"nt"+Math.random().toString(36).slice(2,8),title:t,cat,people:[]});sel.nt=cat;toast("Role created",t);}});
  },
@@ -2588,7 +2762,7 @@ const ACT={
  dpMove(el){const f=DP.focus;DP.focus=new Date(Date.UTC(f.getUTCFullYear(),f.getUTCMonth()+(+el.dataset.d),1));dpDraw(false);},
  ttOutlook(){if(!["owner","head"].includes(me.role)||sel.staff!==me.id)return;ACT.exportIcs();},
  exportIcs(){
-  const yd=Y(),snap=yd&&yd.published&&yd.published[me.id];
+  const yd=Y(),snap=yd&&yd.published&&yearOpenTo()&&yd.published[me.id];
   if(!snap)return toast("Nothing to export yet","Your timetable for this year hasn't been published.",true);
   const p=P(me.id),{ics,events,skipped}=buildICS(snap.items,yd.semesterDates||{},`Timetable ${selYear} – ${p.forename} ${p.surname}`,`${me.id}-${selYear}`);
   const file=`Timetable-${selYear}-${p.forename}-${p.surname}.ics`.replace(/[^A-Za-z0-9.-]+/g,"-");
@@ -2601,28 +2775,32 @@ const ACT={
    <p class="hint">This is a snapshot: if your timetable changes and is republished, download it again and import the new file.</p>`:""}`,onOk(){}});
   $("#modalOk").previousElementSibling.style.display="none";
  },
- goYear(el){const y=el.dataset.year;guardNav(()=>{selYear=y;render(true);});},
- makeCurrent(){
-  const y=selYear,old=currentYearCode();
+ goYear(el){const y=el.dataset.year,t=el.dataset.tab;guardNav(()=>{selYear=y;if(t)tab=t;sel.createBack=null;render(true);});},
+ // y: the year from Academic years (data-year), otherwise the year on screen (the banner's button)
+ makeCurrent(el){
+  const y=el&&el.dataset&&el.dataset.year||selYear,old=currentYearCode();
   if(!canMakeCurrent(y))return toast("Not available","Only the Owner can do this, for the year straight after the current one.",true);
   openModal({title:`Make ${y} the current academic year?`,ok:`Make ${y} current`,body:`<p>Usually done when the new academic year starts, on or around 1 September.</p>
    <ul class="del-list"><li><b>${esc(y)}</b> becomes the <b>current</b> academic year.</li><li><b>${esc(old)}</b> becomes a <b>previous</b> year: kept for reference and read-only.</li>
+   ${!yearPublished(y)||!yearListed(y)?`<li><b>${esc(y)}</b> is also published and listed, so academic staff can choose it (the current year always is).</li>`:""}
    <li>Nothing is deleted, and published timetables stay as they are.</li></ul>`,
    onOk(){YEARS[old].status="archived";YEARS[y].status="current";
+    // release 0.8.1: the current year is always published and listed; what it was before is remembered for Undo
+    const was={p:YEARS[y].isPublished!==false,l:YEARS[y].isListed!==false}; // the stored values (it's already current here)YEARS[y].isPublished=true;YEARS[y].isListed=true;selYear=y;
     // remembered so the switch can be undone: which year was current before, and when this happened
-    YEARS[y].madeCurrent={from:old,at:stamp(),by:nameOf(me.id)};SKIP_STAGE=true;tidyYearOrder();
+    YEARS[y].madeCurrent={from:old,at:stamp(),by:nameOf(me.id),was};SKIP_STAGE=true;tidyYearOrder();
     toast(`${y} is now the current year`,`${old} is now a previous year (read-only). Done by mistake? Undo it from the notice on ${y}.`);}});
  },
  undoCurrent(){
   const y=currentYearCode(),cy=YEARS[y],mc=cy&&cy.madeCurrent;
   if(!isOwner()||!mc||!YEARS[mc.from]||YEARS[mc.from].status!=="archived")return toast("Nothing to undo","There's no switch-over to undo.",true);
   openModal({title:`Undo making ${y} the current year?`,ok:"Undo",body:`<ul class="del-list"><li><b>${esc(mc.from)}</b> becomes the <b>current</b> academic year again.</li>
-   <li><b>${esc(y)}</b> goes back to being the <b>next academic year</b>.</li><li>Nothing else changes: allocations, sessions and published timetables stay as they are.</li></ul>`,
-   onOk(){YEARS[mc.from].status="current";cy.status="planning";delete cy.madeCurrent;SKIP_STAGE=true;tidyYearOrder();
+   <li><b>${esc(y)}</b> goes back to being the <b>next academic year</b>.</li>${mc.was&&(!mc.was.p||!mc.was.l)?`<li><b>${esc(y)}</b> is ${[!mc.was.p?"unpublished":"",!mc.was.l?"unlisted":""].filter(Boolean).join(" and ")} again, as it was before.</li>`:""}<li>Nothing else changes: allocations, sessions and published timetables stay as they are.</li></ul>`,
+   onOk(){YEARS[mc.from].status="current";cy.status="planning";if(mc.was){cy.isPublished=mc.was.p;cy.isListed=mc.was.l;}delete cy.madeCurrent;SKIP_STAGE=true;tidyYearOrder();
     toast("Switch-over undone",`${mc.from} is the current year again, and ${y} is the next academic year.`);}});
  },
- deleteYear(){
-  const y=selYear,yd=YEARS[y];
+ deleteYear(el){
+  const y=el&&el.dataset&&el.dataset.year||selYear,yd=YEARS[y];
   if(!canDeleteYear(y))return toast("This year can't be deleted","Only the Owner can delete a year, and only the latest one that is still being planned. The current year and previous years can never be deleted.",true);
   const occ=yd.modules.reduce((a,m)=>a+m.occs.length,0);
   const alloc=yd.modules.reduce((a,m)=>a+m.occs.reduce((b,o)=>b+Object.values(o.slots).reduce((c,s)=>c+Object.keys(s.alloc).length,0),0),0)+yd.nt.reduce((a,r)=>a+r.people.length,0);
@@ -2636,8 +2814,9 @@ const ACT={
    <p>People, departments, courses and every other year are not affected. You can create ${esc(y)} again afterwards as a fresh copy of ${esc(back)}.</p>
    <label class="field">Type ${esc(y)} to confirm<input id="delYearTxt" autocomplete="off" placeholder="${esc(y)}"></label>`,
    onOk(){if(mval("delYearTxt")!==y)return `Type ${y} exactly to confirm.`;
-    delete YEARS[y];tidyYearOrder();DRAFT=null;SKIP_STAGE=true;selYear=currentYearCode();tab=homeTab("owner");
-    toast(`${y} deleted`,`You're back in ${selYear}. ${y} can be created again from the year selector.`);}});
+    // from Academic years: back there (release 0.8.1); the year on screen changes only if it was the one deleted
+    delete YEARS[y];tidyYearOrder();DRAFT=null;SKIP_STAGE=true;if(!YEARS[selYear])selYear=currentYearCode();if(tab!=="years")tab=homeTab("owner");
+    toast(`${y} deleted`,`You're back in ${selYear}. ${y} can be created again from the year selector or Academic years.`);}});
  },
  createYear(el){if(!isOwner())return;if(selYear!==nextYearCode(latestYear()))return toast("Create years in order",`The next year to create is ${nextYearCode(latestYear())}.`,true);SKIP_STAGE=true;const src=el.dataset.src,from=YEARS[src];
   if(!from||src!==latestYear())return toast("Nothing was created",`The years changed after this page opened. Choose ${selYear} from the year menu again.`,true);
@@ -2645,19 +2824,67 @@ const ACT={
   const asked=[...document.querySelectorAll('#copyList input[name="copy"]:checked')].map(i=>i.value),plan=yearCopyPlan(asked),has=k=>plan.copy.includes(k);
   const not=YEAR_COPY_PARTS.map(p=>p.k).filter(k=>!has(k)),cp=v=>JSON.parse(JSON.stringify(v));
   // overrides on the Overview are decisions about one year only, so a new year never gets them; nothing is published
-  const yd={status:"planning",copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,staff:{},modules:[],nt:[],sessions:{},semesterDates:{}};
+  const yd={status:"planning",isPublished:false,isListed:true,copiedFrom:src,changes:[],published:{},lastPublished:{},overrides:{},cis:null,staff:{},modules:[],nt:[],sessions:{},semesterDates:{}};
   if(has("staff"))yd.staff=cp(from.staff); // main and extra groups, contract, FTE, target (and room, phone, published name)
   if(has("modules"))yd.modules=from.modules.map(m=>({...cp(m),occs:m.occs.map(o=>{const n=cp(o);
    if(!has("courses"))n.courses=[];
    CATS.forEach(c=>{const sl=n.slots[c.id]||(n.slots[c.id]={total:0,alloc:{},notes:{}});if(!has("budgets"))sl.total=0;if(!has("alloc")){sl.alloc={};sl.notes={};}});return n;})}));
   if(has("sessions"))yd.modules.forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const k=skey(m.code,o.occ,c.id);if((from.sessions[k]||[]).length)yd.sessions[k]=cp(from.sessions[k]);})));
-  if(has("roles"))yd.nt=from.nt.map(r=>({...cp(r),people:has("ntalloc")?cp(r.people):[]}));
+  // every role must have a role type (0.8.1): one left untyped from before goes under "Unassigned" (added last if needed)
+  if(has("roles"))yd.nt=from.nt.map(r=>{const c={...cp(r),people:has("ntalloc")?cp(r.people):[]};if(!c.cat){if(!NT_CATS.includes(UNASSIGNED_TYPE))NT_CATS.push(UNASSIGNED_TYPE);c.cat=UNASSIGNED_TYPE;}return c;});
   // semester dates and weeks off moved forward 52 weeks (364 days), so they keep their weekday
   if(has("semdates"))yd.semesterDates=shiftSemesterDates(from.semesterDates||{},364);
-  YEARS[selYear]=yd;tidyYearOrder();tab="overview";
+  // back to Academic years when created from there (release 0.8.1), otherwise Overview
+  YEARS[selYear]=yd;tidyYearOrder();tab=sel.createBack==="years"?"years":"overview";sel.createBack=null;
   let msg=`${selYear} was created from ${src}. ${plan.copy.length?`Copied: ${copyPartList(plan.copy)}.`:"Nothing was copied."}${not.length?` Starting empty: ${copyPartList(not)}.`:""}`;
   Object.entries(plan.skipped).forEach(([k,miss])=>{msg+=` ${copyPart(k).label} weren't copied because they need ${copyPartList(miss,true)}, which weren't copied.`;});
-  toast(`${selYear} created`,msg+" It stays unpublished until you publish it.");render(true);}
+  toast(`${selYear} created`,msg+" It stays unpublished until you publish it on Academic years.");render(true);},
+
+ /* ---- Academic years (release 0.8.1, Owner) ---- */
+ // Manage box for a year (also from a banner's "Manage 2027-28" link, which opens Academic years first)
+ manageYear(el){const y=el.dataset.year;if(!isOwner()||!YEARS[y])return;if(tab!=="years"){tab="years";sel.createBack=null;render(true);}
+  openModal({title:`Manage ${y}`,ok:"",body:yearManageHTML(y),onOk(){}});$("#modalOk").style.display="none";},
+ // Open: switch the year being looked at (any year, unlisted too) and go to Overview
+ openYear(el){const y=el.dataset.year;if(!YEARS[y])return;closeModal();selYear=y;tab="overview";sel.createBack=null;render(true);},
+ // Create on the "Not created" row: the usual create card, which returns to Academic years
+ createFromYears(el){if(!isOwner())return;selYear=el.dataset.year;tab="years";sel.createBack="years";render(true);},
+ // Overview's "Choose role type": Non-teaching roles in that year
+ fixRoleType(el){selYear=el.dataset.year;tab="nt";sel.createBack=null;render(true);},
+ // Publish / Unpublish, List / Unlist, Archive / Unarchive (year_flag_post()), plus Make current, Undo make current and
+ // Delete from the Manage box. Refused with the reason when not possible; Publish, Unpublish and Archive ask first;
+ // each change says what happened with an Undo button (the opposite action, already confirmed).
+ yearAct(el){
+  const y=el.dataset.year,op=el.dataset.op,yd=YEARS[y];if(!isOwner()||!yd)return;
+  // stale button (the year changed after it was drawn): nothing is done
+  if(el.dataset.ver&&el.dataset.ver!==yearVer(y)){closeModal();render();return toast(`Nothing was changed: ${y} was changed (perhaps in another tab) after this page opened. Check it below, then try again.`,"",true);}
+  if(op==="make_current")return ACT.makeCurrent(el);
+  if(op==="undo_current")return ACT.undoCurrent(el);
+  if(op==="delete_year")return ACT.deleteYear(el);
+  const pub=yearPublished(y),lis=yearListed(y),c=esc(y),cur=esc(YEAR_ORDER.find(k=>YEARS[k]&&YEARS[k].status==="current")||"the current year");
+  const acts={
+   publish_year:{no:pub?`${y} is already published.`:null,
+    ask:[`Publish ${y}?`,`<ul class="del-list"><li>Academic staff can choose <b>${c}</b>${lis?" in the year menu":" once it's listed (it isn't in the year menu yet)"}.</li><li>Within it they see only what has been published: each department's timetables on Publish, and the Course Information Site once it is updated.</li><li>You can unpublish it again on Academic years.</li></ul>`,`Publish ${y}`],
+    run(){yd.isPublished=true;},ok:`${y} is published: academic staff can now choose it${lis?" in the year menu":" once it's listed"}.`,undo:"unpublish_year"},
+   unpublish_year:{no:yd.status==="current"?"The current year must stay published.":!pub?`${y} isn't published.`:null,
+    ask:[`Unpublish ${y}?`,`<ul class="del-list"><li>Academic staff can no longer choose <b>${c}</b>; anyone looking at it goes back to ${cur}.</li><li>My timetable, the Course Information Site and Add to Outlook show nothing for ${c} to them.</li><li>The Owner, Heads and PAS Admin keep working on it. Nothing is deleted, and what departments have published is kept for when you publish it again.</li></ul>`,`Unpublish ${y}`],
+    run(){yd.isPublished=false;},ok:`${y} is unpublished: academic staff can't see it.`,undo:"publish_year"},
+   list_year:{no:lis?`${y} is already listed.`:null,ask:null,
+    run(){yd.isListed=true;},ok:`${y} is listed: it is in the year menu${pub?"":" for the Owner, Heads and PAS Admin (academic staff also need it published)"}.`,undo:"unlist_year"},
+   unlist_year:{no:yd.status==="current"?"The current year must stay listed.":!lis?`${y} isn't listed.`:null,ask:null,
+    run(){yd.isListed=false;},ok:`${y} is unlisted: it isn't in the year menu. You can still open it from Academic years.`,undo:"list_year"},
+   archive_year:{no:canArchiveYear(y)?null:yd.status==="archived"?`${y} is already archived.`:yd.status==="current"?"The current year can't be archived. Making the next year current archives it.":"Only years before the current year can be archived.",
+    ask:[`Archive ${y}?`,`<ul class="del-list"><li><b>${c}</b> becomes a <b>previous</b> year again: read-only for everyone, including you.</li><li>Whether it is published and listed doesn't change.</li><li>You can unarchive it again on Academic years.</li></ul>`,`Archive ${y}`],
+    run(){yd.status="archived";},ok:`${y} is archived: read-only for everyone.`,undo:"unarchive_year"},
+   unarchive_year:{no:canUnarchiveYear(y)?null:`${y} isn't archived.`,ask:null,
+    run(){yd.status="planning";},ok:`${y} is unarchived: it can be changed again (it stays a previous year, and never becomes current this way). Archive it again when the corrections are done.`,undo:"archive_year"}};
+  const a=acts[op];if(!a)return;
+  if(a.no){closeModal();render();return toast(a.no,"",true);}
+  // the change (allowed whatever year is on screen, even a read-only one), then the message with Undo
+  // (from a confirmation, modalOk runs it as a staged change: SKIP_STAGE lets it through in a read-only year)
+  const apply=inModal=>{a.run();if(inModal)SKIP_STAGE=true;toast(a.ok,"",false,yearActBtn(a.undo,y,"Undo","btn small",' data-confirmed="1"'));};
+  if(a.ask&&!el.dataset.confirmed)return openModal({title:a.ask[0],ok:a.ask[2],danger:op==="unpublish_year",body:a.ask[1],onOk(){apply(true);}});
+  closeModal();apply();render();
+ }
 };
 function delOccs(m,occs){
  if(!occs.length)return;
@@ -2678,7 +2905,10 @@ function sessTouch(key,what){
 }
 
 const CHG={
- year(el){selYear=el.value;render(true);},
+ // Release 0.8.1: "Manage years…" (Owner) opens Academic years; a year this person may not see isn't opened
+ year(el){if(el.value==="manage"){if(isOwner()){tab="years";sel.createBack=null;}return render(true);}
+  if(YEARS[el.value]&&!yearVisible(el.value)){toast(`${el.value} isn't available yet.`,"",true);return render();}
+  selYear=el.value;sel.createBack=null;render(true);},
  selGroup(el){sel.group=el.value;render();},
  selModule(el){sel.module=el.value;render();},
  pickModule(el){const m=findModule(el.value);
@@ -2695,6 +2925,7 @@ const CHG={
   $("#abF").value=r.fte??1;$("#abT").value=r.target??0;$("#abP").value=r.publish===false?"0":"1";
   $("#abFrom").textContent=(lr?`Filled in from their ${lr.year} record. `:"")+"Allocations aren't restored: add them on Module allocation and Non-teaching roles.";},
  staffKind(el){sel.staffKind=el.value;render();},
+ targetShow(el){sel.targetShow=el.value;render();},
  selCtYear(el){sel.ctYear=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
@@ -2868,7 +3099,7 @@ document.addEventListener("focusout",e=>{if(COMBO.el&&e.target===COMBO.el)comboC
 window.addEventListener("resize",()=>{if(COMBO.el)comboPlace();});
 document.addEventListener("scroll",()=>{if(COMBO.el)comboPlace();},true);
 
-const NAV_ACTS=["go","goto","ttOutlook","signOut","allocFrom","ntFrom","goBack"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
+const NAV_ACTS=["go","goto","ttOutlook","signOut","allocFrom","ntFrom","goBack","manageYear","openYear","createFromYears","fixRoleType","yearAct"],UNSTAGED_ACTS=["saveDraft","discardDraft","discardAndGo","modalOk","modalClose","theme","resetDemo","signIn"];
 document.addEventListener("click",e=>{const el=e.target.closest("[data-act]");if(!el||el.disabled)return;
  if(el.tagName==="TR"&&e.target.closest("input,select,textarea"))return;const a=el.dataset.act,f=ACT[a];if(!f)return;e.preventDefault();
  if(NAV_ACTS.includes(a))return guardNav(()=>f(el,e));
@@ -3016,12 +3247,12 @@ function buildFromLegacy(T,dbName){
  if(!cats.some(c=>c.id==="MO")){cats.push({id:"MO",label:"Moderation"});warn("nomo","No Moderation category was found in time_slot, so one was added (moderators come from each occurrence's moderator_id)");}
  // role types in their display order (as in the old Non Teaching Roles drop-down); codes matched case-insensitively
  const allRoleTypes=rows("role_type").slice().sort((a,b)=>num(a.display_order)-num(b.display_order)||str(a.type_code).localeCompare(str(b.type_code)));
- // display_order 0 / empty: a total line for the Activity breakdown report, not a role type
- const roleTypes=allRoleTypes.filter(r=>num(r.display_order)>0);
- const reportTotals=allRoleTypes.filter(r=>!(num(r.display_order)>0)).sort((a,b)=>num(a.report_order)-num(b.report_order))
-  .map(r=>{const label=str(r.type_description)||str(r.type_code);return {label,kind:totalKind(label)};});
- reportTotals.filter(t=>t.kind==="other").forEach(t=>{warn("tot","role types with no display order aren't recognisable totals (their name should include \"Management\" or \"Non-Management\") and show as blank on the Activity breakdown");eg("tot",t.label);});
- const roleType={};roleTypes.forEach(r=>roleType[str(r.type_code).toUpperCase()]=str(r.type_description)||str(r.type_code));
+ // display_order 0 / empty: in the old system, a total line for the Activity breakdown report (e.g. "Total
+ // Management"), not a role type. Since 0.8.1 those lines are left out (the report adds up its own Total), unless a
+ // non-teaching role actually uses the row: then it is a real role type and is kept, after the ordered ones (below).
+ const orderedTypes=allRoleTypes.filter(r=>num(r.display_order)>0),unorderedTypes=allRoleTypes.filter(r=>!(num(r.display_order)>0));
+ // Lookups: role type code (upper case) -> description (every role_type row); activity number -> its role type code.
+ const roleType={};[...unorderedTypes,...orderedTypes].forEach(r=>roleType[str(r.type_code).toUpperCase()]=str(r.type_description)||str(r.type_code));
  const actType={};rows("activity").forEach(a=>actType[str(a.activity_no)]=str(a.type_code).toUpperCase());
  const blankSlots=()=>{const o={};cats.forEach(c=>o[c.id]={total:0,alloc:{},notes:{}});return o;};
 
@@ -3056,12 +3287,18 @@ function buildFromLegacy(T,dbName){
 
  // non-teaching roles
  const nt=[],ntBy={};
+ // A role without a matching role type is imported under the role type "Unassigned" (every role must have one).
  rows("non_teaching_role").forEach(r=>{const no=str(r.activity_no);const cat=roleType[actType[no]]||"";
-  if(!cat){warn("ntnotype","non-teaching roles have no matching role type; choose one for each on Non-teaching roles");eg("ntnotype",str(r.role_title)||no);}
+  if(!cat){warn("ntnotype",`non-teaching roles have no matching role type, so they will be put under the role type "${UNASSIGNED_TYPE}"; move each one to the right role type on Non-teaching roles after the import`);eg("ntnotype",str(r.role_title)||no);}
   const role={id:"nt"+no,title:str(r.role_title)||`Role ${no}`,cat,people:[]};nt.push(role);ntBy[no]=role;});
  counts.nonTeachingRoles=nt.length;
- // role types for non-teaching roles: every role_type row, except ones used only by teaching activities
+ // role types for non-teaching roles: every role_type row with a display order (in that order), then any row without
+ // one that a non-teaching role uses; except types used only by teaching activities. Rows without a display order
+ // that no role uses were old report total lines: left out, and listed in the report.
  const teachTypes=new Set(Object.keys(trBy).map(no=>actType[no]).filter(Boolean)),ntUsed=new Set(nt.map(r=>r.cat));
+ const typeDesc=r=>roleType[str(r.type_code).toUpperCase()];
+ const roleTypes=orderedTypes.concat(unorderedTypes.filter(r=>ntUsed.has(typeDesc(r))));
+ unorderedTypes.filter(r=>!ntUsed.has(typeDesc(r))).forEach(r=>{warn("tot","old report total lines (role types with no display order that no role uses) were left out: the Activity breakdown now adds up its own Total");eg("tot",typeDesc(r));});
  let ntCats=roleTypes.filter(r=>!(teachTypes.has(str(r.type_code).toUpperCase())&&!ntUsed.has(roleType[str(r.type_code).toUpperCase()]))).map(r=>roleType[str(r.type_code).toUpperCase()]);
  ntCats=[...new Set(ntCats)];
  if(!roleTypes.length){warn("norole","The role_type table wasn't in the export, so the standard role types were used");ntCats=DEFAULT_NT_CATS.slice();}
@@ -3127,31 +3364,36 @@ function buildFromLegacy(T,dbName){
  const deptLeader=(groups.find(g=>g.dept&&staff[g.leader])||{}).leader;
  const teacher=byName.find(p=>modules.some(m=>m.occs.some(o=>cats.some(c=>c.tt&&p.id in o.slots[c.id].alloc))));
  const first=(byName[0]||{}).id;
- return {year,statusInfo,cats,groups,people,courses,ntCats,reportTotals:allRoleTypes.length?reportTotals:DEFAULT_REPORT_TOTALS.map(t=>({...t})),statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
+ // (no report totals since 0.8.1)
+ return {year,statusInfo,cats,groups,people,courses,ntCats,statuses:statuses.length?statuses:[...new Set(Object.values(staff).map(s=>s.status))],
   yearData:{status:"current",staff,modules,sessions,nt,changes:[],published:{},lastPublished:{},overrides:{}},
   counts,warnings:Object.values(warns),defaults:{owner:first,head:deptLeader||first,pas:first,staff:(teacher||{}).id||first}};
 }
 
 function applyImport(res,db,tablesFound){
- CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();REPORT_TOTALS=res.reportTotals;STATUS_INFO=res.statusInfo&&Object.keys(res.statusInfo).length?res.statusInfo:DEFAULT_STATUS_INFO();STATUSES=res.statuses.length?res.statuses:Object.keys(STATUS_INFO);
+ CATS=res.cats;GROUPS=res.groups;PEOPLE=res.people;COURSES=res.courses;NT_CATS=res.ntCats.length?res.ntCats:DEFAULT_NT_CATS.slice();STATUS_INFO=res.statusInfo&&Object.keys(res.statusInfo).length?res.statusInfo:DEFAULT_STATUS_INFO();STATUSES=res.statuses.length?res.statuses:Object.keys(STATUS_INFO);
  YEARS={[res.year]:res.yearData};
+ // Every non-teaching role must have a role type (release 0.8.1, import_store()): one that arrives without a type, or
+ // with a type that isn't in the import, goes under "Unassigned" (added last when first needed) and is listed in the report.
+ const unassigned=[];
+ res.yearData.nt.forEach(r=>{if(!NT_CATS.includes(r.cat)){if(!NT_CATS.includes(UNASSIGNED_TYPE))NT_CATS.push(UNASSIGNED_TYPE);r.cat=UNASSIGNED_TYPE;unassigned.push(r.title);}});
  const ym=/^(\d{4})-/.exec(res.year);YEAR_ORDER=ym?[res.year,`${+ym[1]+1}-${String(+ym[1]+2).slice(2)}`]:[res.year];
  selYear=res.year;
  const yd=YEARS[res.year],when=stamp();
  GROUPS.forEach(g=>{Object.keys(yd.staff).filter(id=>yd.staff[id].group===g.id).forEach(id=>yd.published[id]=snapshot(id,yd,when));yd.lastPublished[g.id]=when;});
  yd.cis=buildCIS(yd,when);
  // As at launch: the imported year is the current year (editable); the next year is created from it, ready to resource.
- yd.status="current";
+ yd.status="current";yd.isPublished=true;yd.isListed=true; // the current year is published and listed
  if(ym){const nxt=YEAR_ORDER[1];YEARS[nxt]=nextYearFrom(yd,res.year);tidyYearOrder();}
  Object.assign(sel,{module:(yd.modules[0]||{}).code||"",group:(GROUPS.find(g=>g.dept)||GROUPS[0]||{}).id,staff:res.defaults.staff,course:(COURSES[0]||{}).code||"",nt:NT_CATS[0],ntMode:"summary",query:null,staffMode:"list"});
- IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound};
+ IMPORT={db:db||"database export",year:res.year,at:when,counts:res.counts,warnings:res.warnings,defaults:res.defaults,tables:tablesFound,unassigned};
 }
 
 function importReportHTML(){
  const c=IMPORT.counts,rows=[["Staff",c.staff],["Modules",c.modules],["Occurrences",c.occurrences],["Category budget lines",c.teachingRoles],["Non-teaching roles",c.nonTeachingRoles],
   ["Additional group memberships",c.additionalMemberships||0],["Credit allocations",c.allocations],["Courses",c.courses],["Course links",c.courseLinks],["Timetabled sessions",c.sessions]];
  const nxt=YEAR_ORDER.find(y=>YEARS[y]&&YEARS[y].status==="planning");
- return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.${nxt?` As at launch, ${esc(IMPORT.year)} is the current year and can still be changed, and <b>${esc(nxt)}</b> has been created from it, ready to resource.`:""}</p>
+ return `<p>Read from <b>${esc(IMPORT.db)}</b> as academic year <b>${esc(IMPORT.year)}</b>, ${esc(IMPORT.at)}.${nxt?` As at launch, ${esc(IMPORT.year)} is the current year and can still be changed, and <b>${esc(nxt)}</b> has been created from it, ready to resource.`:""}${(()=>{const u=IMPORT.unassigned||[],n=u.length;return n?` ${n} non-teaching ${n===1?"role had":"roles had"} no role type, so ${n===1?"it was":"they were"} put under the role type ${UNASSIGNED_TYPE}: ${esc(u.slice(0,20).join("; "))}${n>20?` and ${n-20} more`:""}. Move ${n===1?"it":"each one"} to the right role type on Non-teaching roles.`:"";})()}</p>
   <div class="table-wrap"><table><tbody>${rows.map(([l,n])=>`<tr><td>${l}</td><td class="r"><b>${n}</b></td></tr>`).join("")}</tbody></table></div>
   <h3 style="margin:16px 0 6px">Credit categories found</h3><p>${CATS.map(x=>`${esc(x.label)}${x.legacy?` (${esc(x.legacy)})`:""}${x.tt?", timetabled":""}`).join("; ")}</p>
   <h3 style="margin:16px 0 6px">${IMPORT.warnings.length?"Things to check":"No problems found"}</h3>
@@ -3159,7 +3401,7 @@ function importReportHTML(){
   <p style="margin-top:12px">These are the same checks the real migration will make. Anything listed here is worth tidying in the current system first, or deciding how the new one should treat it.</p>`;
 }
 ACT.importReport=()=>{if(!IMPORT)return;openModal({title:"Import report",body:importReportHTML(),ok:"Close",onOk(){}});$("#modalOk").previousElementSibling.style.display="none";};
-const _close=closeModal;closeModal=function(){const c=$("#modalOk").previousElementSibling;if(c)c.style.display="";_close();};
+const _close=closeModal;closeModal=function(){const c=$("#modalOk").previousElementSibling;if(c)c.style.display="";$("#modalOk").style.display="";_close();};
 
 document.getElementById("importFile").addEventListener("change",e=>{
  const f=e.target.files&&e.target.files[0];if(!f)return;
