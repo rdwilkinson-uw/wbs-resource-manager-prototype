@@ -1883,7 +1883,9 @@ const REPORTS=[["activity","Activity breakdown"],["target","Staff against target
 VIEWS.reports=()=>{
  let h=pageHead("Analysis","Reports and queries","Fixed reports and saved, read-only queries for this year. Nothing here can change data, nobody can type SQL, and exports go to your own computer.");
  const menu=`<nav class="card report-menu" aria-label="Reports and queries"><div class="menu-label">Reports</div>${REPORTS.map(([k,l])=>`<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${l}</button>`).join("")}
-  <div class="menu-label">Saved queries</div>${QUERIES.map(q=>{const k="q:"+q.id;return `<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${esc(q.name)}</button>`;}).join("")}</nav>`;
+  <div class="menu-label">Saved queries</div>${QUERIES.filter(q=>!q.check).map(q=>{const k="q:"+q.id;return `<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${esc(q.name)}</button>`;}).join("")}
+  <div class="menu-label">Data checks</div>${QUERIES.filter(q=>q.check).map(q=>{const k="q:"+q.id;return `<button class="${sel.report===k?"active":""}" data-act="report" data-v="${k}"${sel.report===k?' aria-current="page"':""}>${esc(q.name)}</button>`;}).join("")}</nav>`;
+ if(sel.report==="q:08")sel.report="q:c1"; // the old single Data checks query opens the first check
  if(String(sel.report).startsWith("q:")){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(q)return h+`<div class="report-grid">${menu}${queryPane(q)}</div>`;sel.report="activity";}
  let body="";
  if(sel.report==="activity"){
@@ -1957,14 +1959,17 @@ const QUERIES=[
   run:()=>({cols:["Module","Title","Occ.","Credits","Taught in","Leader","Moderator"],num:[3],
    rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.map(o=>[m.code,m.title,o.occ,m.credit,semestersOf(m,o)||"(not timetabled)",
     Object.keys(o.slots.ML.alloc).map(nameOf).join(", ")||"(none)",Object.keys(o.slots.MO.alloc).map(nameOf).join(", ")||"(none)"]))})},
- {id:"08",name:"Data checks",desc:"Things worth tidying: roles nobody holds, staff without an email, occurrences with no budget, modules with no occurrence, courses with no modules (replaces \"Non w/o acty\").",
-  run:()=>{const r=[];
-   Y().nt.forEach(x=>{if(!x.people.length)r.push(["Role nobody holds",x.title,x.cat||"(no role type)"]);if(!NT_CATS.includes(x.cat))r.push(["Role without a role type",x.title,""]);});
-   inYear().forEach(x=>{if(!x.email)r.push(["Staff without an email (can't sign in)",nameOf(x.id),(SY(x.id)||{}).group||""]);});
-   Y().modules.forEach(m=>{if(!m.occs.length)r.push(["Module with no occurrence",`${m.code} ${m.title}`,m.dept]);
-    m.occs.forEach(o=>{if(!CATS.some(k=>o.slots[k.id].total))r.push(["Occurrence with no budget",`${m.code}-${o.occ} ${m.title}`,m.dept]);});});
-   COURSES.forEach(c=>{if(!Y().modules.some(m=>m.occs.some(o=>o.courses.includes(c.code))))r.push(["Course with no modules",c.title,c.dept]);});
-   return {cols:["Check","Item","Detail"],rows:r};}},
+ // Data checks (0.8.2): each its own page under "Data checks" in the menu (check:true), replacing the single "Data checks" query
+ {id:"c1",check:true,name:"Roles nobody holds",desc:"Non-teaching roles this year with nobody holding them, with their role type.",
+  run:()=>({cols:["Role","Role type"],rows:Y().nt.filter(x=>!x.people.length).map(x=>[x.title,x.cat||"(no role type)"])})},
+ {id:"c2",check:true,name:"Staff without an email",desc:"Staff this year with no email address: they can't be sent a sign-in link, so they can't sign in.",
+  run:()=>({cols:["Staff","Main group"],rows:inYear().slice().sort(byStaffId).filter(x=>!x.email).map(x=>[nameOf(x.id),(SY(x.id)||{}).group||""])})},
+ {id:"c3",check:true,name:"Modules with no occurrence",desc:"Modules this year that have no occurrence, so nothing can be budgeted, allocated or timetabled on them.",
+  run:()=>({cols:["Module","Title","Department"],rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).filter(m=>!m.occs.length).map(m=>[m.code,m.title,m.dept])})},
+ {id:"c4",check:true,name:"Occurrences with no budget",desc:"Module occurrences this year with no credits budgeted in any time slot.",
+  run:()=>({cols:["Module","Occ.","Title","Department"],rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.filter(o=>!CATS.some(k=>o.slots[k.id].total)).map(o=>[m.code,o.occ,m.title,m.dept]))})},
+ {id:"c5",check:true,name:"Courses with no modules",desc:"Courses (in Course details order) that no module occurrence this year is linked to.",
+  run:()=>({cols:["Course","Department"],rows:COURSES.filter(c=>!Y().modules.some(m=>m.occs.some(o=>o.courses.includes(c.code)))).map(c=>[c.title,c.dept])})},
  {id:"09",name:"Role holders by title",desc:"Everyone in non-teaching roles whose title contains what you type, for example Personal Academic Tutor (replaces \"List of PAT\").",
   params:[{id:"text",label:"Role title contains",type:"text",def:"Personal Academic Tutor",check:v=>v.trim().length>0&&v.length<=60||"Type 1 to 60 characters."}],
   run:p=>({cols:["Role","Staff","Main group","Credits","Comments"],num:[3],rows:ntHolders(r=>r.title.toLowerCase().includes(p.text.trim().toLowerCase()))})},
