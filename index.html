@@ -660,7 +660,6 @@ const staffKindNote=()=>({perm:"permanent staff only",assoc:`${alCode()}s only`}
 // report adds up its own Total.) Every non-teaching role must have a role type; the import puts a role that arrives
 // without one under UNASSIGNED_TYPE (RM_UNASSIGNED_TYPE on the server).
 const UNASSIGNED_TYPE="Unassigned";
-const isMgmtType=cat=>/^\s*management\b/i.test(String(cat||""));
 // Role types for non-teaching roles, in the order of the old role_type table.
 const DEFAULT_NT_CATS=["Management - General","Management - Programmes","Management - Recruitment & International","Management - Learning & Teaching",
  "Management - Research","Management - External Engagement","Programmes","Learning & Teaching","Research","External Engagement"];
@@ -1234,6 +1233,7 @@ function renderNow(anim){
  renderTop();
  let html;
  $("#app").classList.remove("solo");
+ if(tab==="reports")movedQuery(); // an old key of a query removed in 0.8.3 opens the screen that replaced it
  if(!canOpen(tab))tab=homeTab();
  renderNav();
  html=Y()||me.role==="staff"?VIEWS[tab]():viewNoYear();
@@ -1642,23 +1642,34 @@ VIEWS.nt=()=>{
  const allOpt=[{v:"__all",l:`All role types (${yd.nt.filter(r=>NT_CATS.includes(r.cat)).length})`}];
  const rest=withRoles.filter(c=>c!==sel.nt).map(c=>({v:c,l:`${c} (${count(c)})`}));
  const typeOpts=!sel.nt?[{v:"",l:"Choose a role type…"}].concat(allOpt,rest):sel.nt==="__all"?allOpt.concat(rest):[{v:sel.nt,l:`${sel.nt} (${count(sel.nt)})`}].concat(allOpt,rest);
- h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${mode==="edit"&&owner&&sel.nt!=="__all"?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
+ // Summary (release 0.8.3, as on the server): the "Role title contains…" search with Search, Clear search while a
+ // search is on, and Export CSV for what the Summary shows (a role type chosen, the search usable, at least one row)
+ const s=ntSearch(),csvRows=ntCsvRows(ntSummaryData(ntSummaryCats(),s.q)).rows;
+ const find=mode!=="summary"?"":`<label class="field grow">Role title contains<input id="ntQ" value="${esc(s.box)}" maxlength="60" autocomplete="off" placeholder="e.g. tutor" data-chg="ntQ"></label><button class="btn" data-act="ntSearch">Search</button>`
+  +(s.q||s.err?`<button class="btn" data-act="ntSearchClear">Clear search</button>`:"")+(sel.nt&&!s.err&&csvRows.length?`<button class="btn primary" data-act="ntExport">Export CSV</button>`:"");
+ h+=`<div class="filterbar"><label class="field grow">Role type${selectH('data-chg="selNt"',typeOpts,sel.nt)}</label>${find}${mode==="edit"&&owner&&sel.nt!=="__all"?`<button class="btn small" data-act="ntTypeRename">Rename type</button><button class="btn small danger" data-act="ntTypeDelete">Delete type</button>`:""}${segmented("ntMode",mode,[["summary","Summary"],["edit","Edit roles"]])}</div>`;
  if(!sel.nt)return h+choosePrompt("a role type","Pick a role type above, or All role types, to see its roles.");
 
  if(mode==="summary"){
-  const cats=sel.nt==="__all"?NT_CATS.filter(c=>count(c)):[sel.nt];
+  // a search that can't be used: say why instead of showing roles
+  if(s.err)return h+notice("!","Check the search",esc(s.err),"amber");
+  // the cards follow ntSummaryData() (as the CSV): with a search only the matching roles, and with All role types
+  // only the types that have one
+  let data=ntSummaryData(ntSummaryCats(),s.q);if(s.q&&sel.nt==="__all")data=data.filter(d=>d.roles.length);
   let grand=0;
-  const cards=cats.map(cat=>{
-   const roles=yd.nt.filter(r=>r.cat===cat).sort(byTitle),tot=roles.reduce((a,r)=>a+r.people.reduce((x,p)=>x+p.cr,0),0);grand+=tot;
-   const body=roles.map(r=>{const ps=[...r.people].sort((a,b)=>a.s.localeCompare(b.s,"en",{numeric:true})),rt=ps.reduce((a,p)=>a+p.cr,0);
+  const cards=data.map(({cat,roles})=>{
+   const tot=roles.reduce((a,r)=>a+r.people.reduce((x,p)=>x+p.cr,0),0);grand+=tot;
+   if(s.q&&!roles.length)return ""; // nothing in this one type matches: "No roles match" below
+   const body=roles.map(r=>{const ps=r.ps,rt=ps.reduce((a,p)=>a+p.cr,0);
     const roleCell=`<td rowspan="${Math.max(1,ps.length)}" class="role-cell"><span class="name-cell">${esc(r.title)}</span>${ps.length>1?`<span class="sub">${ps.length} people, ${rt} credits</span>`:""}</td>`;
     if(!ps.length)return `<tr>${roleCell}<td colspan="4" class="muted">No one holds this role yet.</td></tr>`;
     return ps.map((p,i)=>`<tr>${i===0?roleCell:""}<td>${esc(nameOf(p.s))}${isOwner()&&p.addedBy?`<span class="sub">${esc(addedByText(p))}</span>`:""}</td><td>${esc((SY(p.s)||{}).group||"—")}</td><td class="r"><b>${p.cr}</b></td><td>${esc(p.note)}</td></tr>`).join("");}).join("");
    return `<article class="card"><div class="card-head"><div class="left"><h2>${esc(cat)}</h2><span class="tag gray">${plural(roles.length,"role")}</span><span class="tag">${tot} credits</span></div></div>
     ${roles.length?`<div class="table-wrap"><table class="nt-summary"><thead><tr><th style="width:32%">Role</th><th style="width:24%">Staff member</th><th style="width:10%">Group</th><th class="r" style="width:8%">Credits</th><th style="width:26%">Comments</th></tr></thead><tbody>${body}
     <tr class="sum"><td colspan="3">Total for ${esc(cat)}</td><td class="r">${tot}</td><td></td></tr></tbody></table></div>`:empty("No roles of this type yet","Add one from Edit roles.")}</article>`;}).join("");
-  return h+(cards||`<article class="card">${empty("No non-teaching roles yet","Add one from Edit roles.")}</article>`)
-   +(sel.nt==="__all"&&cats.length>1?`<div class="bd-total"><span>All role types <b>${grand}</b> credits</span></div>`:"");
+  return h+(cards||`<article class="card">${s.q?empty("No roles match",`No role title ${sel.nt==="__all"?"in any role type":`in ${esc(sel.nt)}`} contains “${esc(s.q)}”.`)
+    :empty("No non-teaching roles yet","Add one from Edit roles.")}</article>`)
+   +(sel.nt==="__all"&&data.length>1?`<div class="bd-total"><span>All role types <b>${grand}</b> credits</span></div>`:"");
  }
 
  const roles=sel.nt==="__all"?NT_CATS.flatMap(c=>yd.nt.filter(r=>r.cat===c).sort(byTitle)):yd.nt.filter(r=>r.cat===sel.nt).sort(byTitle);
@@ -1675,6 +1686,23 @@ VIEWS.nt=()=>{
    <input id="nt-${r.id}-n" class="num" type="number" min="0" value="0" aria-label="Credits"><input id="nt-${r.id}-c" maxlength="50" placeholder="Comment" aria-label="Comment">
    <button class="btn small primary" data-act="ntAdd" data-r="${r.id}">Add</button></div></article>`).join("");
 };
+
+// Release 0.8.3 (nt_search()): the Summary's "Role title contains…" search, trimmed and matched in any case; more
+// than 60 characters is refused (the box allows 60). {q: the search to use ("" = none), box: the box's text, err}.
+function ntSearch(){
+ const v=String(sel.ntQ||"").trim();
+ return v.length>60?{q:"",box:v,err:"Type 1 to 60 characters of a role title."}:{q:v,box:v,err:""};
+}
+const ntMatch=(title,q)=>!q||title.toLowerCase().includes(q.toLowerCase());
+// The Summary's role types: the chosen one, or (All) every type with roles this year, in role type order.
+const ntSummaryCats=()=>!sel.nt?[]:sel.nt==="__all"?NT_CATS.filter(c=>Y().nt.some(r=>r.cat===c)):[sel.nt];
+// What the Summary shows (nt_summary_data()), used to draw it and for its CSV: [{cat, roles}], each role matching
+// the search, by title, with ps = its holders by staff ID.
+const ntSummaryData=(cats,q)=>cats.map(cat=>({cat,roles:Y().nt.filter(r=>r.cat===cat&&ntMatch(r.title,q)).sort((a,b)=>a.title.localeCompare(b.title))
+ .map(r=>({...r,ps:[...r.people].sort((a,b)=>a.s.localeCompare(b.s,"en",{numeric:true}))}))}));
+// The Summary as CSV rows (nt_csv_rows()): a row per holder, and one per role nobody holds (Staff blank, Credits 0).
+const ntCsvRows=data=>({cols:["Role type","Role","Staff","Main group","Credits","Comments"],num:[4],
+ rows:data.flatMap(({cat,roles})=>roles.flatMap(r=>r.ps.length?r.ps.map(p=>[cat,r.title,nameOf(p.s),(SY(p.s)||{}).group||"—",p.cr,p.note||""]):[[cat,r.title,"","",0,""]]))});
 
 /* ------------------------------ timetables ------------------------------ */
 const colorIdx=code=>[...code].reduce((a,c)=>a+c.charCodeAt(0),0)%4;
@@ -1903,7 +1931,7 @@ VIEWS.reports=()=>{
   // everyone else, placeholders included, counts as permanent); nobody left gives an empty state naming the filter
   const show=TARGET_SHOW[sel.targetShow]?sel.targetShow:"all";
   const rows=inYear().filter(p=>show==="all"||isAssoc(SY(p.id).status)===(show==="assoc")).map(p=>({p,t:SY(p.id).target,a:breakdown(p.id).total})).sort((x,y)=>(y.t?y.a/y.t:0)-(x.t?x.a/x.t:0));
-  body=`<div class="card-head"><h2>Staff against target</h2><span class="muted" style="font-size:11px">Highest percentage first</span></div>
+  body=`<div class="card-head"><div class="left"><h2>Staff against target</h2><span class="muted" style="font-size:11px">Highest percentage first</span></div>${rows.length?`<button class="btn small primary" data-act="exportTarget">Export CSV</button>`:""}</div>
    <div class="filterbar" style="margin:12px 18px 0"><label class="field">Show${selectH('data-chg="targetShow" aria-label="Show which staff"',Object.entries(TARGET_SHOW).map(([v,l])=>({v,l})),show)}</label></div>
    ${rows.length?`<div class="bars">
    ${rows.map(r=>{const pct=r.t?Math.round(r.a/r.t*100):0;return `<div class="bar-row"><b>${esc(nameOf(r.p.id))}</b><div class="bar-track"><i class="${pct>100?"over":""}" style="width:${Math.min(100,pct)}%"></i></div><span>${r.a} / ${r.t||"no target"}${r.t?` (${pct}%)`:""}</span></div>`;}).join("")}</div>`
@@ -1918,6 +1946,23 @@ VIEWS.reports=()=>{
 
 // Staff against target's Show filter (RM_TARGET_SHOW on the server, release 0.8.1)
 const TARGET_SHOW={all:"All staff",perm:"Permanent staff only",assoc:"Associate Lecturers only"};
+// Staff against target's Export CSV (report_target_rows(), release 0.8.3): the old Credit totals query's table for the
+// Show filter, in staff ID order (not the bars' order); Remaining is target minus total, negative when over.
+const targetRows=show=>({cols:["Staff","Main group","Contract","Target","Total","Remaining"],num:[3,4,5],
+ rows:inYear().filter(x=>show==="all"||isAssoc(SY(x.id).status)===(show==="assoc")).map(x=>{const s=SY(x.id),t=breakdown(x.id).total;return [...nameAndGroup(x.id),s.status,s.target,t,s.target-t];})});
+// Release 0.8.3 (report_moved()): five saved queries were folded into the main screens; an old key opens the screen
+// that replaced it. Role holders by role type (04): Non-teaching roles Summary for its role type (else All role
+// types); Non-teaching role totals (05) and Non-teaching roles with staff (10): All role types; Role holders by title
+// (09): All role types searching for its text (default "Personal Academic Tutor"); Credit totals (11): Staff against
+// target, Include = All staff, Leave out = Permanent staff only.
+function movedQuery(){
+ const k=String(sel.report||""),p=(sel.qp||{})[k.slice(2)]||{};
+ if(k==="q:11"){sel.report="target";sel.targetShow=p.hpl==="Include"?"all":"perm";return;}
+ if(!["q:04","q:05","q:09","q:10"].includes(k))return;
+ sel.report="activity";tab="nt";sel.ntMode="summary";
+ sel.nt=k==="q:04"&&NT_CATS.includes(p.type)?p.type:"__all";
+ sel.ntQ=k==="q:09"?(p.text!=null?String(p.text):"Personal Academic Tutor"):"";
+}
 // The Activity breakdown's warning about this year's roles without a role type (report_untyped_warning(), 0.8.1):
 // their credits are on no line and not in the Total, so it lists each (title, holders with credits) and links to
 // Non-teaching roles to choose a type (a previous year is read-only, which it says). '' when there are none.
@@ -1931,11 +1976,10 @@ function reportUntypedWarning(){
 
 /* ---------------------------- Ad hoc queries ----------------------------
    Saved, read-only reports replacing the old free-text SQL. Parameters are plain values that are
-   matched in code (in the real system: bound parameters), never run as SQL. No query can change data. */
+   matched in code (in the real system: bound parameters), never run as SQL. No query can change data.
+   Release 0.8.3: 04, 05, 09, 10 and 11 were folded into Non-teaching roles and Staff against target (movedQuery()). */
 const nameAndGroup=id=>[nameOf(id),(SY(id)||{}).group||"—"];
 const semestersOf=(m,o)=>CATS.filter(k=>k.tt&&(o.slots[k.id].total||(Y().sessions[skey(m.code,o.occ,k.id)]||[]).length)).map(k=>k.label).join(", ");
-const ntHolders=filter=>{const out=[];NT_CATS.forEach(cat=>Y().nt.filter(r=>r.cat===cat&&filter(r)).sort((a,b)=>a.title.localeCompare(b.title)).forEach(r=>
- r.people.slice().sort((a,b)=>byStaffId({id:a.s},{id:b.s})).forEach(p=>out.push([r.title,...nameAndGroup(p.s),p.cr,p.note||""]))));return out;};
 const QUERIES=[
  {id:"01",name:"Module details",desc:"Every module occurrence with its leader, department, credits and courses. Occurrences without a leader are included.",
   run:()=>({cols:["Module","Title","Occ.","Department","Credits","Leader","Courses"],num:[4],
@@ -1948,13 +1992,6 @@ const QUERIES=[
   run:()=>({cols:["Staff","Main group","Credits","Teaching"],num:[2],
    rows:inYear().filter(x=>isAssoc(SY(x.id).status)).map(x=>[...nameAndGroup(x.id),breakdown(x.id).total,
     Y().modules.flatMap(m=>m.occs.filter(o=>CATS.some(k=>x.id in o.slots[k.id].alloc)).map(o=>`${m.code}-${o.occ}`)).join(", ")])})},
- {id:"04",name:"Role holders by role type",desc:"Everyone holding a non-teaching role of the type you choose (replaces the old \"RASA\" query, which used fixed type codes).",
-  params:[{id:"type",label:"Role type",type:"select",opts:()=>NT_CATS,def:()=>{const used=NT_CATS.filter(c=>Y().nt.some(r=>r.cat===c&&r.people.length));return used.find(c=>/research/i.test(c))||used[0]||NT_CATS[0];}}],
-  run:p=>({cols:["Role","Staff","Main group","Credits","Comments"],num:[3],rows:ntHolders(r=>r.cat===p.type)})},
- {id:"05",name:"Non-teaching role totals",desc:"Each non-teaching role with its role type, number of holders and total credits, including roles nobody holds yet.",
-  params:[{id:"which",label:"Show",type:"select",opts:()=>["All role types","Management only","Non-management only"],def:"All role types"}],
-  run:p=>{const keep=c=>p.which==="Management only"?isMgmtType(c):p.which==="Non-management only"?!isMgmtType(c):true;
-   return {cols:["Role type","Role","Holders","Total credits"],num:[2,3],rows:NT_CATS.filter(keep).flatMap(cat=>Y().nt.filter(r=>r.cat===cat).sort((a,b)=>a.title.localeCompare(b.title)).map(r=>[cat,r.title,r.people.length,r.people.reduce((a,x)=>a+x.cr,0)]))};}},
  {id:"06",name:"Leaders and moderators",desc:"Every occurrence with the semesters it's taught in, its leader and its moderator (replaces the old module leaders and moderators queries). Gaps are shown, not dropped.",
   run:()=>({cols:["Module","Title","Occ.","Credits","Taught in","Leader","Moderator"],num:[3],
    rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.map(o=>[m.code,m.title,o.occ,m.credit,semestersOf(m,o)||"(not timetabled)",
@@ -1970,15 +2007,6 @@ const QUERIES=[
   run:()=>({cols:["Module","Occ.","Title","Department"],rows:Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).flatMap(m=>m.occs.filter(o=>!CATS.some(k=>o.slots[k.id].total)).map(o=>[m.code,o.occ,m.title,m.dept]))})},
  {id:"c5",check:true,name:"Courses with no modules",desc:"Courses (in Course details order) that no module occurrence this year is linked to.",
   run:()=>({cols:["Course","Department"],rows:COURSES.filter(c=>!Y().modules.some(m=>m.occs.some(o=>o.courses.includes(c.code)))).map(c=>[c.title,c.dept])})},
- {id:"09",name:"Role holders by title",desc:"Everyone in non-teaching roles whose title contains what you type, for example Personal Academic Tutor (replaces \"List of PAT\").",
-  params:[{id:"text",label:"Role title contains",type:"text",def:"Personal Academic Tutor",check:v=>v.trim().length>0&&v.length<=60||"Type 1 to 60 characters."}],
-  run:p=>({cols:["Role","Staff","Main group","Credits","Comments"],num:[3],rows:ntHolders(r=>r.title.toLowerCase().includes(p.text.trim().toLowerCase()))})},
- {id:"10",name:"Non-teaching roles with staff",desc:"Every non-teaching role with its role type, holders, credits and comments, in role type order.",
-  run:()=>({cols:["Role type","Role","Staff","Main group","Credits","Comments"],num:[4],rows:NT_CATS.flatMap(cat=>ntHolders(r=>r.cat===cat).map(x=>[cat,...x]))})},
- {id:"11",name:"Credit totals",desc:"Each member of staff's total credits against their target. Unlike the old query, people with no allocations yet are included.",
-  params:[{id:"hpl",label:"Associate Lecturers (AL)",type:"select",opts:()=>["Leave out","Include"],def:"Leave out"}],
-  run:p=>({cols:["Staff","Main group","Contract","Target","Total","Remaining"],num:[3,4,5],
-   rows:inYear().filter(x=>p.hpl==="Include"||!isAssoc(SY(x.id).status)).map(x=>{const s=SY(x.id),t=breakdown(x.id).total;return [...nameAndGroup(x.id),s.status,s.target,t,s.target-t];})})},
  {id:"12",name:"Tutors by module",desc:"Everyone teaching on each module occurrence, with their credits in each category.",
   params:[{id:"dept",label:"Owning department",type:"select",opts:()=>["All departments"].concat(GROUPS.filter(g=>g.dept).map(g=>g.id)),def:"All departments"}],
   run:p=>({cols:["Module","Title","Occ.","Staff","Credits"],
@@ -1987,6 +2015,12 @@ const QUERIES=[
 ];
 const qParams=q=>{sel.qp=sel.qp||{};const v=sel.qp[q.id]=sel.qp[q.id]||{};(q.params||[]).forEach(p=>{if(v[p.id]==null)v[p.id]=typeof p.def==="function"?p.def():p.def;});return v;};
 // CSV for the user's own computer. Cells that could start a spreadsheet formula are made safe.
+// The export box (csv_download() on the server, shared since 0.8.3): rows as CSV to copy or download, named <name>-<year>.csv.
+function csvModal(name,r){const csv=toCSV(r);
+ openModal({title:`Export: ${name}`,ok:"Done",body:`<p>${plural(r.rows.length,"row")} as CSV. In the live system this downloads straight to your computer; nothing is saved on the server. Here, copy it below (it's already selected) or try the download.</p>
+  <textarea id="csvOut" readonly style="width:100%;height:220px;font:12px/1.4 monospace">${esc(csv)}</textarea>
+  <p style="margin-top:10px"><a class="btn small" id="csvDl" download="${esc(`${name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")}-${selYear.replace(/[^0-9-]/g,"")}.csv`)}" href="data:text/csv;charset=utf-8,${encodeURIComponent("\ufeff"+csv)}">Download CSV</a></p>`,onOk(){}});
+ $("#modalOk").previousElementSibling.style.display="none";const t=$("#csvOut");t.focus();t.select();}
 // CSV: text that could run as a spreadsheet formula gets a leading '; numbers (e.g. a Remaining of -5) stay plain (0.8)
 function toCSV(r){const cell=v=>{let t=String(v??"");if(typeof v!=="number"&&/^[=+\-@\t\r]/.test(t))t="'"+t;return /[",\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t;};
  return [r.cols].concat(r.rows).map(row=>row.map(cell).join(",")).join("\r\n");}
@@ -2395,11 +2429,12 @@ const ACT={
  ctView(el){sel.ctView=el.dataset.v;render();},
  report(el){sel.report=el.dataset.v;render();},
  query(el){sel.report=el.dataset.v?"q:"+el.dataset.v:"activity";tab="reports";render(true);},
- exportQuery(){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(!q)return;const r=q.run(qParams(q)),csv=toCSV(r);
-  openModal({title:`Export: ${q.name}`,ok:"Done",body:`<p>${plural(r.rows.length,"row")} as CSV. In the live system this downloads straight to your computer; nothing is saved on the server. Here, copy it below (it's already selected) or try the download.</p>
-   <textarea id="csvOut" readonly style="width:100%;height:220px;font:12px/1.4 monospace">${esc(csv)}</textarea>
-   <p style="margin-top:10px"><a class="btn small" id="csvDl" download="${esc(`${q.name.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"")}-${selYear.replace(/[^0-9-]/g,"")}.csv`)}" href="data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+csv)}">Download CSV</a></p>`,onOk(){}});
-  $("#modalOk").previousElementSibling.style.display="none";const t=$("#csvOut");t.focus();t.select();},
+ exportQuery(){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(!q)return;csvModal(q.name,q.run(qParams(q)));},
+ // Release 0.8.3: Staff against target's table for the Show filter, and what the Non-teaching roles Summary shows
+ exportTarget(){csvModal("Staff against target",targetRows(TARGET_SHOW[sel.targetShow]?sel.targetShow:"all"));},
+ ntExport(){const s=ntSearch();if(!sel.nt||s.err)return;csvModal("Non-teaching roles "+(sel.nt==="__all"?"All role types":sel.nt),ntCsvRows(ntSummaryData(ntSummaryCats(),s.q)));},
+ ntSearch(){sel.ntQ=$("#ntQ").value;if(!sel.nt&&sel.ntQ.trim())sel.nt="__all";render();},
+ ntSearchClear(){sel.ntQ="";render();},
 
  /* ---- staff ---- */
  newStaff(){
@@ -2934,6 +2969,8 @@ const CHG={
  selCtYear(el){sel.ctYear=el.value;render();},
  selLeadCourse(el){sel.leadCourse=el.value;render();},
  selNt(el){sel.nt=el.value;render();},
+ // the Summary's search (0.8.3): applied when the box changes (Enter or leaving it); searching with no role type chosen searches them all
+ ntQ(el){sel.ntQ=el.value;if(!sel.nt&&sel.ntQ.trim())sel.nt="__all";render();},
  groupField(el){if(!isOwner())return;const g=G(sel.group),f=el.dataset.f;
   if(f==="name"){if(!el.value.trim())return render();g.name=el.value.trim();}else if(f==="dept")g.dept=el.value==="1";else g[f]=el.value;toast("Group updated",g.name);render();},
  staffGroup(el){
