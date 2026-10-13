@@ -1922,7 +1922,7 @@ VIEWS.reports=()=>{
   const gs=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
   const rows=CATS.map(c=>({l:c.label,f:id=>breakdown(id)[c.id]})).concat(NT_CATS.map(cat=>({l:cat,f:id=>Y().nt.filter(r=>r.cat===cat).reduce((a,r)=>a+r.people.filter(p=>p.s===id).reduce((x,p)=>x+p.cr,0),0)})));
   const val=(r,g)=>inYear().filter(p=>SY(p.id).group===g.id).reduce((a,p)=>a+r.f(p.id),0);
-  body=`<div class="card-head"><h2>Activity breakdown</h2><span class="muted" style="font-size:11px">Allocated credits by each person's main department</span></div>${reportUntypedWarning()}<div class="table-wrap"><table><thead><tr><th>Activity</th>${gs.map(g=>`<th class="r">${g.id}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>
+  body=`<div class="card-head"><div class="left"><h2>Activity breakdown</h2><span class="muted" style="font-size:11px">Allocated credits by each person's main department</span></div><button class="btn small primary" data-act="exportActivity">Export CSV</button></div>${reportUntypedWarning()}<div class="table-wrap"><table><thead><tr><th>Activity</th>${gs.map(g=>`<th class="r">${g.id}</th>`).join("")}<th class="r">Total</th></tr></thead><tbody>
    ${rows.map(r=>{const v=gs.map(g=>val(r,g));return `<tr><td>${esc(r.l)}</td>${v.map(x=>`<td class="r">${x}</td>`).join("")}<td class="r"><b>${v.reduce((a,b)=>a+b,0)}</b></td></tr>`;}).join("")}
    <tr class="sum"><td>Total</td>${gs.map(g=>`<td class="r">${rows.reduce((a,r)=>a+val(r,g),0)}</td>`).join("")}<td class="r">${rows.reduce((a,r)=>a+gs.reduce((x,g)=>x+val(r,g),0),0)}</td></tr></tbody></table></div>
    <p class="hint" style="padding:0 18px 14px">Credits are shown under each person's main department.</p>`;
@@ -1938,7 +1938,7 @@ VIEWS.reports=()=>{
    :empty("No staff to show",esc({all:"Nobody is on the staff list for this year.",perm:"Everyone this year is an Associate Lecturer.",assoc:"Nobody this year is an Associate Lecturer."}[show]))}`;
  }else{
   const rows=[];Y().modules.forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const s=o.slots[c.id],a=sumV(s.alloc);if(s.total||a)rows.push({m,o,c,t:s.total,a});})));
-  body=`<div class="card-head"><h2>Module budgets</h2><span class="muted" style="font-size:11px">Every category with a budget or allocation</span></div><div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Category</th><th class="r">Budget</th><th class="r">Allocated</th><th class="r">Unallocated</th></tr></thead><tbody>
+  body=`<div class="card-head"><div class="left"><h2>Module budgets</h2><span class="muted" style="font-size:11px">Every category with a budget or allocation</span></div>${rows.length?`<button class="btn small primary" data-act="exportBudgets">Export CSV</button>`:""}</div><div class="table-wrap"><table><thead><tr><th>Module</th><th>Occ.</th><th>Category</th><th class="r">Budget</th><th class="r">Allocated</th><th class="r">Unallocated</th></tr></thead><tbody>
    ${rows.map(r=>`<tr><td class="name-cell">${r.m.code}</td><td>${r.o.occ}</td><td>${esc(r.c.label)}</td><td class="r">${r.t}</td><td class="r">${r.a}</td><td class="r">${r.t-r.a<0?`<span class="tag red">${r.t-r.a}</span>`:r.t-r.a}</td></tr>`).join("")}</tbody></table></div>`;
  }
  return h+`<div class="report-grid">${menu}<article class="card">${body}</article></div>`;
@@ -2431,6 +2431,16 @@ const ACT={
  query(el){sel.report=el.dataset.v?"q:"+el.dataset.v:"activity";tab="reports";render(true);},
  exportQuery(){const q=QUERIES.find(x=>"q:"+x.id===sel.report);if(!q)return;csvModal(q.name,q.run(qParams(q)));},
  // Release 0.8.3: Staff against target's table for the Show filter, and what the Non-teaching roles Summary shows
+ // Activity breakdown and Module budgets as CSV (0.8.4): the same tables as on screen (Activity's Total row included;
+ // budgets in module code order, as the server lists them)
+ exportActivity(){const gs=GROUPS.filter(g=>inYear().some(p=>SY(p.id).group===g.id));
+  const lines=CATS.map(c=>({l:c.label,f:id=>breakdown(id)[c.id]})).concat(NT_CATS.map(cat=>({l:cat,f:id=>Y().nt.filter(r=>r.cat===cat).reduce((a,r)=>a+r.people.filter(p=>p.s===id).reduce((x,p)=>x+p.cr,0),0)})));
+  const val=(r,g)=>inYear().filter(p=>SY(p.id).group===g.id).reduce((a,p)=>a+r.f(p.id),0);
+  const rows=lines.map(r=>{const v=gs.map(g=>val(r,g));return [r.l,...v,v.reduce((a,b)=>a+b,0)];});
+  const sums=gs.map((g,i)=>rows.reduce((a,r)=>a+r[i+1],0));rows.push(["Total",...sums,sums.reduce((a,b)=>a+b,0)]);
+  csvModal("Activity breakdown",{cols:["Activity",...gs.map(g=>g.id),"Total"],rows});},
+ exportBudgets(){const rows=[];Y().modules.slice().sort((a,b)=>a.code.localeCompare(b.code)).forEach(m=>m.occs.forEach(o=>CATS.forEach(c=>{const s=o.slots[c.id],a=sumV(s.alloc);if(s.total||a)rows.push([m.code,o.occ,c.label,s.total,a,s.total-a]);})));
+  csvModal("Module budgets",{cols:["Module","Occ.","Category","Budget","Allocated","Unallocated"],rows});},
  exportTarget(){csvModal("Staff against target",targetRows(TARGET_SHOW[sel.targetShow]?sel.targetShow:"all"));},
  ntExport(){const s=ntSearch();if(!sel.nt||s.err)return;csvModal("Non-teaching roles "+(sel.nt==="__all"?"All role types":sel.nt),ntCsvRows(ntSummaryData(ntSummaryCats(),s.q)));},
  ntSearch(){sel.ntQ=$("#ntQ").value;if(!sel.nt&&sel.ntQ.trim())sel.nt="__all";render();},
