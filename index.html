@@ -1528,6 +1528,15 @@ VIEWS.alloc=()=>{
 /* ---------------------------- Module sessions ---------------------------- */
 // A semester is offered for sessions only if it has a budget or credits allocated on that occurrence, or already has sessions.
 const semsOpen=(m,o)=>CATS.filter(c=>c.tt&&(o.slots[c.id].total>0||sumV(o.slots[c.id].alloc)>0||(Y().sessions[skey(m.code,o.occ,c.id)]||[]).length));
+// The blank row from Add session (as the server, release 1.0 revised): empty boxes, so the Day list offers every day;
+// it becomes a session once it has a day and a start time (the end defaults to an hour later). ✕ leaves it out.
+const newSessRow=d=>`<div class="session-row new-session">
+ <input value="${esc(d.day)}" data-combo="day" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" data-chg="sessNew" data-key="${d.key}" data-f="day" aria-label="Day of the new session" placeholder="Choose a day" autocomplete="off">
+ <input value="${esc(d.start)}" data-chg="sessNew" data-key="${d.key}" data-f="start" aria-label="Start time of the new session" placeholder="Start" inputmode="numeric" autocomplete="off">
+ <input value="${esc(d.end)}" data-chg="sessNew" data-key="${d.key}" data-f="end" aria-label="End time of the new session" placeholder="End" inputmode="numeric" autocomplete="off">
+ <input value="${esc(d.c)}" data-chg="sessNew" data-key="${d.key}" data-f="c" maxlength="100" placeholder="e.g. Seminar group 1" aria-label="Notes for the new session" autocomplete="off">
+ <button class="icon-btn" data-act="sessNewCancel" aria-label="Leave out the new session" title="Leave out the new session">✕</button></div>
+ <p class="muted" style="font-size:12px;margin:6px 0 0">New session: choose the day and type the start time (the end defaults to an hour later). Left empty, it isn't added.</p>`;
 VIEWS.sessions=()=>{
  const m=ensureModule(),ed=canEdit("sessions");
  let h=pageHead("Timetabling","Module sessions","Day and time of each occurrence's timetabled teaching. Everyone allocated to that semester sees these sessions on their timetable.",
@@ -1547,12 +1556,13 @@ VIEWS.sessions=()=>{
    const key=skey(m.code,o.occ,c.id),list=Y().sessions[key]||[],who=Object.keys(o.slots[c.id].alloc).filter(id=>hasCredits(o.slots[c.id].alloc[id])).map(nameOf),otherSems=semsOpen(m,o).filter(x=>x.id!==c.id).length;
    return `<div class="sem-block"><div class="sem-head"><div><h3>${esc(c.label)}</h3><span class="sub">${who.length?"Taught by "+esc(who.join(", ")):"No staff allocated to this semester yet"}</span></div>
     ${ed?`<div class="actions">${list.length&&otherSems?`<button class="btn small" data-act="copySem" data-occ="${esc(o.occ)}" data-cat="${c.id}">Copy to other semesters</button>`:""}<button class="btn small" data-act="addSess" data-key="${key}">Add session</button></div>`:""}</div>
-    ${list.length?`<div class="session-row headrow"><span>Day</span><span>Start</span><span>End</span><span>Notes</span><span></span></div>`+list.map((s,i)=>`<div class="session-row">
+    ${list.length||(ed&&sel.sessNew&&sel.sessNew.key===key)?`<div class="session-row headrow"><span>Day</span><span>Start</span><span>End</span><span>Notes</span><span></span></div>`+list.map((s,i)=>`<div class="session-row">
      <input value="${DAY_NAME[s.day]}" data-combo="day" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="comboPop" data-chg="sess" data-key="${key}" data-i="${i}" data-f="day" aria-label="Day" autocomplete="off"${ed?"":" disabled"}>
      <input value="${fmt(s.start)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="start" aria-label="Start time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
      <input value="${fmt(s.end)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="end" aria-label="End time" inputmode="numeric" autocomplete="off"${ed?"":" disabled"}>
      <input value="${esc(s.c)}" data-chg="sess" data-key="${key}" data-i="${i}" data-f="c" placeholder="e.g. Seminar group 1" aria-label="Notes"${ed?"":" disabled"}>
      ${ed?`<button class="icon-btn" data-act="rmSess" data-key="${key}" data-i="${i}" aria-label="Delete session">✕</button>`:"<span></span>"}</div>`).join("")
+     +(ed&&sel.sessNew&&sel.sessNew.key===key?newSessRow(sel.sessNew):"")
     :`<p class="muted" style="font-size:12px;margin:6px 0 0">No sessions yet.</p>`}</div>`;}).join("")||`<div class="sem-block"><p class="muted" style="font-size:12px;margin:0">No semester has credits budgeted for this occurrence yet, so there's nothing to timetable. Budgets are set on Module details.</p></div>`)}
  </article>`).join("");
 };
@@ -2668,11 +2678,13 @@ const ACT={
  },
 
  /* ---- sessions ---- */
+ // Add session (release 1.0, revised): a blank row to fill in, with the day list open; nothing is added until it has
+ // a day and a start time (CHG.sessNew)
  addSess(el){
-  if(!guard("sessions"))return;const key=el.dataset.key,list=(Y().sessions[key]=Y().sessions[key]||[]);
-  const last=list[list.length-1];list.push(last?{day:last.day,start:last.end<=20.25?last.end:9.25,end:Math.min(21.25,(last.end<=20.25?last.end:9.25)+1),c:""}:{day:"Mon",start:9.25,end:10.25,c:""});
-  sessTouch(key,"Added a session");render();
+  if(!guard("sessions"))return;sel.sessNew={key:el.dataset.key,day:"",start:"",end:"",c:""};render();
+  const d=document.querySelector('input[data-chg="sessNew"][data-f="day"]');if(d){d.focus();comboOpen(d);}
  },
+ sessNewCancel(){sel.sessNew=null;render();},
  rmSess(el){if(!guard("sessions"))return;const key=el.dataset.key;Y().sessions[key].splice(+el.dataset.i,1);sessTouch(key,"Removed a session");render();},
  copySem(el){
   if(!guard("sessions"))return;
@@ -3046,6 +3058,30 @@ const CHG={
   }else s[f]=v;
   sessTouch(key,"Changed a session");render();
  },
+ // A box in the blank new-session row: checked as it's filled; once there's a day and a start time it becomes a
+ // session (the end an hour later unless typed), and the cursor moves on to the next box (as the server's rules)
+ sessNew(el){
+  if(!guard("sessions"))return render();const d=sel.sessNew;if(!d||d.key!==el.dataset.key)return render();
+  const key=d.key,f=el.dataset.f,v=el.value,label=sessLabel(key)+" (new session)";d[f]=v;
+  const next=f2=>{render();const b=document.querySelector(`input[data-chg="sessNew"][data-f="${f2}"]`);if(b){b.focus();if(b.value)b.select();}};
+  const add=(day,start,end)=>{(Y().sessions[key]=Y().sessions[key]||[]).push({day,start,end,c:d.c.trim().slice(0,100)});sel.sessNew=null;
+   sessTouch(key,"Added a session");toast("Session added",`${DAY_NAME[day]} ${fmt(start)}–${fmt(end)}`);render();
+   // straight on to its End box, so a different end can be typed over the default
+   if(f==="start"){const e=document.querySelectorAll(`input[data-chg="sess"][data-key="${CSS.escape(key)}"][data-f="end"]`);const b=e[e.length-1];if(b){b.focus();b.select();}}};
+  if(f==="day"){
+   const line=/^\s*([a-z]+)[\s,]+([\d:.]+\s*(?:am|pm)?)\s*(?:-|–|—|to)\s*([\d:.]+\s*(?:am|pm)?)\s*$/i.exec(v);
+   if(line){const dd=parseDay(line[1]),a=parseTime(line[2]),b=parseTime(line[3]);
+    if(dd&&a!=null&&b!=null&&b>a){if(a<8||b>22){toast("Nothing was saved",`${label}: “${v.trim()}” is outside the teaching day (type times between 08:00 and 22:00).`,true);return render();}return add(dd,a,b);}}
+   if(v.trim()&&!parseDay(v)){toast("Day not recognised","Use Monday to Friday, for example Mon or Tuesday.",true);return render();}
+  }
+  if((f==="start"||f==="end")&&v.trim()){const t=parseTime(v);
+   if(t==null||t<8||t>22){toast("Time not recognised","Type a time between 08:00 and 22:00, such as 9, 9:15, 0915 or 2pm. An hour on its own becomes quarter past.",true);return render();}}
+  const day=parseDay(d.day),start=d.start.trim()?parseTime(d.start):null;
+  if(day&&start!=null){const end=d.end.trim()?parseTime(d.end):Math.min(22,start+1);
+   if(end<=start){toast("Nothing was saved",`${label}: a session has to end after it starts.`,true);return render();}
+   return add(day,start,end);}
+  next({day:"start",start:"end",end:"c",c:"c"}[f]);
+ },
  leader(el){
   if(!guard("leaders"))return render();const m=M(el.dataset.module||sel.module),o=m.occs.find(x=>x.occ===el.dataset.occ),c=el.dataset.cat,id=el.value,slot=o.slots[c];
   const role=c==="ML"?"module leader":"moderator",before=Object.keys(slot.alloc);
@@ -3148,6 +3184,10 @@ document.addEventListener("keydown",e=>{const box=e.target.closest&&e.target.clo
  else if(e.key==="Tab"&&open)comboClose(false);
 },true);
 document.addEventListener("focusout",e=>{if(COMBO.el&&e.target===COMBO.el)comboClose(false);});
+// Module sessions (release 1.0, revised): clicking into a Start or End box selects the time, so typing replaces it
+let timeFresh=null;
+document.addEventListener("focusin",e=>{const t=e.target;if(t.matches&&t.matches('input[data-f="start"],input[data-f="end"]')){timeFresh=t;t.select();}});
+document.addEventListener("mouseup",e=>{if(timeFresh&&e.target===timeFresh){e.preventDefault();}timeFresh=null;});
 window.addEventListener("resize",()=>{if(COMBO.el)comboPlace();});
 document.addEventListener("scroll",()=>{if(COMBO.el)comboPlace();},true);
 
